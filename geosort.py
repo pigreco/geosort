@@ -75,7 +75,7 @@ class GeoSort:
         if self._dlg is None:
             self._dlg = GeoSortDialog(parent=self.iface.mainWindow(), iface=self.iface)
             # WA_DeleteOnClose garantisce che Qt distrugga il widget alla chiusura
-            self._dlg.setAttribute(Qt.WA_DeleteOnClose)
+            self._dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
             self._dlg.finished.connect(self._on_dialog_finished)
 
         self._dlg.show()

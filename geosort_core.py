@@ -8,6 +8,7 @@ il campo sort_order al layer o creare un layer in memoria.
 """
 
 import math
+import re
 
 from qgis.core import (
     QgsWkbTypes,
@@ -24,7 +25,7 @@ from qgis.core import (
     Qgis,
     NULL,
 )
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Costanti
@@ -52,10 +53,23 @@ LOG_TAG = "GeoSort"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Natural Sort
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _natural_key(val):
+    """Chiave per ordinamento naturale: spezza la stringa in segmenti int/str.
+
+    Esempi: "11" < "1010" < "1111" invece di "1010" < "11" < "1111".
+    """
+    return [int(chunk) if chunk.isdigit() else chunk.lower()
+            for chunk in re.split(r"(\d+)", str(val))]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Ordinamento per attributo
 # ──────────────────────────────────────────────────────────────────────────────
 
-def sort_by_attribute(features, field, ascending=True, nulls_last=True):
+def sort_by_attribute(features, field, ascending=True, nulls_last=True, natural_sort=False):
     """Ordina le feature per valore di un campo attributo.
 
     Args:
@@ -73,7 +87,9 @@ def sort_by_attribute(features, field, ascending=True, nulls_last=True):
         val = f[field]
         is_null = val is None or val == NULL
         if is_null:
-            return (null_priority, "")
+            return (null_priority, [])
+        if natural_sort:
+            return (0, _natural_key(val))
         try:
             return (0, val)
         except TypeError:
@@ -86,7 +102,7 @@ def sort_by_attribute(features, field, ascending=True, nulls_last=True):
 # Ordinamento per espressione QGIS
 # ──────────────────────────────────────────────────────────────────────────────
 
-def sort_by_expression(features, layer, expression_str, ascending=True, nulls_last=True):
+def sort_by_expression(features, layer, expression_str, ascending=True, nulls_last=True, natural_sort=False):
     """Ordina le feature valutando un'espressione QGIS per ciascuna.
 
     Supporta qualsiasi espressione valida nel field calculator di QGIS:
@@ -132,7 +148,7 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
         if expr.hasEvalError():
             msg = f"FID {feat.id()}: {expr.evalErrorString()}"
             warnings.append(msg)
-            QgsMessageLog.logMessage(msg, LOG_TAG, Qgis.Warning)
+            QgsMessageLog.logMessage(msg, LOG_TAG, Qgis.MessageLevel.Warning)
             val = None
 
         # Normalizza NULL e None allo stesso trattamento
@@ -142,7 +158,9 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
     def sort_key(item):
         _feat, val, is_null = item
         if is_null:
-            return (null_priority, "")
+            return (null_priority, [])
+        if natural_sort:
+            return (0, _natural_key(val))
         try:
             return (0, val)
         except TypeError:
@@ -266,7 +284,7 @@ def sort_by_geometry_property(features, criterion, ascending=True):
         try:
             return _geom_value(f, criterion)
         except Exception as exc:
-            QgsMessageLog.logMessage(str(exc), LOG_TAG, Qgis.Warning)
+            QgsMessageLog.logMessage(str(exc), LOG_TAG, Qgis.MessageLevel.Warning)
             return 0.0
 
     sorted_feats = sorted(features, key=key, reverse=not ascending)
@@ -460,14 +478,14 @@ def apply_sort_order(
         if not was_editing:
             if not layer.startEditing():
                 QgsMessageLog.logMessage(
-                    "Impossibile avviare la sessione di editing.", LOG_TAG, Qgis.Critical
+                    "Impossibile avviare la sessione di editing.", LOG_TAG, Qgis.MessageLevel.Critical
                 )
                 return False
 
         # ── Campo sort_order ──────────────────────────────────────────────────
         sort_idx = layer.fields().indexOf("sort_order")
         if sort_idx == -1:
-            layer.addAttribute(QgsField("sort_order", QVariant.Int))
+            layer.addAttribute(QgsField("sort_order", QMetaType.Type.Int))
             layer.updateFields()
             sort_idx = layer.fields().indexOf("sort_order")
 
@@ -476,7 +494,7 @@ def apply_sort_order(
         if add_criterion_field and criterion_values:
             crit_idx = layer.fields().indexOf(criterion_field_name)
             if crit_idx == -1:
-                layer.addAttribute(QgsField(criterion_field_name, QVariant.Double))
+                layer.addAttribute(QgsField(criterion_field_name, QMetaType.Type.Double))
                 layer.updateFields()
                 crit_idx = layer.fields().indexOf(criterion_field_name)
 
@@ -493,14 +511,14 @@ def apply_sort_order(
         if not layer.commitChanges():
             layer.rollBack()
             QgsMessageLog.logMessage(
-                "Errore nel commit delle modifiche.", LOG_TAG, Qgis.Critical
+                "Errore nel commit delle modifiche.", LOG_TAG, Qgis.MessageLevel.Critical
             )
             return False
 
         return True
 
     except Exception as exc:
-        QgsMessageLog.logMessage(str(exc), LOG_TAG, Qgis.Critical)
+        QgsMessageLog.logMessage(str(exc), LOG_TAG, Qgis.MessageLevel.Critical)
         if layer.isEditable():
             layer.rollBack()
         return False
@@ -537,9 +555,9 @@ def create_memory_layer(
     provider = mem_layer.dataProvider()
 
     original_fields = source_layer.fields().toList()
-    new_fields = original_fields + [QgsField("sort_order", QVariant.Int)]
+    new_fields = original_fields + [QgsField("sort_order", QMetaType.Type.Int)]
     if add_criterion_field and criterion_values:
-        new_fields.append(QgsField(criterion_field_name, QVariant.Double))
+        new_fields.append(QgsField(criterion_field_name, QMetaType.Type.Double))
 
     provider.addAttributes(new_fields)
     mem_layer.updateFields()

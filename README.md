@@ -23,6 +23,18 @@ progressivo `sort_order`.
 | Posizione lungo linea | Tutti | Proiezione del centroide su una linea di riferimento |
 | Espressione QGIS | Tutti | Ordina per il risultato di un'espressione QGIS arbitraria |
 
+### Modalità di ordinamento testuale
+
+Per i criteri **Attributo tabellare** ed **Espressione QGIS** è possibile scegliere tra due modalità:
+
+| Modalità | Comportamento | Esempio |
+|---|---|---|
+| **Lessicografico** (default) | Confronto carattere per carattere | `"1010"` < `"11"` < `"1111"` |
+| **Natural Sort** | Le sequenze di cifre sono confrontate come numeri interi | `"11"` < `"1010"` < `"1111"` |
+
+Il Natural Sort è utile con espressioni di concatenazione (es. `"fid" || "id_poly"`)
+o con campi alfanumerici come `FILE1`, `FILE2`, `FILE10`.
+
 ---
 
 ## Installazione
@@ -63,6 +75,7 @@ result = processing.run("geosort:geosort_sort", {
     'ATTRIBUTE_FIELD': 'area',
     'DIRECTION': True,        # True = Ascendente
     'NULLS_LAST': True,
+    'NATURAL_SORT': False,   # True = Natural Sort (cifre come numeri)
     'ADD_VALUE_FIELD': False,
     'OUTPUT': 'memory:'
 })
