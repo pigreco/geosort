@@ -753,6 +753,7 @@ class GeoSortDialog(QDialog):
         layout = QVBoxLayout(dlg)
         browser = QTextBrowser()
         browser.setOpenExternalLinks(True)
+        browser.setStyleSheet("QTextBrowser { background-color: #ffffff; color: #222222; }")
         browser.setHtml(html)
         layout.addWidget(browser)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
