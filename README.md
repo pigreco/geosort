@@ -4,6 +4,8 @@ Plugin QGIS (≥ 3.16) per ordinare le feature di un layer vettoriale in base
 a criteri geometrici e attributivi, con assegnazione automatica del campo
 progressivo `sort_order`.
 
+![](gui.png)
+
 ---
 
 ## Funzionalità
