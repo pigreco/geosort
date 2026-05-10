@@ -8,6 +8,7 @@ L'intera UI è costruita programmaticamente (nessun file .ui).
 import os
 
 from qgis.PyQt.QtWidgets import (
+    QAbstractItemView,
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
@@ -52,7 +53,7 @@ class _PointPickerTool(QgsMapToolEmitPoint):
     cancelled = pyqtSignal()
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape:
+        if event.key() == Qt.Key.Key_Escape:
             self.cancelled.emit()
         else:
             super().keyPressEvent(event)
@@ -74,7 +75,7 @@ class GeoSortDialog(QDialog):
 
         self.setWindowTitle("GeoSort – Ordinamento Avanzato delle Geometrie")
         self.setMinimumWidth(520)
-        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
 
         self._build_ui()
         self._connect_signals()
@@ -287,7 +288,7 @@ class GeoSortDialog(QDialog):
         self.preview_table = QTableWidget(0, 3)
         self.preview_table.setHorizontalHeaderLabels(["FID", "sort_order", "Valore criterio"])
         self.preview_table.setMaximumHeight(180)
-        self.preview_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.preview_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.preview_table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.preview_table)
 
@@ -440,7 +441,7 @@ class GeoSortDialog(QDialog):
             f"Espressione attiva: {expr_text}\nClicca per rimuoverla e tornare al campo."
         )
         self.lbl_active_expr.mousePressEvent = lambda _: self._clear_expression()
-        self.lbl_active_expr.setCursor(Qt.PointingHandCursor)
+        self.lbl_active_expr.setCursor(Qt.CursorShape.PointingHandCursor)
         self.lbl_active_expr.setVisible(True)
         # Grisa la combo per segnalare che non è usata
         self.combo_field.setEnabled(False)
@@ -586,7 +587,7 @@ class GeoSortDialog(QDialog):
                     from qgis.core import QgsMessageLog, Qgis
                     QgsMessageLog.logMessage(
                         f"Espressione: {len(warnings)} avvisi. Vedere il log per i dettagli.",
-                        "GeoSort", Qgis.Warning,
+                        "GeoSort", Qgis.MessageLevel.Warning,
                     )
                 return sorted_feats, values, "sort_expr", []
 
@@ -754,7 +755,7 @@ class GeoSortDialog(QDialog):
         browser.setOpenExternalLinks(True)
         browser.setHtml(html)
         layout.addWidget(browser)
-        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(dlg.close)
         layout.addWidget(buttons)
         dlg.exec()
@@ -765,7 +766,7 @@ class GeoSortDialog(QDialog):
 
     def keyPressEvent(self, event):
         """ESC chiude il dialog (equivalente ad Annulla)."""
-        if event.key() == Qt.Key_Escape:
+        if event.key() == Qt.Key.Key_Escape:
             self.reject()
         else:
             super().keyPressEvent(event)

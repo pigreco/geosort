@@ -26,7 +26,7 @@ from qgis.core import (
     QgsMessageLog,
     Qgis,
 )
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 from qgis.PyQt.QtGui import QIcon
 
 
@@ -297,9 +297,9 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         out_fields = QgsFields()
         for field in layer.fields():
             out_fields.append(field)
-        out_fields.append(QgsField("sort_order", QVariant.Int))
+        out_fields.append(QgsField("sort_order", QMetaType.Type.Int))
         if add_value:
-            out_fields.append(QgsField("sort_value", QVariant.Double))
+            out_fields.append(QgsField("sort_value", QMetaType.Type.Double))
 
         (sink, dest_id) = self.parameterAsSink(
             parameters,
