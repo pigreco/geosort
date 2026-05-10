@@ -1,8 +1,9 @@
 [general]
 name=GeoSort
 qgisMinimumVersion=3.16
+qgisMaximumVersion=4.99
 description=Sort vector layer features by geometric and attribute criteria | Ordina le feature di un layer vettoriale per criteri geometrici e attributivi
-version=1.0.0
+version=1.1.0
 author=Salvatore Fiandaca
 email=pigrecoinfinito@gmail.com
 about=GeoSort sorts points, lines and polygons by centroid coordinates, area, length,
@@ -29,4 +30,5 @@ experimental=False
 deprecated=False
 server=False
 changelog=
+    1.1.0 Porting QGIS 4 / Qt6 / PyQt6: enum qualificati, QVariant→QMetaType, qgisMaximumVersion=4.99
     1.0.0 Prima release stabile
