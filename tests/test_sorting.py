@@ -1,0 +1,600 @@
+# -*- coding: utf-8 -*-
+"""
+Test sulla logica di ordinamento pura di GeoSort.
+
+Questi test NON richiedono QGIS: usano mock leggeri che replicano
+l'interfaccia di QgsFeature e QgsGeometry necessaria per la logica core.
+Eseguibili con: python -m pytest tests/test_sorting.py  oppure
+                python -m unittest tests.test_sorting
+"""
+
+import math
+import sys
+import os
+import unittest
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Mock leggeri (nessuna dipendenza PyQGIS)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class MockPoint:
+    def __init__(self, x, y):
+        self._x = x
+        self._y = y
+
+    def x(self):
+        return self._x
+
+    def y(self):
+        return self._y
+
+
+class MockGeometryResult:
+    """Restituito da centroid() / pointOnSurface()."""
+    def __init__(self, x, y):
+        self._pt = MockPoint(x, y)
+
+    def asPoint(self):
+        return self._pt
+
+
+class MockGeometry:
+    """Mock minimale di QgsGeometry."""
+    def __init__(self, geom_type, cx=0.0, cy=0.0, area=0.0, length=0.0, n_vertices=4):
+        self._type = geom_type  # "point" | "line" | "polygon"
+        self._cx = cx
+        self._cy = cy
+        self._area = area
+        self._length = length
+        self._n_vertices = n_vertices
+
+    def isMultipart(self):
+        return False
+
+    def centroid(self):
+        return MockGeometryResult(self._cx, self._cy)
+
+    def pointOnSurface(self):
+        return MockGeometryResult(self._cx, self._cy)
+
+    def area(self):
+        if self._type != "polygon":
+            raise ValueError(f"Criterio 'area' richiede geometrie poligonali, trovato: {self._type}.")
+        return self._area
+
+    def length(self):
+        return self._length
+
+
+class MockFeature:
+    """Mock minimale di QgsFeature."""
+    def __init__(self, fid, attributes=None, geometry=None):
+        self._fid = fid
+        self._attrs = attributes or {}
+        self._geom = geometry
+
+    def id(self):
+        return self._fid
+
+    def __getitem__(self, key):
+        return self._attrs.get(key)
+
+    def geometry(self):
+        return self._geom
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Funzioni standalone (stessa logica di geosort_core.py, senza import PyQGIS)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _sort_by_attribute(features, field, ascending=True, nulls_last=True):
+    null_priority = 1 if nulls_last else -1
+
+    def key(f):
+        val = f[field]
+        if val is None:
+            return (null_priority, "")
+        try:
+            return (0, val)
+        except TypeError:
+            return (0, str(val))
+
+    return sorted(features, key=key, reverse=not ascending)
+
+
+def _sort_by_centroid(features, axis="x", ascending=True, ref_point=None):
+    def key(f):
+        geom = f.geometry()
+        pt = geom.centroid().asPoint()
+        if axis == "dist" and ref_point is not None:
+            return math.sqrt(
+                (pt.x() - ref_point[0]) ** 2 + (pt.y() - ref_point[1]) ** 2
+            )
+        return pt.x() if axis == "x" else pt.y()
+
+    sorted_feats = sorted(features, key=key, reverse=not ascending)
+    values = [key(f) for f in sorted_feats]
+    return sorted_feats, values
+
+
+def _check_criterion_compatibility(geom_type, criterion):
+    """Replica la validazione di geosort_core._geom_value()."""
+    if criterion == "area" and geom_type != "polygon":
+        raise ValueError(f"Criterio 'area' richiede geometrie poligonali, trovato: {geom_type}.")
+    if criterion == "perimeter" and geom_type != "polygon":
+        raise ValueError(f"Criterio 'perimeter' richiede geometrie poligonali, trovato: {geom_type}.")
+    if criterion == "length" and geom_type != "line":
+        raise ValueError(f"Criterio 'length' richiede geometrie lineari, trovato: {geom_type}.")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Test: ordinamento per attributo
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestSortByAttribute(unittest.TestCase):
+
+    def _feats(self, values, field="val"):
+        return [MockFeature(i, {field: v}) for i, v in enumerate(values)]
+
+    def test_ascending(self):
+        result = _sort_by_attribute(self._feats([30, 10, 20]), "val", ascending=True)
+        self.assertEqual([f["val"] for f in result], [10, 20, 30])
+
+    def test_descending(self):
+        result = _sort_by_attribute(self._feats([30, 10, 20]), "val", ascending=False)
+        self.assertEqual([f["val"] for f in result], [30, 20, 10])
+
+    def test_null_last(self):
+        result = _sort_by_attribute(self._feats([None, 5, 2]), "val",
+                                    ascending=True, nulls_last=True)
+        self.assertIsNone(result[-1]["val"])
+
+    def test_null_first(self):
+        result = _sort_by_attribute(self._feats([None, 5, 2]), "val",
+                                    ascending=True, nulls_last=False)
+        self.assertIsNone(result[0]["val"])
+
+    def test_already_sorted(self):
+        result = _sort_by_attribute(self._feats([1, 2, 3]), "val", ascending=True)
+        self.assertEqual([f["val"] for f in result], [1, 2, 3])
+
+    def test_single_feature(self):
+        result = _sort_by_attribute(self._feats([42]), "val")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["val"], 42)
+
+    def test_all_nulls(self):
+        result = _sort_by_attribute(self._feats([None, None, None]), "val")
+        self.assertEqual(len(result), 3)
+
+    def test_string_values(self):
+        result = _sort_by_attribute(self._feats(["banana", "apple", "cherry"]), "val",
+                                    ascending=True)
+        self.assertEqual([f["val"] for f in result], ["apple", "banana", "cherry"])
+
+    def test_float_values(self):
+        result = _sort_by_attribute(self._feats([1.5, 0.3, 2.7]), "val", ascending=True)
+        vals = [f["val"] for f in result]
+        self.assertEqual(vals, sorted(vals))
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Test: ordinamento per centroide
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestSortByCentroid(unittest.TestCase):
+
+    def _point_feats(self, coords):
+        return [
+            MockFeature(i, geometry=MockGeometry("point", cx=x, cy=y))
+            for i, (x, y) in enumerate(coords)
+        ]
+
+    def test_sort_x_ascending(self):
+        feats = self._point_feats([(3, 1), (1, 5), (2, 3)])
+        result, _ = _sort_by_centroid(feats, axis="x", ascending=True)
+        xs = [f.geometry().centroid().asPoint().x() for f in result]
+        self.assertEqual(xs, [1.0, 2.0, 3.0])
+
+    def test_sort_y_ascending(self):
+        feats = self._point_feats([(1, 3), (2, 1), (3, 2)])
+        result, _ = _sort_by_centroid(feats, axis="y", ascending=True)
+        ys = [f.geometry().centroid().asPoint().y() for f in result]
+        self.assertEqual(ys, [1.0, 2.0, 3.0])
+
+    def test_sort_x_descending(self):
+        feats = self._point_feats([(1, 0), (3, 0), (2, 0)])
+        result, _ = _sort_by_centroid(feats, axis="x", ascending=False)
+        xs = [f.geometry().centroid().asPoint().x() for f in result]
+        self.assertEqual(xs, [3.0, 2.0, 1.0])
+
+    def test_sort_distance_from_origin(self):
+        # Distanze da (0,0): (3,4)=5, (0,1)=1, (1,1)≈1.41
+        feats = self._point_feats([(3, 4), (0, 1), (1, 1)])
+        result, values = _sort_by_centroid(feats, axis="dist", ascending=True,
+                                           ref_point=(0, 0))
+        self.assertAlmostEqual(values[0], 1.0, places=5)
+        self.assertAlmostEqual(values[1], math.sqrt(2), places=5)
+        self.assertAlmostEqual(values[2], 5.0, places=5)
+
+    def test_values_monotone_ascending(self):
+        feats = self._point_feats([(3, 0), (1, 0), (2, 0)])
+        _, values = _sort_by_centroid(feats, axis="x", ascending=True)
+        self.assertTrue(all(values[i] <= values[i + 1] for i in range(len(values) - 1)))
+
+    def test_values_count_matches_features(self):
+        feats = self._point_feats([(i, 0) for i in range(5)])
+        result, values = _sort_by_centroid(feats, axis="x", ascending=True)
+        self.assertEqual(len(result), len(values))
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Test: compatibilità criterio / tipo geometria
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestCriterionCompatibility(unittest.TestCase):
+
+    def test_area_on_polygon_ok(self):
+        _check_criterion_compatibility("polygon", "area")  # non deve sollevare
+
+    def test_area_on_point_raises(self):
+        with self.assertRaises(ValueError):
+            _check_criterion_compatibility("point", "area")
+
+    def test_area_on_line_raises(self):
+        with self.assertRaises(ValueError):
+            _check_criterion_compatibility("line", "area")
+
+    def test_perimeter_on_polygon_ok(self):
+        _check_criterion_compatibility("polygon", "perimeter")
+
+    def test_perimeter_on_point_raises(self):
+        with self.assertRaises(ValueError):
+            _check_criterion_compatibility("point", "perimeter")
+
+    def test_length_on_line_ok(self):
+        _check_criterion_compatibility("line", "length")
+
+    def test_length_on_polygon_raises(self):
+        with self.assertRaises(ValueError):
+            _check_criterion_compatibility("polygon", "length")
+
+    def test_n_vertices_accepts_any(self):
+        for gt in ("point", "line", "polygon"):
+            _check_criterion_compatibility(gt, "n_vertices")  # nessuna eccezione
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Test: sort_order progressivo
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestSortOrderValues(unittest.TestCase):
+
+    def test_sort_order_starts_at_one(self):
+        feats = [MockFeature(i, {"val": v}) for i, v in enumerate([3, 1, 2])]
+        sorted_feats = _sort_by_attribute(feats, "val", ascending=True)
+        for expected, feat in enumerate(sorted_feats, start=1):
+            # Verifica che l'indice corrisponda alla posizione attesa
+            self.assertEqual(expected, list(range(1, len(sorted_feats) + 1))[expected - 1])
+
+    def test_sort_order_length_equals_features(self):
+        feats = [MockFeature(i, {"val": i}) for i in range(7)]
+        sorted_feats = _sort_by_attribute(feats, "val")
+        self.assertEqual(len(sorted_feats), 7)
+
+    def test_sort_order_no_duplicates(self):
+        feats = [MockFeature(i, {"val": i}) for i in range(5)]
+        sorted_feats = _sort_by_attribute(feats, "val")
+        orders = list(range(1, len(sorted_feats) + 1))
+        self.assertEqual(len(set(orders)), len(sorted_feats))
+
+
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Test: ordinamento lungo linea – tutti e tre i modi
+# (standalone, senza PyQGIS: usa mock con flag intersects)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class MockLineSortGeometry:
+    """Mock geometria per testare sort_by_line_position standalone."""
+
+    def __init__(self, cx, cy, intersects_line=True):
+        self._cx = cx
+        self._cy = cy
+        self._intersects = intersects_line
+
+    def isMultipart(self):
+        return False
+
+    def centroid(self):
+        return MockGeometryResult(self._cx, self._cy)
+
+    def wkbType(self):
+        return "point_mock"
+
+
+def _mock_sort_by_line_position(features, ascending=True, mode="centroid_projection"):
+    """Versione standalone del sort_by_line_position con mock.
+
+    Usa feature.geometry()._cx come distanza simulata lungo la linea.
+    """
+    sorted_feats = []
+    values = []
+    excluded = []
+
+    for f in features:
+        geom = f.geometry()
+        intersects = geom._intersects
+
+        if mode == "centroid_projection":
+            dist = geom._cx   # cx simula distanza curvilinea
+            sorted_feats.append(f)
+            values.append(dist)
+
+        elif mode == "intersecting_projection":
+            if not intersects:
+                excluded.append(f)
+                continue
+            dist = geom._cx
+            sorted_feats.append(f)
+            values.append(dist)
+
+        elif mode == "intersecting_first_pt":
+            if not intersects:
+                excluded.append(f)
+                continue
+            dist = geom._cx  # simula primo punto di intersezione = cx
+            sorted_feats.append(f)
+            values.append(dist)
+
+    paired = sorted(zip(values, sorted_feats), reverse=not ascending)
+    return [f for _, f in paired], [v for v, _ in paired], excluded
+
+
+class TestLineSortModes(unittest.TestCase):
+
+    def _make(self, specs):
+        """specs = [(cx, intersects), ...]"""
+        return [
+            MockFeature(i, geometry=MockLineSortGeometry(cx, cy=0, intersects_line=ints))
+            for i, (cx, ints) in enumerate(specs)
+        ]
+
+    # ── centroid_projection: tutte le feature incluse ─────────────────────────
+
+    def test_centroid_projection_includes_all(self):
+        feats = self._make([(3, True), (1, False), (2, True)])
+        result, values, excluded = _mock_sort_by_line_position(feats, mode="centroid_projection")
+        self.assertEqual(len(result), 3)
+        self.assertEqual(len(excluded), 0)
+
+    def test_centroid_projection_ascending(self):
+        feats = self._make([(3, True), (1, True), (2, True)])
+        result, values, excluded = _mock_sort_by_line_position(feats, mode="centroid_projection", ascending=True)
+        self.assertEqual(values, [1, 2, 3])
+
+    def test_centroid_projection_descending(self):
+        feats = self._make([(3, True), (1, True), (2, True)])
+        result, values, excluded = _mock_sort_by_line_position(feats, mode="centroid_projection", ascending=False)
+        self.assertEqual(values, [3, 2, 1])
+
+    # ── intersecting_projection: esclude non-intersecanti ─────────────────────
+
+    def test_intersecting_projection_excludes_non_intersecting(self):
+        feats = self._make([(3, True), (1, False), (2, True)])
+        result, values, excluded = _mock_sort_by_line_position(feats, mode="intersecting_projection")
+        self.assertEqual(len(result), 2)
+        self.assertEqual(len(excluded), 1)
+        self.assertFalse(excluded[0].geometry()._intersects)
+
+    def test_intersecting_projection_correct_order(self):
+        feats = self._make([(3, True), (1, False), (2, True)])
+        result, values, _ = _mock_sort_by_line_position(feats, mode="intersecting_projection", ascending=True)
+        self.assertEqual(values, [2, 3])
+
+    def test_intersecting_projection_all_excluded(self):
+        feats = self._make([(1, False), (2, False)])
+        result, values, excluded = _mock_sort_by_line_position(feats, mode="intersecting_projection")
+        self.assertEqual(len(result), 0)
+        self.assertEqual(len(excluded), 2)
+
+    # ── intersecting_first_pt: usa primo punto di intersezione ────────────────
+
+    def test_intersecting_first_pt_excludes_non_intersecting(self):
+        feats = self._make([(1, False), (2, True), (3, True)])
+        result, values, excluded = _mock_sort_by_line_position(feats, mode="intersecting_first_pt")
+        self.assertEqual(len(result), 2)
+        self.assertEqual(len(excluded), 1)
+
+    def test_intersecting_first_pt_ascending(self):
+        feats = self._make([(3, True), (1, True), (2, True)])
+        result, values, excluded = _mock_sort_by_line_position(feats, mode="intersecting_first_pt", ascending=True)
+        self.assertEqual(values, [1, 2, 3])
+
+    def test_intersecting_first_pt_mixed(self):
+        """Feature miste: alcune intersecano (usano primo punto), altre no (escluse)."""
+        feats = self._make([(5, False), (1, True), (3, False), (2, True)])
+        result, values, excluded = _mock_sort_by_line_position(feats, mode="intersecting_first_pt", ascending=True)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(len(excluded), 2)
+        self.assertEqual(values, [1, 2])
+
+    # ── modalità sconosciuta ──────────────────────────────────────────────────
+
+    def test_unknown_mode_raises(self):
+        """Una modalità sconosciuta deve sollevare ValueError."""
+        feats = self._make([(1, True)])
+        with self.assertRaises(KeyError):
+            # Verifica che le sole chiavi valide siano le tre definite
+            valid = {"centroid_projection", "intersecting_projection", "intersecting_first_pt"}
+            unknown = "invalid_mode"
+            if unknown not in valid:
+                raise KeyError(f"Modalità sconosciuta: {unknown!r}")
+
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Test: ordinamento per espressione (mock standalone, senza PyQGIS)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _mock_sort_by_expression(features, expr_fn, ascending=True, nulls_last=True):
+    """Versione standalone di sort_by_expression.
+
+    ``expr_fn`` è una callable Python che riceve una MockFeature e restituisce
+    il valore di ordinamento (equivalente all'espressione QGIS valutata).
+    None = errore di valutazione (→ trattato come NULL).
+    """
+    null_priority = 1 if nulls_last else -1
+    pairs = []
+
+    for feat in features:
+        try:
+            val = expr_fn(feat)
+        except Exception:
+            val = None
+        is_null = val is None
+        pairs.append((feat, val, is_null))
+
+    def key(item):
+        _, val, is_null = item
+        if is_null:
+            return (null_priority, "")
+        try:
+            return (0, val)
+        except TypeError:
+            return (0, str(val))
+
+    pairs.sort(key=key, reverse=not ascending)
+    return [p[0] for p in pairs], [p[1] for p in pairs], []
+
+
+class TestSortByExpression(unittest.TestCase):
+
+    def _feats(self, values, field="val"):
+        return [MockFeature(i, {field: v}) for i, v in enumerate(values)]
+
+    def _geom_feats(self, areas):
+        """Feature con geometria poligonale mock (area simulata via attributo)."""
+        return [MockFeature(i, {"area": a}) for i, a in enumerate(areas)]
+
+    # ── Espressioni su attributo singolo ─────────────────────────────────────
+
+    def test_expression_field_ascending(self):
+        feats = self._feats([30, 10, 20])
+        result, values, _ = _mock_sort_by_expression(
+            feats, lambda f: f["val"], ascending=True
+        )
+        self.assertEqual(values, [10, 20, 30])
+
+    def test_expression_field_descending(self):
+        feats = self._feats([30, 10, 20])
+        result, values, _ = _mock_sort_by_expression(
+            feats, lambda f: f["val"], ascending=False
+        )
+        self.assertEqual(values, [30, 20, 10])
+
+    # ── Espressioni calcolate (combinazione campi) ────────────────────────────
+
+    def test_expression_ratio(self):
+        """Ordina per rapporto area/perimetro (es. "area" / "perimetro")."""
+        feats = [
+            MockFeature(0, {"area": 100, "perim": 40}),  # ratio 2.5
+            MockFeature(1, {"area": 50,  "perim": 50}),  # ratio 1.0
+            MockFeature(2, {"area": 80,  "perim": 20}),  # ratio 4.0
+        ]
+        expr = lambda f: f["area"] / f["perim"]
+        result, values, _ = _mock_sort_by_expression(feats, expr, ascending=True)
+        self.assertAlmostEqual(values[0], 1.0)
+        self.assertAlmostEqual(values[1], 2.5)
+        self.assertAlmostEqual(values[2], 4.0)
+
+    def test_expression_string_concat(self):
+        """Ordina per concatenazione di due campi stringa."""
+        feats = [
+            MockFeature(0, {"regione": "Veneto",   "comune": "Mestre"}),
+            MockFeature(1, {"regione": "Campania", "comune": "Napoli"}),
+            MockFeature(2, {"regione": "Campania", "comune": "Avellino"}),
+        ]
+        expr = lambda f: f["regione"] + f["comune"]
+        result, values, _ = _mock_sort_by_expression(feats, expr, ascending=True)
+        # Campania+Avellino < Campania+Napoli < Veneto+Mestre
+        self.assertEqual(values[0], "CampaniaAvellino")
+        self.assertEqual(values[1], "CampaniaNapoli")
+        self.assertEqual(values[2], "VenetoMestre")
+
+    def test_expression_conditional(self):
+        """Ordina per espressione condizionale (CASE WHEN equivalente)."""
+        feats = [
+            MockFeature(0, {"tipo": "B"}),
+            MockFeature(1, {"tipo": "A"}),
+            MockFeature(2, {"tipo": "C"}),
+        ]
+        # A→1, B→2, C→3
+        priority = {"A": 1, "B": 2, "C": 3}
+        expr = lambda f: priority.get(f["tipo"], 99)
+        result, values, _ = _mock_sort_by_expression(feats, expr, ascending=True)
+        self.assertEqual(values, [1, 2, 3])
+        self.assertEqual(result[0]["tipo"], "A")
+
+    # ── Gestione errori / NULL ────────────────────────────────────────────────
+
+    def test_expression_null_last(self):
+        """Feature con valore NULL (errore di valutazione) vanno in fondo."""
+        feats = self._feats([None, 5, 2])
+        result, values, _ = _mock_sort_by_expression(
+            feats, lambda f: f["val"], ascending=True, nulls_last=True
+        )
+        self.assertIsNone(values[-1])
+        self.assertEqual(values[0], 2)
+
+    def test_expression_null_first(self):
+        feats = self._feats([None, 5, 2])
+        result, values, _ = _mock_sort_by_expression(
+            feats, lambda f: f["val"], ascending=True, nulls_last=False
+        )
+        self.assertIsNone(values[0])
+
+    def test_expression_eval_error_treated_as_null(self):
+        """Un errore di valutazione (divisione per zero) deve essere trattato come NULL."""
+        feats = [
+            MockFeature(0, {"a": 10, "b": 2}),
+            MockFeature(1, {"a": 5,  "b": 0}),  # divisione per zero
+            MockFeature(2, {"a": 8,  "b": 4}),
+        ]
+        def expr(f):
+            b = f["b"]
+            if b == 0:
+                return None  # simula errore di valutazione
+            return f["a"] / b
+
+        result, values, _ = _mock_sort_by_expression(
+            feats, expr, ascending=True, nulls_last=True
+        )
+        # Valori validi: 2.0 (8/4), 5.0 (10/2); NULL in fondo
+        self.assertAlmostEqual(values[0], 2.0)
+        self.assertAlmostEqual(values[1], 5.0)
+        self.assertIsNone(values[2])
+
+    def test_expression_all_nulls(self):
+        feats = self._feats([None, None, None])
+        result, values, _ = _mock_sort_by_expression(
+            feats, lambda f: f["val"]
+        )
+        self.assertEqual(len(result), 3)
+        self.assertTrue(all(v is None for v in values))
+
+    def test_expression_returns_same_count(self):
+        feats = self._feats([5, 3, 8, 1, 9])
+        result, values, _ = _mock_sort_by_expression(
+            feats, lambda f: f["val"]
+        )
+        self.assertEqual(len(result), 5)
+        self.assertEqual(len(values), 5)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Entry point
+# ──────────────────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

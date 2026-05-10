@@ -1,0 +1,23 @@
+[general]
+name=GeoSort
+qgisMinimumVersion=3.16
+description=Ordina le feature di un layer vettoriale per criteri geometrici e attributivi
+version=1.0.0
+author=GeoSort Author
+email=author@example.com
+about=GeoSort permette di ordinare punti, linee e poligoni per coordinate centroide,
+    area, lunghezza, numero di vertici, bounding box, distanza da punto di riferimento
+    e posizione lungo una linea. Aggiunge un campo progressivo 'sort_order' al layer
+    o crea un nuovo layer ordinato in memoria.
+tracker=https://github.com/user/geosort/issues
+repository=https://github.com/user/geosort
+homepage=https://github.com/user/geosort
+hasProcessingProvider=yes
+tags=ordinamento, geometria, attributi, vettoriale, sort, order, punti, linee, poligoni
+category=Vector
+icon=icon.svg
+experimental=False
+deprecated=False
+server=False
+changelog=
+    1.0.0 Prima release stabile

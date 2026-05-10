@@ -1,0 +1,18 @@
+<svg width="16" height="16" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- A -->
+  <path d="M18,6 L10,30 M18,6 L26,30 M13,21 L23,21"
+        fill="none" stroke="#a40000" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Z -->
+  <path d="M10,36 L26,36 L10,60 L26,60"
+        fill="none" stroke="#0044a4" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Freccia su -->
+  <path d="M48,5 L38,19 L43,19 L43,30 L53,30 L53,19 L58,19 Z"
+        fill="#6d97c4" stroke="#415a75" stroke-width="1.2"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Freccia giù -->
+  <path d="M48,61 L38,47 L43,47 L43,36 L53,36 L53,47 L58,47 Z"
+        fill="#6d97c4" stroke="#415a75" stroke-width="1.2"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
