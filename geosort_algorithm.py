@@ -39,6 +39,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     ATTRIBUTE_FIELD = "ATTRIBUTE_FIELD"
     DIRECTION = "DIRECTION"
     NULLS_LAST = "NULLS_LAST"
+    NATURAL_SORT = "NATURAL_SORT"
     REF_LAYER = "REF_LAYER"
     ADD_VALUE_FIELD = "ADD_VALUE_FIELD"
     OUTPUT = "OUTPUT"
@@ -102,7 +103,14 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             "e aggiunge il campo <b>sort_order</b> (numero progressivo, 1 = prima feature).\n\n"
             "Criteri disponibili: attributo tabellare, coordinate del centroide, "
             "area, lunghezza, perimetro, numero di vertici, bounding box, "
-            "posizione lungo una linea di riferimento.\n\n"
+            "posizione lungo una linea di riferimento, espressione QGIS.\n\n"
+            "<b>Modalità di ordinamento testuale (attributo/espressione):</b>\n"
+            "• <b>Lessicografico</b> (default): confronto carattere per carattere. "
+            "Esempio: «1010» &lt; «11» &lt; «1111».\n"
+            "• <b>Natural Sort</b>: le sequenze di cifre sono confrontate come numeri. "
+            "Esempio: «11» &lt; «1010» &lt; «1111». "
+            "Utile con campi alfanumerici (FILE1, FILE2, FILE10) o espressioni "
+            "di concatenazione come <code>\"fid\" || \"id_poly\"</code>.\n\n"
             "Compatibile con il Processing Toolbox, il modellatore grafico e PyQGIS headless."
         )
 
@@ -150,6 +158,13 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 self.NULLS_LAST,
                 "Valori NULL in fondo (solo per criterio attributo)",
                 defaultValue=True,
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                self.NATURAL_SORT,
+                "Ordinamento naturale – Natural Sort (solo per criterio attributo/espressione)",
+                defaultValue=False,
             )
         )
         param_ref = QgsProcessingParameterMapLayer(
@@ -201,6 +216,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         criterion = self._CRITERIA_KEYS[crit_idx]
         ascending = self.parameterAsBoolean(parameters, self.DIRECTION, context)
         nulls_last = self.parameterAsBoolean(parameters, self.NULLS_LAST, context)
+        natural_sort = self.parameterAsBoolean(parameters, self.NATURAL_SORT, context)
         add_value = self.parameterAsBoolean(parameters, self.ADD_VALUE_FIELD, context)
 
         feedback.setProgressText("Caricamento feature...")
@@ -222,7 +238,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 raise QgsProcessingException(
                     "Specificare un campo attributo per il criterio 'Attributo tabellare'."
                 )
-            sorted_feats = sort_by_attribute(features, field, ascending, nulls_last)
+            sorted_feats = sort_by_attribute(features, field, ascending, nulls_last, natural_sort=natural_sort)
             values = [f[field] for f in sorted_feats]
             excluded = []
 
@@ -268,7 +284,8 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 )
             try:
                 sorted_feats, values, warnings = sort_by_expression(
-                    features, layer, expr_text, ascending, nulls_last
+                    features, layer, expr_text, ascending, nulls_last,
+                    natural_sort=natural_sort,
                 )
             except ValueError as exc:
                 raise QgsProcessingException(str(exc))

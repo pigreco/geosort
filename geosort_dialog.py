@@ -259,6 +259,18 @@ class GeoSortDialog(QDialog):
         self.chk_nulls_last.setChecked(True)
         layout.addWidget(self.chk_nulls_last)
 
+        self.chk_natural_sort = QCheckBox("Ordinamento naturale – Natural Sort (es. 1, 2, 10 invece di 1, 10, 2)")
+        self.chk_natural_sort.setChecked(False)
+        self.chk_natural_sort.setToolTip(
+            "<b>Lessicografico</b> (default): confronto carattere per carattere.\n"
+            "Esempio: «1010» precede «11» precede «1111».\n\n"
+            "<b>Natural Sort</b>: le sequenze di cifre sono confrontate come numeri interi.\n"
+            "Esempio: «11» precede «1010» precede «1111».\n\n"
+            "Attivalo con campi alfanumerici (FILE1, FILE2, FILE10)\n"
+            "o espressioni di concatenazione come \"fid\" || \"id_poly\"."
+        )
+        layout.addWidget(self.chk_natural_sort)
+
         return grp
 
     def _build_output_group(self):
@@ -373,6 +385,7 @@ class GeoSortDialog(QDialog):
         self.combo_field.setEnabled(is_attr)
         self.btn_expression_builder.setEnabled(is_attr)
         self.chk_nulls_last.setEnabled(is_attr)
+        self.chk_natural_sort.setEnabled(is_attr)
         self.combo_centroid.setEnabled(is_centroid)
         self.combo_geom.setEnabled(is_geom)
         self.combo_ref_layer.setEnabled(is_spatial)
@@ -576,12 +589,14 @@ class GeoSortDialog(QDialog):
         # ── Per attributo / espressione ──────────────────────────────────────
         if self.rb_attribute.isChecked():
             nulls_last = self.chk_nulls_last.isChecked()
+            natural_sort = self.chk_natural_sort.isChecked()
 
             if self._active_expression:
                 # Modalità espressione
                 from .geosort_core import sort_by_expression
                 sorted_feats, values, warnings = sort_by_expression(
-                    features, layer, self._active_expression, ascending, nulls_last
+                    features, layer, self._active_expression, ascending, nulls_last,
+                    natural_sort=natural_sort,
                 )
                 if warnings:
                     from qgis.core import QgsMessageLog, Qgis
@@ -596,7 +611,9 @@ class GeoSortDialog(QDialog):
                 field = self.combo_field.currentField()
                 if not field:
                     raise ValueError("Nessun campo selezionato.")
-                sorted_feats = sort_by_attribute(features, field, ascending, nulls_last)
+                sorted_feats = sort_by_attribute(
+                    features, field, ascending, nulls_last, natural_sort=natural_sort
+                )
                 values = [f[field] for f in sorted_feats]
                 crit_name = f"sort_{field[:8]}"
                 return sorted_feats, values, crit_name, []

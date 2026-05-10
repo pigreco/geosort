@@ -30,7 +30,19 @@
         <li>funzioni geometriche: <code>length($geometry)</code>, <code>area($geometry)</code></li>
         <li>condizioni: <code>CASE WHEN "tipo"='A' THEN 1 ELSE 2 END</code></li>
       </ul>
-      L'espressione attiva è evidenziata in verde; clicca <b>[×]</b> per rimuoverla.
+      L'espressione attiva è evidenziata in verde; clicca <b>[×]</b> per rimuoverla.<br><br>
+      <b>Modalità di ordinamento testuale:</b>
+      <ul>
+        <li><b>Lessicografico</b> (default) – confronto carattere per carattere.
+            Ad esempio <code>"1010"</code> precede <code>"11"</code> perché
+            il secondo carattere <code>'0'</code> &lt; <code>'1'</code>.<br>
+            Risultato: <code>1010 → 11 → 1111</code></li>
+        <li><b>Natural Sort</b> – le sequenze di cifre embedded vengono confrontate
+            come numeri interi, non come testo.
+            Risultato: <code>11 → 1010 → 1111</code><br>
+            Utile con espressioni di concatenazione (es. <code>"fid" || "id_poly"</code>)
+            o campi con codici alfanumerici (<code>FILE1</code>, <code>FILE2</code>, <code>FILE10</code>).</li>
+      </ul>
   </li>
   <li><b>Coordinate centroide</b> – per X, Y o distanza da un punto di riferimento</li>
   <li><b>Proprietà geometrica</b> – area, perimetro, lunghezza, numero di vertici, bounding box</li>
@@ -56,6 +68,10 @@
 </div>
 <ul>
   <li>Valori <code>NULL</code>: scegli se posizionarli in cima o in fondo</li>
+  <li><b>Natural Sort</b>: attivalo quando i valori testuale contengono numeri che devono
+      essere ordinati come tali (es. codici <code>A1</code>, <code>A2</code>, <code>A10</code>
+      oppure espressioni di concatenazione). Lascialo disattivato per valori puramente
+      numerici o quando l'ordine lessicografico è quello desiderato.</li>
 </ul>
 <div class="warn">
   <b>CRS geografico</b>: i calcoli di area e lunghezza sono in gradi².

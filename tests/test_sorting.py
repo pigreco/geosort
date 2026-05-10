@@ -87,13 +87,21 @@ class MockFeature:
 # Funzioni standalone (stessa logica di geosort_core.py, senza import PyQGIS)
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _sort_by_attribute(features, field, ascending=True, nulls_last=True):
+def _natural_key(val):
+    import re
+    return [int(chunk) if chunk.isdigit() else chunk.lower()
+            for chunk in re.split(r"(\d+)", str(val))]
+
+
+def _sort_by_attribute(features, field, ascending=True, nulls_last=True, natural_sort=False):
     null_priority = 1 if nulls_last else -1
 
     def key(f):
         val = f[field]
         if val is None:
-            return (null_priority, "")
+            return (null_priority, [])
+        if natural_sort:
+            return (0, _natural_key(val))
         try:
             return (0, val)
         except TypeError:
@@ -176,6 +184,44 @@ class TestSortByAttribute(unittest.TestCase):
         result = _sort_by_attribute(self._feats([1.5, 0.3, 2.7]), "val", ascending=True)
         vals = [f["val"] for f in result]
         self.assertEqual(vals, sorted(vals))
+
+    def test_natural_sort_issue3(self):
+        # Riproduce esattamente il caso dell'issue #3: valori stringa "11", "1010", "1111"
+        result = _sort_by_attribute(
+            self._feats(["1010", "11", "1111"]), "val",
+            ascending=True, natural_sort=True,
+        )
+        self.assertEqual([f["val"] for f in result], ["11", "1010", "1111"])
+
+    def test_natural_sort_ascending(self):
+        result = _sort_by_attribute(
+            self._feats(["file10", "file2", "file1"]), "val",
+            ascending=True, natural_sort=True,
+        )
+        self.assertEqual([f["val"] for f in result], ["file1", "file2", "file10"])
+
+    def test_natural_sort_descending(self):
+        result = _sort_by_attribute(
+            self._feats(["file10", "file2", "file1"]), "val",
+            ascending=False, natural_sort=True,
+        )
+        self.assertEqual([f["val"] for f in result], ["file10", "file2", "file1"])
+
+    def test_natural_sort_off_is_lexicographic(self):
+        # Senza natural_sort le stringhe restano lessicografiche
+        result = _sort_by_attribute(
+            self._feats(["11", "1010", "1111"]), "val",
+            ascending=True, natural_sort=False,
+        )
+        self.assertEqual([f["val"] for f in result], ["1010", "11", "1111"])
+
+    def test_natural_sort_nulls(self):
+        result = _sort_by_attribute(
+            self._feats([None, "file10", "file2"]), "val",
+            ascending=True, nulls_last=True, natural_sort=True,
+        )
+        vals = [f["val"] for f in result]
+        self.assertEqual(vals, ["file2", "file10", None])
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -438,7 +484,7 @@ class TestLineSortModes(unittest.TestCase):
 # Test: ordinamento per espressione (mock standalone, senza PyQGIS)
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _mock_sort_by_expression(features, expr_fn, ascending=True, nulls_last=True):
+def _mock_sort_by_expression(features, expr_fn, ascending=True, nulls_last=True, natural_sort=False):
     """Versione standalone di sort_by_expression.
 
     ``expr_fn`` è una callable Python che riceve una MockFeature e restituisce
@@ -459,7 +505,9 @@ def _mock_sort_by_expression(features, expr_fn, ascending=True, nulls_last=True)
     def key(item):
         _, val, is_null = item
         if is_null:
-            return (null_priority, "")
+            return (null_priority, [])
+        if natural_sort:
+            return (0, _natural_key(val))
         try:
             return (0, val)
         except TypeError:
@@ -591,6 +639,32 @@ class TestSortByExpression(unittest.TestCase):
         )
         self.assertEqual(len(result), 5)
         self.assertEqual(len(values), 5)
+
+    def test_natural_sort_expression_issue3(self):
+        # Riproduce il caso issue #3: fid||id_poly → "11","1010","1111"
+        feats = [
+            MockFeature(0, {"fid": 10, "id_poly": 10}),
+            MockFeature(1, {"fid": 1,  "id_poly": 1}),
+            MockFeature(2, {"fid": 11, "id_poly": 11}),
+        ]
+        expr = lambda f: str(f["fid"]) + str(f["id_poly"])
+        result, values, _ = _mock_sort_by_expression(
+            feats, expr, ascending=True, natural_sort=True
+        )
+        self.assertEqual(values, ["11", "1010", "1111"])
+
+    def test_natural_sort_expression_off_is_lexicographic(self):
+        feats = [
+            MockFeature(0, {"fid": 10, "id_poly": 10}),
+            MockFeature(1, {"fid": 1,  "id_poly": 1}),
+            MockFeature(2, {"fid": 11, "id_poly": 11}),
+        ]
+        expr = lambda f: str(f["fid"]) + str(f["id_poly"])
+        result, values, _ = _mock_sort_by_expression(
+            feats, expr, ascending=True, natural_sort=False
+        )
+        # Ordinamento lessicografico: "1010" < "11" < "1111"
+        self.assertEqual(values, ["1010", "11", "1111"])
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Entry point

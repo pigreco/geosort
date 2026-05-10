@@ -8,6 +8,7 @@ il campo sort_order al layer o creare un layer in memoria.
 """
 
 import math
+import re
 
 from qgis.core import (
     QgsWkbTypes,
@@ -52,10 +53,23 @@ LOG_TAG = "GeoSort"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Natural Sort
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _natural_key(val):
+    """Chiave per ordinamento naturale: spezza la stringa in segmenti int/str.
+
+    Esempi: "11" < "1010" < "1111" invece di "1010" < "11" < "1111".
+    """
+    return [int(chunk) if chunk.isdigit() else chunk.lower()
+            for chunk in re.split(r"(\d+)", str(val))]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Ordinamento per attributo
 # ──────────────────────────────────────────────────────────────────────────────
 
-def sort_by_attribute(features, field, ascending=True, nulls_last=True):
+def sort_by_attribute(features, field, ascending=True, nulls_last=True, natural_sort=False):
     """Ordina le feature per valore di un campo attributo.
 
     Args:
@@ -73,7 +87,9 @@ def sort_by_attribute(features, field, ascending=True, nulls_last=True):
         val = f[field]
         is_null = val is None or val == NULL
         if is_null:
-            return (null_priority, "")
+            return (null_priority, [])
+        if natural_sort:
+            return (0, _natural_key(val))
         try:
             return (0, val)
         except TypeError:
@@ -86,7 +102,7 @@ def sort_by_attribute(features, field, ascending=True, nulls_last=True):
 # Ordinamento per espressione QGIS
 # ──────────────────────────────────────────────────────────────────────────────
 
-def sort_by_expression(features, layer, expression_str, ascending=True, nulls_last=True):
+def sort_by_expression(features, layer, expression_str, ascending=True, nulls_last=True, natural_sort=False):
     """Ordina le feature valutando un'espressione QGIS per ciascuna.
 
     Supporta qualsiasi espressione valida nel field calculator di QGIS:
@@ -142,7 +158,9 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
     def sort_key(item):
         _feat, val, is_null = item
         if is_null:
-            return (null_priority, "")
+            return (null_priority, [])
+        if natural_sort:
+            return (0, _natural_key(val))
         try:
             return (0, val)
         except TypeError:
