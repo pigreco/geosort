@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: sans-serif; font-size: 13px; margin: 12px; color: #222; }
+  h2   { color: #2c5f8a; border-bottom: 1px solid #c0d8ee; padding-bottom: 4px; }
+  h3   { color: #444; margin-bottom: 4px; }
+  ul   { margin-top: 4px; padding-left: 20px; }
+  li   { margin-bottom: 3px; }
+  code { background: #f0f0f0; border-radius: 3px; padding: 1px 4px; font-size: 12px; }
+  .tip { background: #eaf4fb; border-left: 3px solid #2c5f8a; padding: 6px 10px; margin: 8px 0; border-radius: 2px; }
+  .warn{ background: #fff8e1; border-left: 3px solid #f0a500; padding: 6px 10px; margin: 8px 0; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<h2>GeoSort – Guida rapida</h2>
+
+<p>GeoSort ordina le feature di un layer vettoriale e assegna un numero progressivo
+<code>sort_order</code> (1 = prima feature nell'ordine scelto).</p>
+
+<h3>Criteri di ordinamento</h3>
+<ul>
+  <li><b>Attributo / espressione</b> – ordina per il valore di un campo o per
+      il risultato di un'espressione QGIS personalizzata.<br>
+      Clicca il pulsante <b>ε</b> per aprire il Field Calculator. Esempi:
+      <ul>
+        <li>combinazione di campi: <code>"area_kmq" / "pop"</code></li>
+        <li>funzioni geometriche: <code>length($geometry)</code>, <code>area($geometry)</code></li>
+        <li>condizioni: <code>CASE WHEN "tipo"='A' THEN 1 ELSE 2 END</code></li>
+      </ul>
+      L'espressione attiva è evidenziata in verde; clicca <b>[×]</b> per rimuoverla.
+  </li>
+  <li><b>Coordinate centroide</b> – per X, Y o distanza da un punto di riferimento</li>
+  <li><b>Proprietà geometrica</b> – area, perimetro, lunghezza, numero di vertici, bounding box</li>
+  <li><b>Posizione lungo linea</b> – tre modalità:
+    <ul>
+      <li>proiezione centroide – tutte le feature</li>
+      <li>solo intersecanti – via centroide proiettato</li>
+      <li>solo intersecanti – via primo punto di contatto</li>
+    </ul>
+  </li>
+</ul>
+
+<h3>Output</h3>
+<ul>
+  <li><b>Aggiorna il layer corrente</b> – aggiunge o aggiorna il campo <code>sort_order</code></li>
+  <li><b>Nuovo layer in memoria</b> – crea una copia ordinata senza modificare l'originale</li>
+  <li>Opzione: aggiungi <code>sort_value</code> con il valore del criterio usato</li>
+</ul>
+
+<h3>Suggerimenti</h3>
+<div class="tip">
+  Usa <b>Anteprima</b> per verificare l'ordine prima di applicare le modifiche.
+</div>
+<ul>
+  <li>Valori <code>NULL</code>: scegli se posizionarli in cima o in fondo</li>
+</ul>
+<div class="warn">
+  <b>CRS geografico</b>: i calcoli di area e lunghezza sono in gradi².
+  Si consiglia la riproiezione in un CRS proiettato prima di applicare il criterio.
+</div>
+
+</body>
+</html>

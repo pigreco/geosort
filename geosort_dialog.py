@@ -741,35 +741,26 @@ class GeoSortDialog(QDialog):
         self._run()
 
     def _on_help(self):
-        QMessageBox.information(
-            self,
-            "GeoSort – Guida rapida",
-            "GeoSort ordina le feature di un layer vettoriale e assegna un numero\n"
-            "progressivo 'sort_order' (1 = prima feature nell'ordine scelto).\n\n"
-            "─── Criteri ────────────────────────────────────\n"
-            "• Attributo / espressione\n"
-            "  Scegli un campo dalla lista, oppure clicca ε per aprire\n"
-            "  il Field Calculator e costruire un'espressione personalizzata:\n"
-            "    - combinazione di campi: \"area_kmq\" / \"pop\"\n"
-            "    - funzioni geometriche: length($geometry), area($geometry)\n"
-            "    - espressioni condizionali: CASE WHEN \"tipo\"=\'A\' THEN 1 ELSE 2 END\n"
-            "  L'espressione attiva è evidenziata in verde; clicca [×] per rimuoverla.\n\n"
-            "• Coordinate centroide – per X, Y o distanza da un punto\n"
-            "• Proprietà geometrica – area, lunghezza, vertici, bounding box\n"
-            "• Posizione lungo linea – con tre modalità:\n"
-            "    - proiezione centroide (tutte le feature)\n"
-            "    - solo intersecanti, via centroide\n"
-            "    - solo intersecanti, via primo punto di contatto\n\n"
-            "─── Output ──────────────────────────────────────\n"
-            "• Aggiorna il layer corrente (aggiunge/aggiorna 'sort_order')\n"
-            "• Crea un nuovo layer in memoria con le feature ordinate\n"
-            "• Opzione: aggiungi il campo con il valore del criterio usato\n\n"
-            "─── Suggerimenti ────────────────────────────────\n"
-            "• Usa 'Anteprima' per verificare l'ordine prima di applicare\n"
-            "• Valori NULL: scegli se posizionarli in cima o in fondo\n"
-            "• CRS geografico: i calcoli di area/lunghezza sono in gradi²\n"
-            "  → si consiglia la riproiezione in un CRS proiettato",
-        )
+        from qgis.PyQt.QtWidgets import QTextBrowser, QVBoxLayout, QDialogButtonBox
+        help_path = os.path.join(os.path.dirname(__file__), "help.html")
+        try:
+            with open(help_path, encoding="utf-8") as f:
+                html = f.read()
+        except OSError:
+            html = "<p>File di guida non trovato.</p>"
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("GeoSort – Guida rapida")
+        dlg.setMinimumSize(520, 420)
+        layout = QVBoxLayout(dlg)
+        browser = QTextBrowser()
+        browser.setOpenExternalLinks(True)
+        browser.setHtml(html)
+        layout.addWidget(browser)
+        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons.rejected.connect(dlg.close)
+        layout.addWidget(buttons)
+        dlg.exec()
 
     # ──────────────────────────────────────────────────────────────────────────
     # Metodi pubblici per i test
