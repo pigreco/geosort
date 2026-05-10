@@ -1,8 +1,10 @@
 # GeoSort – Ordinamento Avanzato delle Geometrie
 
-Plugin QGIS (≥ 3.16) per ordinare le feature di un layer vettoriale in base
-a criteri geometrici e attributivi, con assegnazione automatica del campo
-progressivo `sort_order`.
+Plugin QGIS per ordinare le feature di un layer vettoriale in base a criteri
+geometrici e attributivi, con assegnazione automatica del campo progressivo
+`sort_order`.
+
+Compatibile con **QGIS 3.16+** (Qt5 / PyQt5) e **QGIS 4.x** (Qt6 / PyQt6).
 
 ![](gui.png)
 
@@ -86,9 +88,23 @@ output_layer = result['OUTPUT']
 
 ## Requisiti
 
-- QGIS ≥ 3.16 LTR
+- QGIS ≥ 3.16 LTR oppure QGIS 4.x
 - Python ≥ 3.9
 - Nessuna dipendenza esterna (solo API PyQGIS e librerie standard Python)
+
+---
+
+## Compatibilità Qt5 / Qt6
+
+Il plugin utilizza le API PyQGIS standard e non dipende direttamente da Qt5 o Qt6.
+L'adattamento a QGIS 4 / PyQt6 riguarda:
+
+- Enum qualificati (`QgsWkbTypes.GeometryType.PointGeometry` invece di `QgsWkbTypes.PointGeometry`)
+- `QMetaType.Type` al posto di `QVariant.Type` per la definizione dei campi
+- `exec()` al posto di `exec_()` per i dialoghi modali (deprecato in PyQt6)
+
+Nessuna modifica è richiesta all'utente finale: lo stesso file `.zip` funziona
+su entrambe le versioni di QGIS.
 
 ---
 
@@ -98,8 +114,6 @@ I test della logica di ordinamento non richiedono QGIS:
 
 ```bash
 cd geosort
-python -m pytest tests/test_sorting.py -v
-# oppure
 python -m unittest tests.test_sorting -v
 ```
 
