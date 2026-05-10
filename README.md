@@ -99,3 +99,9 @@ python -m pytest tests/test_dialog.py -v
 ## Licenza
 
 GPL v2 o superiore – vedi file `LICENSE`.
+
+---
+
+## Ringraziamenti
+
+Questo plugin è stato realizzato con l'ausilio di [Claude Code](https://claude.ai/code) (Anthropic).

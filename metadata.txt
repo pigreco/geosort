@@ -1,17 +1,26 @@
 [general]
 name=GeoSort
 qgisMinimumVersion=3.16
-description=Ordina le feature di un layer vettoriale per criteri geometrici e attributivi
+description=Sort vector layer features by geometric and attribute criteria | Ordina le feature di un layer vettoriale per criteri geometrici e attributivi
 version=1.0.0
-author=GeoSort Author
-email=author@example.com
-about=GeoSort permette di ordinare punti, linee e poligoni per coordinate centroide,
-    area, lunghezza, numero di vertici, bounding box, distanza da punto di riferimento
-    e posizione lungo una linea. Aggiunge un campo progressivo 'sort_order' al layer
-    o crea un nuovo layer ordinato in memoria.
-tracker=https://github.com/user/geosort/issues
-repository=https://github.com/user/geosort
-homepage=https://github.com/user/geosort
+author=Salvatore Fiandaca
+email=pigrecoinfinito@gmail.com
+about=GeoSort sorts points, lines and polygons by centroid coordinates, area, length,
+    vertex count, bounding box, distance from a reference point, position along a line,
+    and custom QGIS expressions. It adds a progressive 'sort_order' field to the layer
+    or creates a new in-memory sorted layer. Also available in the Processing Toolbox
+    for batch use and the graphical modeler.
+    ---
+    GeoSort permette di ordinare punti, linee e poligoni per coordinate centroide,
+    area, lunghezza, numero di vertici, bounding box, distanza da punto di riferimento,
+    posizione lungo una linea ed espressioni QGIS personalizzate. Aggiunge un campo
+    progressivo 'sort_order' al layer o crea un nuovo layer ordinato in memoria.
+    Disponibile anche nel Processing Toolbox per uso in batch e nel modellatore grafico.
+    ---
+    Developed with the assistance of Claude Code (Anthropic) | Realizzato con l'ausilio di Claude Code (Anthropic)
+tracker=https://github.com/pigreco/geosort/issues
+repository=https://github.com/pigreco/geosort
+homepage=https://github.com/pigreco/geosort
 hasProcessingProvider=yes
 tags=ordinamento, geometria, attributi, vettoriale, sort, order, punti, linee, poligoni
 category=Vector
