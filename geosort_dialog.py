@@ -435,7 +435,7 @@ class GeoSortDialog(QDialog):
         # Espressione composta → attivala
         self._active_expression = expr_text
         short = expr_text if len(expr_text) <= 60 else expr_text[:57] + "…"
-        self.lbl_active_expr.setText(f"ε  {short}  [×]")
+        self.lbl_active_expr.setText(f"Espressione: {short}  [×]")
         self.lbl_active_expr.setToolTip(
             f"Espressione attiva: {expr_text}\nClicca per rimuoverla e tornare al campo."
         )
