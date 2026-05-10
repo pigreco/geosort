@@ -11,6 +11,7 @@ from qgis.PyQt.QtWidgets import (
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
+    QGridLayout,
     QFormLayout,
     QGroupBox,
     QRadioButton,
@@ -113,11 +114,15 @@ class GeoSortDialog(QDialog):
 
     def _build_criterion_group(self):
         grp = QGroupBox("Criterio di ordinamento")
-        layout = QVBoxLayout(grp)
+        outer = QVBoxLayout(grp)
         self._crit_bg = QButtonGroup(self)
 
-        # 1 – Attributo tabellare / espressione
-        row1 = QHBoxLayout()
+        grid = QGridLayout()
+        grid.setColumnStretch(1, 1)   # colonna combobox: tutta la larghezza disponibile
+        grid.setHorizontalSpacing(6)
+        grid.setVerticalSpacing(4)
+
+        # ── Riga 0: Attributo / espressione ─────────────────────────────────
         self.rb_attribute = QRadioButton("Per attributo / espressione")
         self.rb_attribute.setChecked(True)
         self._crit_bg.addButton(self.rb_attribute, 0)
@@ -127,41 +132,37 @@ class GeoSortDialog(QDialog):
         _expr_icon_path = os.path.join(os.path.dirname(__file__), "icon_expression.svg")
         self.btn_expression_builder.setIcon(QIcon(_expr_icon_path))
         self.btn_expression_builder.setIconSize(QSize(20, 20))
-        self.btn_expression_builder.setFixedWidth(28)
-        self.btn_expression_builder.setFixedHeight(28)
+        self.btn_expression_builder.setFixedSize(28, 28)
         self.btn_expression_builder.setToolTip(
             "Apri il Field Calculator di QGIS\n"
             "Permette di costruire un'espressione personalizzata come criterio di ordinamento\n"
             "Es: \"area_kmq\" / \"popolazione\"   oppure   length($geometry)"
         )
-        row1.addWidget(self.rb_attribute)
-        row1.addWidget(self.combo_field, 1)
-        row1.addWidget(self.btn_expression_builder)
-        layout.addLayout(row1)
+        grid.addWidget(self.rb_attribute,           0, 0)
+        grid.addWidget(self.combo_field,            0, 1)
+        grid.addWidget(self.btn_expression_builder, 0, 2)
 
-        # Etichetta espressione attiva (visibile solo quando si usa il builder)
-        self._active_expression = ""   # stringa vuota = usa la combo
+        # Etichetta espressione attiva
+        self._active_expression = ""
         self.lbl_active_expr = QLabel("")
         self.lbl_active_expr.setStyleSheet("font-size: 10px; color: #1D9E75; padding-left: 4px;")
         self.lbl_active_expr.setVisible(False)
-        layout.addWidget(self.lbl_active_expr)
+        grid.addWidget(self.lbl_active_expr, 1, 0, 1, 3)
 
         self.lbl_expr_warning = QLabel("")
         self.lbl_expr_warning.setStyleSheet("font-size: 10px; color: #e67e22; padding-left: 4px;")
         self.lbl_expr_warning.setVisible(False)
-        layout.addWidget(self.lbl_expr_warning)
+        grid.addWidget(self.lbl_expr_warning, 2, 0, 1, 3)
 
-        # 2 – Centroide
-        row2 = QHBoxLayout()
+        # ── Riga 3: Centroide ────────────────────────────────────────────────
         self.rb_centroid = QRadioButton("Per coordinate centroide")
         self._crit_bg.addButton(self.rb_centroid, 1)
         self.combo_centroid = QComboBox()
         self.combo_centroid.addItems(
             ["Coordinata X", "Coordinata Y", "Distanza da punto di riferimento"]
         )
-        row2.addWidget(self.rb_centroid)
-        row2.addWidget(self.combo_centroid, 1)
-        layout.addLayout(row2)
+        grid.addWidget(self.rb_centroid,    3, 0)
+        grid.addWidget(self.combo_centroid, 3, 1, 1, 2)
 
         # Punto di riferimento (mostrato solo per "Distanza")
         self.ref_point_group = QGroupBox("Punto di riferimento (X, Y)")
@@ -176,16 +177,13 @@ class GeoSortDialog(QDialog):
         self.spin_ref_y.setSingleStep(1.0)
         ref_layout.addRow("X:", self.spin_ref_x)
         ref_layout.addRow("Y:", self.spin_ref_y)
-
         if self.iface:
             self.btn_pick_point = QPushButton("📍  Seleziona punto sulla mappa")
             ref_layout.addRow(self.btn_pick_point)
-
         self.ref_point_group.setVisible(False)
-        layout.addWidget(self.ref_point_group)
+        grid.addWidget(self.ref_point_group, 4, 0, 1, 3)
 
-        # 3 – Proprietà geometrica
-        row3 = QHBoxLayout()
+        # ── Riga 5: Proprietà geometrica ────────────────────────────────────
         self.rb_geometry = QRadioButton("Per proprietà geometrica")
         self._crit_bg.addButton(self.rb_geometry, 2)
         self.combo_geom = QComboBox()
@@ -202,21 +200,20 @@ class GeoSortDialog(QDialog):
                 "Ymin Bounding Box",
             ]
         )
-        row3.addWidget(self.rb_geometry)
-        row3.addWidget(self.combo_geom, 1)
-        layout.addLayout(row3)
+        grid.addWidget(self.rb_geometry, 5, 0)
+        grid.addWidget(self.combo_geom,  5, 1, 1, 2)
 
-        # 4 – Posizione lungo linea
-        row4 = QHBoxLayout()
+        # ── Riga 6: Posizione lungo linea ────────────────────────────────────
         self.rb_spatial = QRadioButton("Per posizione lungo linea")
         self._crit_bg.addButton(self.rb_spatial, 3)
         self.combo_ref_layer = QgsMapLayerComboBox()
         self.combo_ref_layer.setFilters(QgsMapLayerProxyModel.LineLayer)
-        row4.addWidget(self.rb_spatial)
-        row4.addWidget(self.combo_ref_layer, 1)
-        layout.addLayout(row4)
+        grid.addWidget(self.rb_spatial,      6, 0)
+        grid.addWidget(self.combo_ref_layer, 6, 1, 1, 2)
 
-        # Modalità calcolo (visibile solo con rb_spatial attivo)
+        outer.addLayout(grid)
+
+        # ── Modalità calcolo (larghezza piena, sotto la griglia) ─────────────
         self.combo_line_mode = QComboBox()
         self.combo_line_mode.addItem(
             "Proiezione centroide  –  tutte le feature",
@@ -235,7 +232,7 @@ class GeoSortDialog(QDialog):
             "Solo intersecanti – centroide: esclude le feature che non intersecano la linea.\n"
             "Solo intersecanti – primo punto: usa il punto in cui la feature tocca per primo la linea."
         )
-        layout.addWidget(self.combo_line_mode)
+        outer.addWidget(self.combo_line_mode)
 
         return grp
 
