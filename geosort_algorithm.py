@@ -129,7 +129,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterVectorLayer(
                 self.INPUT,
                 "Layer di input",
-                types=[QgsProcessing.TypeVectorAnyGeometry],
+                types=[QgsProcessing.SourceType.TypeVectorAnyGeometry],
             )
         )
         self.addParameter(
@@ -173,7 +173,19 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             optional=True,
         )
         self.addParameter(param_ref)
-
+        # Modalità di calcolo per il criterio "Posizione lungo linea"
+        self.addParameter(
+            QgsProcessingParameterEnum(
+                "LINE_MODE",
+                "Modalità di calcolo linea",
+                options=[
+                    "Proiezione centroide  –  tutte le feature",
+                    "Solo intersecanti –  proiezione centroide",
+                    "Solo intersecanti –  primo punto di intersezione",
+                ],
+                defaultValue=0,
+            )
+        )
         from qgis.core import QgsProcessingParameterExpression
         self.addParameter(
             QgsProcessingParameterExpression(

@@ -69,7 +69,9 @@ def _natural_key(val):
 # Ordinamento per attributo
 # ──────────────────────────────────────────────────────────────────────────────
 
-def sort_by_attribute(features, field, ascending=True, nulls_last=True, natural_sort=False):
+from typing import List, Tuple, Any
+
+def sort_by_attribute(features: List[QgsFeature], field: str, ascending: bool = True, nulls_last: bool = True, natural_sort: bool = False) -> List[QgsFeature]:
     """Ordina le feature per valore di un campo attributo.
 
     Args:
@@ -219,21 +221,21 @@ def _geom_value(feature, criterion):
     type_name = QgsWkbTypes.displayString(wkb_type)
 
     if criterion == "area":
-        if geom_type != QgsWkbTypes.PolygonGeometry:
+        if geom_type != QgsWkbTypes.GeometryType.PolygonGeometry:
             raise ValueError(
                 f"Criterio 'area' richiede geometrie poligonali, trovato: {type_name}."
             )
         return geom.area()
 
     elif criterion == "perimeter":
-        if geom_type != QgsWkbTypes.PolygonGeometry:
+        if geom_type != QgsWkbTypes.GeometryType.PolygonGeometry:
             raise ValueError(
                 f"Criterio 'perimeter' richiede geometrie poligonali, trovato: {type_name}."
             )
         return geom.length()
 
     elif criterion == "length":
-        if geom_type != QgsWkbTypes.LineGeometry:
+        if geom_type != QgsWkbTypes.GeometryType.LineGeometry:
             raise ValueError(
                 f"Criterio 'length' richiede geometrie lineari, trovato: {type_name}."
             )
@@ -262,7 +264,7 @@ def _geom_value(feature, criterion):
         raise ValueError(f"Criterio sconosciuto: '{criterion}'.")
 
 
-def sort_by_geometry_property(features, criterion, ascending=True):
+def sort_by_geometry_property(features: List[QgsFeature], criterion: str, ascending: bool = True) -> Tuple[List[QgsFeature], List[float]]:
     """Ordina le feature per proprietà geometrica.
 
     Args:
@@ -284,8 +286,8 @@ def sort_by_geometry_property(features, criterion, ascending=True):
         try:
             return _geom_value(f, criterion)
         except Exception as exc:
-            QgsMessageLog.logMessage(str(exc), LOG_TAG, Qgis.MessageLevel.Warning)
-            return 0.0
+            # Propagate incompatibility errors instead of silencing them
+            raise
 
     sorted_feats = sorted(features, key=key, reverse=not ascending)
     values = [key(f) for f in sorted_feats]
@@ -314,14 +316,14 @@ def _extract_points_from_geometry(geom):
     geom_type = QgsWkbTypes.geometryType(geom.wkbType())
     pts = []
 
-    if geom_type == QgsWkbTypes.PointGeometry:
+    if geom_type == QgsWkbTypes.GeometryType.PointGeometry:
         if geom.isMultipart():
             for p in geom.asMultiPoint():
                 pts.append(QgsGeometry.fromPointXY(QgsPointXY(p.x(), p.y())))
         else:
             pts.append(geom)
 
-    elif geom_type == QgsWkbTypes.LineGeometry:
+    elif geom_type == QgsWkbTypes.GeometryType.LineGeometry:
         # Usa tutti i vertici della linea
         if geom.isMultipart():
             for part in geom.asMultiPolyline():
@@ -331,7 +333,7 @@ def _extract_points_from_geometry(geom):
             for v in geom.asPolyline():
                 pts.append(QgsGeometry.fromPointXY(QgsPointXY(v.x(), v.y())))
 
-    elif geom_type == QgsWkbTypes.PolygonGeometry:
+    elif geom_type == QgsWkbTypes.GeometryType.PolygonGeometry:
         # Per poligoni usa il centroide dell'intersezione
         pts.append(geom.centroid())
 
@@ -403,7 +405,7 @@ def sort_by_line_position(features, line_geometry, ascending=True,
         geom_type = QgsWkbTypes.geometryType(geom.wkbType())
 
         # ── Punto rappresentativo della feature (centroide / punto stesso) ──
-        if geom_type == QgsWkbTypes.PointGeometry:
+        if geom_type == QgsWkbTypes.GeometryType.PointGeometry:
             pt_geom = QgsGeometry(geom)
         else:
             pt_geom = geom.centroid()

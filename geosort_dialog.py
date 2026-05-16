@@ -27,7 +27,7 @@ from qgis.PyQt.QtWidgets import (
     QMessageBox,
     QSizePolicy,
 )
-from qgis.PyQt.QtCore import Qt, QSize, pyqtSignal
+from qgis.PyQt.QtCore import Qt, QSize, pyqtSignal, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.core import (
     QgsMapLayerProxyModel,
@@ -104,7 +104,7 @@ class GeoSortDialog(QDialog):
         layout = QFormLayout(grp)
 
         self.layer_combo = QgsMapLayerComboBox()
-        self.layer_combo.setFilters(QgsMapLayerProxyModel.VectorLayer)
+        self.layer_combo.setFilters(QgsMapLayerProxyModel.Filter.VectorLayer)
         layout.addRow("Layer:", self.layer_combo)
 
         self.lbl_crs = QLabel("–")
@@ -128,7 +128,7 @@ class GeoSortDialog(QDialog):
         self.rb_attribute.setChecked(True)
         self._crit_bg.addButton(self.rb_attribute, 0)
         self.combo_field = QgsFieldComboBox()
-        self.combo_field.setFilters(QgsFieldProxyModel.AllTypes)
+        self.combo_field.setFilters(QgsFieldProxyModel.Filter.AllTypes)
         self.btn_expression_builder = QPushButton()
         _expr_icon_path = os.path.join(os.path.dirname(__file__), "icon_expression.svg")
         self.btn_expression_builder.setIcon(QIcon(_expr_icon_path))
@@ -143,12 +143,17 @@ class GeoSortDialog(QDialog):
         grid.addWidget(self.combo_field,            0, 1)
         grid.addWidget(self.btn_expression_builder, 0, 2)
 
-        # Etichetta espressione attiva
+        # Etichetta espressione attiva + pulsante rimozione
         self._active_expression = ""
         self.lbl_active_expr = QLabel("")
         self.lbl_active_expr.setStyleSheet("font-size: 10px; color: #1D9E75; padding-left: 4px;")
         self.lbl_active_expr.setVisible(False)
-        grid.addWidget(self.lbl_active_expr, 1, 0, 1, 3)
+        self.btn_remove_expression = QPushButton(QCoreApplication.translate("GeoSortDialog", "Rimuovi"))
+        self.btn_remove_expression.setFixedHeight(22)
+        self.btn_remove_expression.setVisible(False)
+        self.btn_remove_expression.setToolTip("Rimuovi l'espressione attiva e torna al campo singolo")
+        grid.addWidget(self.lbl_active_expr,       1, 0, 1, 2)
+        grid.addWidget(self.btn_remove_expression, 1, 2)
 
         self.lbl_expr_warning = QLabel("")
         self.lbl_expr_warning.setStyleSheet("font-size: 10px; color: #e67e22; padding-left: 4px;")
@@ -179,7 +184,7 @@ class GeoSortDialog(QDialog):
         ref_layout.addRow("X:", self.spin_ref_x)
         ref_layout.addRow("Y:", self.spin_ref_y)
         if self.iface:
-            self.btn_pick_point = QPushButton("📍  Seleziona punto sulla mappa")
+            self.btn_pick_point = QPushButton("Seleziona punto sulla mappa")
             ref_layout.addRow(self.btn_pick_point)
         self.ref_point_group.setVisible(False)
         grid.addWidget(self.ref_point_group, 4, 0, 1, 3)
@@ -208,7 +213,7 @@ class GeoSortDialog(QDialog):
         self.rb_spatial = QRadioButton("Per posizione lungo linea")
         self._crit_bg.addButton(self.rb_spatial, 3)
         self.combo_ref_layer = QgsMapLayerComboBox()
-        self.combo_ref_layer.setFilters(QgsMapLayerProxyModel.LineLayer)
+        self.combo_ref_layer.setFilters(QgsMapLayerProxyModel.Filter.LineLayer)
         grid.addWidget(self.rb_spatial,      6, 0)
         grid.addWidget(self.combo_ref_layer, 6, 1, 1, 2)
 
@@ -304,7 +309,7 @@ class GeoSortDialog(QDialog):
         self.preview_table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.preview_table)
 
-        self.btn_preview = QPushButton("🔍  Aggiorna anteprima")
+        self.btn_preview = QPushButton("Aggiorna anteprima")
         layout.addWidget(self.btn_preview)
 
         return grp
@@ -342,6 +347,7 @@ class GeoSortDialog(QDialog):
         self.btn_close.clicked.connect(self.close)
         self.btn_help.clicked.connect(self._on_help)
         self.btn_expression_builder.clicked.connect(self._open_expression_builder)
+        self.btn_remove_expression.clicked.connect(self._clear_expression)
 
         if self.iface and hasattr(self, "btn_pick_point"):
             self.btn_pick_point.clicked.connect(self._pick_point_on_map)
@@ -449,13 +455,10 @@ class GeoSortDialog(QDialog):
         # Espressione composta → attivala
         self._active_expression = expr_text
         short = expr_text if len(expr_text) <= 60 else expr_text[:57] + "…"
-        self.lbl_active_expr.setText(f"Espressione: {short}  [×]")
-        self.lbl_active_expr.setToolTip(
-            f"Espressione attiva: {expr_text}\nClicca per rimuoverla e tornare al campo."
-        )
-        self.lbl_active_expr.mousePressEvent = lambda _: self._clear_expression()
-        self.lbl_active_expr.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.lbl_active_expr.setText(f"Espressione: {short}")
+        self.lbl_active_expr.setToolTip(f"Espressione attiva: {expr_text}")
         self.lbl_active_expr.setVisible(True)
+        self.btn_remove_expression.setVisible(True)
         # Grisa la combo per segnalare che non è usata
         self.combo_field.setEnabled(False)
 
@@ -463,6 +466,7 @@ class GeoSortDialog(QDialog):
         """Rimuove l'espressione attiva e riabilita la combo campo."""
         self._active_expression = ""
         self.lbl_active_expr.setVisible(False)
+        self.btn_remove_expression.setVisible(False)
         self.lbl_expr_warning.setVisible(False)
         if self.rb_attribute.isChecked():
             self.combo_field.setEnabled(True)
@@ -721,6 +725,17 @@ class GeoSortDialog(QDialog):
                     if excluded else "")
 
         if self.rb_update.isChecked():
+            if layer.fields().indexOf("sort_order") != -1:
+                reply = QMessageBox.question(
+                    self,
+                    "GeoSort",
+                    "Il campo 'sort_order' esiste già nel layer.\n"
+                    "Sovrascriverlo con il nuovo ordinamento?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes,
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return False
             ok = apply_sort_order(layer, sorted_feats, add_crit, values, crit_name)
             if ok:
                 layer.triggerRepaint()

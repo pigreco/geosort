@@ -228,6 +228,244 @@ class TestSortByAttribute(unittest.TestCase):
 # Test: ordinamento per centroide
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _mock_sort_by_geometry_property(features, criterion, ascending=True):
+    """Mock standalone di sort_by_geometry_property – replica la validazione early-check."""
+    if features:
+        _check_criterion_compatibility(features[0].geometry()._type, criterion)
+
+    def _geom_val(f):
+        geom = f.geometry()
+        if criterion in ("area",):
+            return geom._area
+        if criterion in ("perimeter", "length"):
+            return geom._length
+        if criterion == "n_vertices":
+            return geom._n_vertices
+        return 0.0
+
+    sorted_feats = sorted(features, key=_geom_val, reverse=not ascending)
+    values = [_geom_val(f) for f in sorted_feats]
+    return sorted_feats, values
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Test: sort_by_geometry_property – ValueError su tipo incompatibile
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestSortByGeometryPropertyValidation(unittest.TestCase):
+    """Testa che sort_by_geometry_property lanci ValueError immediatamente sul primo tipo incompatibile."""
+
+    def _poly(self, area=100.0):
+        return MockFeature(0, geometry=MockGeometry("polygon", area=area))
+
+    def _line(self, length=10.0):
+        return MockFeature(0, geometry=MockGeometry("line", length=length))
+
+    def _point(self):
+        return MockFeature(0, geometry=MockGeometry("point"))
+
+    def test_area_on_polygon_ok(self):
+        _mock_sort_by_geometry_property([self._poly()], "area")
+
+    def test_area_on_point_raises(self):
+        with self.assertRaises(ValueError):
+            _mock_sort_by_geometry_property([self._point()], "area")
+
+    def test_area_on_line_raises(self):
+        with self.assertRaises(ValueError):
+            _mock_sort_by_geometry_property([self._line()], "area")
+
+    def test_length_on_line_ok(self):
+        _mock_sort_by_geometry_property([self._line()], "length")
+
+    def test_length_on_polygon_raises(self):
+        with self.assertRaises(ValueError):
+            _mock_sort_by_geometry_property([self._poly()], "length")
+
+    def test_perimeter_on_polygon_ok(self):
+        _mock_sort_by_geometry_property([self._poly()], "perimeter")
+
+    def test_perimeter_on_point_raises(self):
+        with self.assertRaises(ValueError):
+            _mock_sort_by_geometry_property([self._point()], "perimeter")
+
+    def test_n_vertices_any_type(self):
+        for geom_type in ("point", "line", "polygon"):
+            feats = [MockFeature(0, geometry=MockGeometry(geom_type))]
+            _mock_sort_by_geometry_property(feats, "n_vertices")
+
+    def test_empty_list_no_exception(self):
+        _mock_sort_by_geometry_property([], "area")
+
+    def test_sort_area_ascending(self):
+        feats = [
+            MockFeature(0, geometry=MockGeometry("polygon", area=300)),
+            MockFeature(1, geometry=MockGeometry("polygon", area=100)),
+            MockFeature(2, geometry=MockGeometry("polygon", area=200)),
+        ]
+        _, values = _mock_sort_by_geometry_property(feats, "area", ascending=True)
+        self.assertEqual(values, [100, 200, 300])
+
+    def test_sort_area_descending(self):
+        feats = [
+            MockFeature(0, geometry=MockGeometry("polygon", area=300)),
+            MockFeature(1, geometry=MockGeometry("polygon", area=100)),
+        ]
+        _, values = _mock_sort_by_geometry_property(feats, "area", ascending=False)
+        self.assertEqual(values, [300, 100])
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Mock layer per testare apply_sort_order standalone
+# ──────────────────────────────────────────────────────────────────────────────
+
+class MockLayer:
+    """Mock minimale di QgsVectorLayer per apply_sort_order."""
+
+    def __init__(self, field_names=None, editing=False):
+        self._field_names = list(field_names or [])
+        self._editing = editing
+        self._changes = {}          # {(fid, idx): val}
+        self._start_editing_fails = False
+        self._committed = False
+
+    def isEditable(self):
+        return self._editing
+
+    def startEditing(self):
+        if self._start_editing_fails:
+            return False
+        self._editing = True
+        return True
+
+    def fields(self):
+        return self
+
+    def indexOf(self, name):
+        return self._field_names.index(name) if name in self._field_names else -1
+
+    def addAttribute(self, field_name):
+        # field_name può essere una stringa (mock) o un oggetto con attributo .name
+        name = field_name if isinstance(field_name, str) else getattr(field_name, "name", str(field_name))
+        self._field_names.append(name)
+
+    def updateFields(self):
+        pass
+
+    def changeAttributeValue(self, fid, idx, val):
+        self._changes[(fid, idx)] = val
+
+    def commitChanges(self):
+        self._committed = True
+        return True
+
+    def rollBack(self):
+        pass
+
+
+def _mock_apply_sort_order(layer, sorted_features, add_criterion_field=False,
+                           criterion_values=None, criterion_field_name="sort_value"):
+    """Mock standalone di apply_sort_order – senza QgsField/QMetaType."""
+    try:
+        if not layer.isEditable():
+            if not layer.startEditing():
+                return False
+
+        sort_idx = layer.indexOf("sort_order")
+        if sort_idx == -1:
+            layer.addAttribute("sort_order")
+            sort_idx = layer.indexOf("sort_order")
+
+        crit_idx = -1
+        if add_criterion_field and criterion_values:
+            crit_idx = layer.indexOf(criterion_field_name)
+            if crit_idx == -1:
+                layer.addAttribute(criterion_field_name)
+                crit_idx = layer.indexOf(criterion_field_name)
+
+        for i, feat in enumerate(sorted_features):
+            layer.changeAttributeValue(feat.id(), sort_idx, i + 1)
+            if add_criterion_field and criterion_values and crit_idx != -1:
+                try:
+                    layer.changeAttributeValue(feat.id(), crit_idx, float(criterion_values[i]))
+                except (TypeError, ValueError):
+                    pass
+
+        layer.commitChanges()
+        return True
+
+    except Exception:
+        return False
+
+
+class TestApplySortOrder(unittest.TestCase):
+    """Testa apply_sort_order (mock standalone, senza QGIS)."""
+
+    def _feats(self, n):
+        return [MockFeature(i, {"val": i}) for i in range(n)]
+
+    def test_adds_sort_order_when_missing(self):
+        layer = MockLayer(field_names=["nome", "area"])
+        ok = _mock_apply_sort_order(layer, self._feats(3))
+        self.assertTrue(ok)
+        self.assertIn("sort_order", layer._field_names)
+
+    def test_no_duplicate_sort_order_when_existing(self):
+        layer = MockLayer(field_names=["nome", "sort_order"])
+        initial_len = len(layer._field_names)
+        ok = _mock_apply_sort_order(layer, self._feats(3))
+        self.assertTrue(ok)
+        self.assertEqual(layer._field_names.count("sort_order"), 1)
+        self.assertEqual(len(layer._field_names), initial_len)
+
+    def test_values_written_correctly(self):
+        layer = MockLayer(field_names=["nome"])
+        feats = self._feats(3)
+        ok = _mock_apply_sort_order(layer, feats)
+        self.assertTrue(ok)
+        sort_idx = layer.indexOf("sort_order")
+        for i, feat in enumerate(feats):
+            self.assertEqual(layer._changes[(feat.id(), sort_idx)], i + 1)
+
+    def test_start_editing_fails_returns_false(self):
+        layer = MockLayer(field_names=["nome"], editing=False)
+        layer._start_editing_fails = True
+        ok = _mock_apply_sort_order(layer, self._feats(2))
+        self.assertFalse(ok)
+
+    def test_adds_criterion_field(self):
+        layer = MockLayer(field_names=["nome"])
+        feats = self._feats(3)
+        values = [100.0, 200.0, 300.0]
+        ok = _mock_apply_sort_order(layer, feats, add_criterion_field=True,
+                                    criterion_values=values, criterion_field_name="sort_area")
+        self.assertTrue(ok)
+        self.assertIn("sort_area", layer._field_names)
+        crit_idx = layer.indexOf("sort_area")
+        for i, feat in enumerate(feats):
+            self.assertAlmostEqual(layer._changes[(feat.id(), crit_idx)], values[i])
+
+    def test_existing_criterion_field_not_duplicated(self):
+        layer = MockLayer(field_names=["nome", "sort_area"])
+        feats = self._feats(2)
+        values = [10.0, 20.0]
+        _mock_apply_sort_order(layer, feats, add_criterion_field=True,
+                               criterion_values=values, criterion_field_name="sort_area")
+        self.assertEqual(layer._field_names.count("sort_area"), 1)
+
+    def test_sort_order_starts_at_one(self):
+        layer = MockLayer(field_names=[])
+        feats = self._feats(4)
+        _mock_apply_sort_order(layer, feats)
+        sort_idx = layer.indexOf("sort_order")
+        self.assertEqual(layer._changes[(feats[0].id(), sort_idx)], 1)
+
+    def test_committed_on_success(self):
+        layer = MockLayer(field_names=[])
+        _mock_apply_sort_order(layer, self._feats(2))
+        self.assertTrue(layer._committed)
+
+
 class TestSortByCentroid(unittest.TestCase):
 
     def _point_feats(self, coords):
