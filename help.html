@@ -30,7 +30,7 @@
         <li>funzioni geometriche: <code>length($geometry)</code>, <code>area($geometry)</code></li>
         <li>condizioni: <code>CASE WHEN "tipo"='A' THEN 1 ELSE 2 END</code></li>
       </ul>
-      L'espressione attiva è evidenziata in verde; clicca <b>[×]</b> per rimuoverla.<br><br>
+      L'espressione attiva è evidenziata in verde; clicca <b>Rimuovi</b> per cancellarla e tornare al campo singolo.<br><br>
       <b>Modalità di ordinamento testuale:</b>
       <ul>
         <li><b>Lessicografico</b> (default) – confronto carattere per carattere.
@@ -57,7 +57,8 @@
 
 <h3>Output</h3>
 <ul>
-  <li><b>Aggiorna il layer corrente</b> – aggiunge o aggiorna il campo <code>sort_order</code></li>
+  <li><b>Aggiorna il layer corrente</b> – aggiunge o aggiorna il campo <code>sort_order</code>.
+      Se il campo esiste già, viene chiesta conferma prima di sovrascriverlo.</li>
   <li><b>Nuovo layer in memoria</b> – crea una copia ordinata senza modificare l'originale</li>
   <li>Opzione: aggiungi <code>sort_value</code> con il valore del criterio usato</li>
 </ul>
