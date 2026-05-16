@@ -125,6 +125,59 @@ python -m pytest tests/test_dialog.py -v
 
 ---
 
+## Contributing
+
+### Clonare e preparare l'ambiente
+
+```bash
+git clone https://github.com/<user>/geosort.git
+cd geosort
+# Nessuna dipendenza pip: il plugin usa solo PyQGIS e la stdlib Python
+```
+
+### Eseguire i test
+
+I test della logica core non richiedono QGIS:
+
+```bash
+python3 -m unittest tests.test_sorting -v
+# oppure, se pytest è installato:
+python3 -m pytest tests/test_sorting.py -v
+```
+
+I test del dialog richiedono QGIS nel PATH:
+
+```bash
+python3 -m pytest tests/test_dialog.py -v
+```
+
+### Stile dei commit
+
+- Messaggi in italiano, presente indicativo: `Aggiunge`, `Corregge`, `Rimuove`
+- Prima riga ≤ 72 caratteri; dettagli nel corpo dopo una riga vuota
+- Un commit per funzionalità/fix logicamente separata
+
+### Convenzioni di naming
+
+- **Moduli**: `snake_case` (`geosort_core.py`)
+- **Classi**: `PascalCase` (`GeoSortDialog`)
+- **Metodi e variabili**: `snake_case`; slot `_on_<evento>`, builder `_build_<widget>`
+- **Costanti**: `UPPER_SNAKE_CASE` (`LOG_TAG`, `GEOM_CRITERIA`)
+
+### Struttura ZIP per la release
+
+```
+geosort.zip
+└── geosort/          ← cartella radice (stessa del repository)
+    ├── metadata.txt
+    ├── __init__.py
+    └── ...
+```
+
+Il nome del file ZIP **non include** il numero di versione.
+
+---
+
 ## Licenza
 
 GPL v2 o superiore – vedi file `LICENSE`.

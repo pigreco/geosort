@@ -69,7 +69,9 @@ def _natural_key(val):
 # Ordinamento per attributo
 # ──────────────────────────────────────────────────────────────────────────────
 
-def sort_by_attribute(features, field, ascending=True, nulls_last=True, natural_sort=False):
+from typing import List, Tuple, Any
+
+def sort_by_attribute(features: List[QgsFeature], field: str, ascending: bool = True, nulls_last: bool = True, natural_sort: bool = False) -> List[QgsFeature]:
     """Ordina le feature per valore di un campo attributo.
 
     Args:
@@ -262,7 +264,7 @@ def _geom_value(feature, criterion):
         raise ValueError(f"Criterio sconosciuto: '{criterion}'.")
 
 
-def sort_by_geometry_property(features, criterion, ascending=True):
+def sort_by_geometry_property(features: List[QgsFeature], criterion: str, ascending: bool = True) -> Tuple[List[QgsFeature], List[float]]:
     """Ordina le feature per proprietà geometrica.
 
     Args:
@@ -284,8 +286,8 @@ def sort_by_geometry_property(features, criterion, ascending=True):
         try:
             return _geom_value(f, criterion)
         except Exception as exc:
-            QgsMessageLog.logMessage(str(exc), LOG_TAG, Qgis.MessageLevel.Warning)
-            return 0.0
+            # Propagate incompatibility errors instead of silencing them
+            raise
 
     sorted_feats = sorted(features, key=key, reverse=not ascending)
     values = [key(f) for f in sorted_feats]
