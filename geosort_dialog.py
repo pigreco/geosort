@@ -104,7 +104,7 @@ class GeoSortDialog(QDialog):
         layout = QFormLayout(grp)
 
         self.layer_combo = QgsMapLayerComboBox()
-        self.layer_combo.setFilters(QgsMapLayerProxyModel.VectorLayer)
+        self.layer_combo.setFilters(QgsMapLayerProxyModel.Filter.VectorLayer)
         layout.addRow("Layer:", self.layer_combo)
 
         self.lbl_crs = QLabel("–")
@@ -128,7 +128,7 @@ class GeoSortDialog(QDialog):
         self.rb_attribute.setChecked(True)
         self._crit_bg.addButton(self.rb_attribute, 0)
         self.combo_field = QgsFieldComboBox()
-        self.combo_field.setFilters(QgsFieldProxyModel.AllTypes)
+        self.combo_field.setFilters(QgsFieldProxyModel.Filter.AllTypes)
         self.btn_expression_builder = QPushButton()
         _expr_icon_path = os.path.join(os.path.dirname(__file__), "icon_expression.svg")
         self.btn_expression_builder.setIcon(QIcon(_expr_icon_path))
@@ -213,7 +213,7 @@ class GeoSortDialog(QDialog):
         self.rb_spatial = QRadioButton("Per posizione lungo linea")
         self._crit_bg.addButton(self.rb_spatial, 3)
         self.combo_ref_layer = QgsMapLayerComboBox()
-        self.combo_ref_layer.setFilters(QgsMapLayerProxyModel.LineLayer)
+        self.combo_ref_layer.setFilters(QgsMapLayerProxyModel.Filter.LineLayer)
         grid.addWidget(self.rb_spatial,      6, 0)
         grid.addWidget(self.combo_ref_layer, 6, 1, 1, 2)
 

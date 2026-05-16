@@ -129,7 +129,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterVectorLayer(
                 self.INPUT,
                 "Layer di input",
-                types=[QgsProcessing.TypeVectorAnyGeometry],
+                types=[QgsProcessing.SourceType.TypeVectorAnyGeometry],
             )
         )
         self.addParameter(
