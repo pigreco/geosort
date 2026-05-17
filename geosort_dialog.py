@@ -219,6 +219,13 @@ class GeoSortDialog(QDialog):
         grid.addWidget(self.rb_spatial,      6, 0)
         grid.addWidget(self.combo_ref_layer, 6, 1, 1, 2)
 
+        self.rb_line_distance = QRadioButton("Per distanza dalla linea")
+        self._crit_bg.addButton(self.rb_line_distance, 4)
+        self.combo_ref_layer_dist = QgsMapLayerComboBox()
+        self.combo_ref_layer_dist.setFilters(QgsMapLayerProxyModel.Filter.LineLayer)
+        grid.addWidget(self.rb_line_distance,         7, 0)
+        grid.addWidget(self.combo_ref_layer_dist,     7, 1, 1, 2)
+
         outer.addLayout(grid)
 
         # ── Modalità calcolo (larghezza piena, sotto la griglia) ─────────────
@@ -338,7 +345,7 @@ class GeoSortDialog(QDialog):
 
     def _connect_signals(self):
         self.layer_combo.layerChanged.connect(self._on_layer_changed)
-        for rb in (self.rb_attribute, self.rb_centroid, self.rb_geometry, self.rb_spatial):
+        for rb in (self.rb_attribute, self.rb_centroid, self.rb_geometry, self.rb_spatial, self.rb_line_distance):
             rb.toggled.connect(self._on_criterion_changed)
         self.combo_centroid.currentIndexChanged.connect(self._on_centroid_mode_changed)
 
@@ -389,6 +396,7 @@ class GeoSortDialog(QDialog):
         is_centroid = self.rb_centroid.isChecked()
         is_geom = self.rb_geometry.isChecked()
         is_spatial = self.rb_spatial.isChecked()
+        is_line_distance = self.rb_line_distance.isChecked()
 
         self.combo_field.setEnabled(is_attr)
         self.btn_expression_builder.setEnabled(is_attr)
@@ -398,6 +406,7 @@ class GeoSortDialog(QDialog):
         self.combo_geom.setEnabled(is_geom)
         self.combo_ref_layer.setEnabled(is_spatial)
         self.combo_line_mode.setEnabled(is_spatial)
+        self.combo_ref_layer_dist.setEnabled(is_line_distance)
 
         # Se si cambia criterio, resetta l'espressione attiva
         if not is_attr:
@@ -585,6 +594,7 @@ class GeoSortDialog(QDialog):
             sort_by_centroid,
             sort_by_geometry_property,
             sort_by_line_position,
+            sort_by_line_distance,
         )
 
         layer = self.layer_combo.currentLayer()
@@ -679,6 +689,21 @@ class GeoSortDialog(QDialog):
                 progress_callback=progress_callback,
             )
             return sorted_feats, values, "sort_dist", excluded
+
+        # ── Per distanza dalla linea ─────────────────────────────────────────
+        if self.rb_line_distance.isChecked():
+            ref_layer = self.combo_ref_layer_dist.currentLayer()
+            if not ref_layer:
+                raise ValueError("Nessun layer di riferimento selezionato.")
+            ref_feats = list(ref_layer.getFeatures())
+            if not ref_feats:
+                raise ValueError("Il layer di riferimento non contiene feature.")
+            line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+            sorted_feats, values = sort_by_line_distance(
+                features, line_geom, ascending,
+                progress_callback=progress_callback,
+            )
+            return sorted_feats, values, "sort_dist", []
 
         raise ValueError("Nessun criterio selezionato.")
 

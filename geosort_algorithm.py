@@ -60,6 +60,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         "bbox_xmin",
         "bbox_ymin",
         "line_position",
+        "line_distance",
         "expression",
     ]
 
@@ -78,6 +79,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         "Xmin Bounding Box",
         "Ymin Bounding Box",
         "Posizione lungo linea di riferimento",
+        "Distanza dalla linea di riferimento",
         "Espressione QGIS",
     ]
 
@@ -103,7 +105,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             "e aggiunge il campo <b>sort_order</b> (numero progressivo, 1 = prima feature).\n\n"
             "Criteri disponibili: attributo tabellare, coordinate del centroide, "
             "area, lunghezza, perimetro, numero di vertici, bounding box, "
-            "posizione lungo una linea di riferimento, espressione QGIS.\n\n"
+            "posizione lungo una linea di riferimento, distanza dalla linea di riferimento, espressione QGIS.\n\n"
             "<b>Modalità di ordinamento testuale (attributo/espressione):</b>\n"
             "• <b>Lessicografico</b> (default): confronto carattere per carattere. "
             "Esempio: «1010» &lt; «11» &lt; «1111».\n"
@@ -218,6 +220,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             sort_by_centroid,
             sort_by_geometry_property,
             sort_by_line_position,
+            sort_by_line_distance,
         )
 
         layer = self.parameterAsVectorLayer(parameters, self.INPUT, context)
@@ -286,6 +289,21 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 feedback.pushWarning(
                     f"GeoSort: {len(excluded)} feature escluse perché non intersecano la linea."
                 )
+
+        elif criterion == "line_distance":
+            ref_layer = self.parameterAsLayer(parameters, self.REF_LAYER, context)
+            if not ref_layer:
+                raise QgsProcessingException(
+                    "Specificare un layer di riferimento per il criterio 'Distanza dalla linea'."
+                )
+            ref_feats = list(ref_layer.getFeatures())
+            if not ref_feats:
+                raise QgsProcessingException("Il layer di riferimento non contiene feature.")
+            line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+            sorted_feats, values = sort_by_line_distance(
+                features, line_geom, ascending
+            )
+            excluded = []
 
         elif criterion == "expression":
             from .geosort_core import sort_by_expression

@@ -366,6 +366,8 @@ LINE_MODES = {
     "intersecting_first_pt":   "Solo intersecanti – primo punto di intersezione",
 }
 
+LINE_DISTANCE = "Distanza dalla linea"
+
 
 def _extract_points_from_geometry(geom):
     """Restituisce una lista di QgsGeometry (punti) estratti da una geometria qualsiasi.
@@ -517,6 +519,43 @@ def sort_by_line_position(features, line_geometry, ascending=True,
         progress_callback(100)
 
     return sorted_feats, values, excluded
+
+
+def sort_by_line_distance(features, line_geometry, ascending=True,
+                          progress_callback=None):
+    """Ordina le feature per distanza (perpendicolare) dalla linea di riferimento.
+
+    Args:
+        features (list[QgsFeature]): feature da ordinare.
+        line_geometry (QgsGeometry): geometria LineString (o MultiLineString) di riferimento.
+        ascending (bool): True = crescente (più vicine prima).
+        progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
+
+    Returns:
+        tuple[list[QgsFeature], list[float]]: (feature ordinate, valori distanza).
+    """
+    sorted_feats = []
+    values = []
+    total = len(features)
+
+    for i, f in enumerate(features):
+        geom = f.geometry()
+        dist = geom.distance(line_geometry)
+        sorted_feats.append(f)
+        values.append(dist)
+
+        if progress_callback and i % 50 == 0:
+            progress_callback(i * 100.0 / total)
+
+    # Ordina per distanza mantenendo l'associazione con i valori
+    paired = sorted(zip(values, sorted_feats), reverse=not ascending)
+    sorted_feats = [f for _, f in paired]
+    values = [v for v, _ in paired]
+
+    if progress_callback:
+        progress_callback(100)
+
+    return sorted_feats, values
 
 
 # ──────────────────────────────────────────────────────────────────────────────

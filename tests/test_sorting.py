@@ -1008,6 +1008,102 @@ class TestSortByExpression(unittest.TestCase):
         # Ordinamento lessicografico: "1010" < "11" < "1111"
         self.assertEqual(values, ["1010", "11", "1111"])
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Test: ordinamento per distanza dalla linea
+# ──────────────────────────────────────────────────────────────────────────────
+
+class MockLineDistanceGeometry:
+    """Mock geometria per testare sort_by_line_distance standalone."""
+
+    def __init__(self, distance_from_line):
+        self._dist = distance_from_line
+
+    def isMultipart(self):
+        return False
+
+    def distance(self, line_geom):
+        """Restituisce la distanza dalla linea."""
+        return self._dist
+
+    def wkbType(self):
+        return "mock"
+
+
+def _mock_sort_by_line_distance(features, ascending=True):
+    """Versione standalone del sort_by_line_distance con mock.
+
+    Usa feature.geometry()._dist come distanza dalla linea.
+    """
+    sorted_feats = []
+    values = []
+
+    for f in features:
+        geom = f.geometry()
+        dist = geom._dist
+        sorted_feats.append(f)
+        values.append(dist)
+
+    paired = sorted(zip(values, range(len(sorted_feats)), sorted_feats), reverse=not ascending)
+    return [f for _, _, f in paired], [v for v, _, _ in paired]
+
+
+class TestLineDistanceSorting(unittest.TestCase):
+
+    def _make(self, specs):
+        """specs = [distance, ...]"""
+        return [
+            MockFeature(i, geometry=MockLineDistanceGeometry(dist))
+            for i, dist in enumerate(specs)
+        ]
+
+    def test_line_distance_ascending(self):
+        """Ordina crescente: più vicine prima."""
+        feats = self._make([10.0, 5.0, 15.0, 2.0])
+        result, values = _mock_sort_by_line_distance(feats, ascending=True)
+        self.assertEqual(values, [2.0, 5.0, 10.0, 15.0])
+        self.assertEqual(len(result), 4)
+
+    def test_line_distance_descending(self):
+        """Ordina decrescente: più lontane prima."""
+        feats = self._make([10.0, 5.0, 15.0, 2.0])
+        result, values = _mock_sort_by_line_distance(feats, ascending=False)
+        self.assertEqual(values, [15.0, 10.0, 5.0, 2.0])
+        self.assertEqual(len(result), 4)
+
+    def test_line_distance_with_zeros(self):
+        """Feature sulla linea (distanza = 0) ordinate per prime (ascendente)."""
+        feats = self._make([0.0, 10.0, 0.0, 5.0])
+        result, values = _mock_sort_by_line_distance(feats, ascending=True)
+        self.assertEqual(values, [0.0, 0.0, 5.0, 10.0])
+
+    def test_line_distance_single_feature(self):
+        """Una singola feature."""
+        feats = self._make([7.5])
+        result, values = _mock_sort_by_line_distance(feats)
+        self.assertEqual(values, [7.5])
+        self.assertEqual(len(result), 1)
+
+    def test_line_distance_all_same(self):
+        """Tutte le feature alla stessa distanza."""
+        feats = self._make([5.0, 5.0, 5.0])
+        result, values = _mock_sort_by_line_distance(feats, ascending=True)
+        self.assertEqual(values, [5.0, 5.0, 5.0])
+        self.assertEqual(len(result), 3)
+
+    def test_line_distance_negative(self):
+        """Distanze negative (non realistiche ma valide per testing)."""
+        feats = self._make([-5.0, 10.0, -2.0, 0.0])
+        result, values = _mock_sort_by_line_distance(feats, ascending=True)
+        self.assertEqual(values, [-5.0, -2.0, 0.0, 10.0])
+
+    def test_line_distance_empty_list(self):
+        """Lista vuota."""
+        feats = self._make([])
+        result, values = _mock_sort_by_line_distance(feats)
+        self.assertEqual(len(result), 0)
+        self.assertEqual(len(values), 0)
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Entry point
 # ──────────────────────────────────────────────────────────────────────────────
