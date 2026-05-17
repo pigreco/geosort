@@ -87,6 +87,34 @@ output_layer = result['OUTPUT']
 
 ---
 
+## Lingue / Languages
+
+GeoSort supporta **Italiano** e **Inglese**. La lingua è rilevata automaticamente dalla
+configurazione di sistema di QGIS — non è richiesto nessun intervento da parte dell'utente.
+
+### Aggiungere una nuova lingua
+
+Per aggiungere una nuova traduzione (es. Francese, Spagnolo):
+
+```bash
+# 1. Rigenera i file .ts
+python3 scripts/generate_ts.py
+
+# 2. Crea un dizionario di traduzioni per la nuova lingua
+# (vedi scripts/add_italian_translations.py per il pattern)
+
+# 3. Applica le traduzioni
+python3 scripts/your_language_translations.py
+
+# 4. Compila i .qm (opzionale, il plugin carica anche i .ts direttamente):
+lrelease i18n/geosort_*.ts
+```
+
+Il plugin rileva automaticamente i file `.qm` compilati; se non disponibili, carica i `.ts`
+come fallback.
+
+---
+
 ## Requisiti
 
 - QGIS ≥ 3.16 LTR oppure QGIS 4.x
