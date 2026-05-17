@@ -9,6 +9,7 @@ import os
 
 from qgis.PyQt.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
@@ -25,6 +26,7 @@ from qgis.PyQt.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QMessageBox,
+    QProgressDialog,
     QSizePolicy,
 )
 from qgis.PyQt.QtCore import Qt, QSize, pyqtSignal, QCoreApplication
@@ -209,17 +211,27 @@ class GeoSortDialog(QDialog):
         grid.addWidget(self.rb_geometry, 5, 0)
         grid.addWidget(self.combo_geom,  5, 1, 1, 2)
 
-        # ── Riga 6: Posizione lungo linea ────────────────────────────────────
+        # ── Riga 6: Distanza dalla linea + modalità ──────────────────────────
+        self.rb_line_distance = QRadioButton("Per distanza dalla linea")
+        self._crit_bg.addButton(self.rb_line_distance, 3)
+        self.combo_ref_layer_dist = QgsMapLayerComboBox()
+        self.combo_ref_layer_dist.setFilters(QgsMapLayerProxyModel.Filter.LineLayer)
+        self.combo_line_distance_mode = QComboBox()
+        self.combo_line_distance_mode.addItem("Distanza dal centroide", "centroid")
+        self.combo_line_distance_mode.addItem("Distanza dall'elemento", "element")
+        self.combo_line_distance_mode.setToolTip(
+            "Distanza dal centroide: distanza dal centro della feature.\n"
+            "Distanza dall'elemento: distanza dal punto più vicino della geometria."
+        )
+        grid.addWidget(self.rb_line_distance,         6, 0)
+        grid.addWidget(self.combo_ref_layer_dist,     6, 1)
+        grid.addWidget(self.combo_line_distance_mode, 6, 2)
+
+        # ── Riga 7: Posizione lungo linea + modalità ─────────────────────────
         self.rb_spatial = QRadioButton("Per posizione lungo linea")
-        self._crit_bg.addButton(self.rb_spatial, 3)
+        self._crit_bg.addButton(self.rb_spatial, 4)
         self.combo_ref_layer = QgsMapLayerComboBox()
         self.combo_ref_layer.setFilters(QgsMapLayerProxyModel.Filter.LineLayer)
-        grid.addWidget(self.rb_spatial,      6, 0)
-        grid.addWidget(self.combo_ref_layer, 6, 1, 1, 2)
-
-        outer.addLayout(grid)
-
-        # ── Modalità calcolo (larghezza piena, sotto la griglia) ─────────────
         self.combo_line_mode = QComboBox()
         self.combo_line_mode.addItem(
             "Proiezione centroide  –  tutte le feature",
@@ -238,7 +250,11 @@ class GeoSortDialog(QDialog):
             "Solo intersecanti – centroide: esclude le feature che non intersecano la linea.\n"
             "Solo intersecanti – primo punto: usa il punto in cui la feature tocca per primo la linea."
         )
-        outer.addWidget(self.combo_line_mode)
+        grid.addWidget(self.rb_spatial,      7, 0)
+        grid.addWidget(self.combo_ref_layer, 7, 1)
+        grid.addWidget(self.combo_line_mode, 7, 2)
+
+        outer.addLayout(grid)
 
         return grp
 
@@ -336,7 +352,7 @@ class GeoSortDialog(QDialog):
 
     def _connect_signals(self):
         self.layer_combo.layerChanged.connect(self._on_layer_changed)
-        for rb in (self.rb_attribute, self.rb_centroid, self.rb_geometry, self.rb_spatial):
+        for rb in (self.rb_attribute, self.rb_centroid, self.rb_geometry, self.rb_spatial, self.rb_line_distance):
             rb.toggled.connect(self._on_criterion_changed)
         self.combo_centroid.currentIndexChanged.connect(self._on_centroid_mode_changed)
 
@@ -387,6 +403,7 @@ class GeoSortDialog(QDialog):
         is_centroid = self.rb_centroid.isChecked()
         is_geom = self.rb_geometry.isChecked()
         is_spatial = self.rb_spatial.isChecked()
+        is_line_distance = self.rb_line_distance.isChecked()
 
         self.combo_field.setEnabled(is_attr)
         self.btn_expression_builder.setEnabled(is_attr)
@@ -396,6 +413,8 @@ class GeoSortDialog(QDialog):
         self.combo_geom.setEnabled(is_geom)
         self.combo_ref_layer.setEnabled(is_spatial)
         self.combo_line_mode.setEnabled(is_spatial)
+        self.combo_ref_layer_dist.setEnabled(is_line_distance)
+        self.combo_line_distance_mode.setEnabled(is_line_distance)
 
         # Se si cambia criterio, resetta l'espressione attiva
         if not is_attr:
@@ -568,8 +587,12 @@ class GeoSortDialog(QDialog):
     # Ordinamento
     # ──────────────────────────────────────────────────────────────────────────
 
-    def _collect_sorted(self):
-        """Esegue l'ordinamento e restituisce (sorted_features, values, crit_field_name).
+    def _collect_sorted(self, progress_callback=None, features=None):
+        """Esegue l'ordinamento e restituisce (sorted_features, values, crit_field_name, excluded).
+
+        Args:
+            progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
+            features (list[QgsFeature] | None): feature pre-caricate (se None le carica dal layer).
 
         Raises:
             ValueError: in caso di input non valido o criterio incompatibile.
@@ -579,12 +602,14 @@ class GeoSortDialog(QDialog):
             sort_by_centroid,
             sort_by_geometry_property,
             sort_by_line_position,
+            sort_by_line_distance,
         )
 
         layer = self.layer_combo.currentLayer()
         if not layer:
             raise ValueError("Nessun layer selezionato.")
-        features = list(layer.getFeatures())
+        if features is None:
+            features = list(layer.getFeatures())
         if not features:
             raise ValueError("Il layer non contiene feature.")
 
@@ -600,7 +625,7 @@ class GeoSortDialog(QDialog):
                 from .geosort_core import sort_by_expression
                 sorted_feats, values, warnings = sort_by_expression(
                     features, layer, self._active_expression, ascending, nulls_last,
-                    natural_sort=natural_sort,
+                    natural_sort=natural_sort, progress_callback=progress_callback,
                 )
                 if warnings:
                     from qgis.core import QgsMessageLog, Qgis
@@ -616,7 +641,8 @@ class GeoSortDialog(QDialog):
                 if not field:
                     raise ValueError("Nessun campo selezionato.")
                 sorted_feats = sort_by_attribute(
-                    features, field, ascending, nulls_last, natural_sort=natural_sort
+                    features, field, ascending, nulls_last, natural_sort=natural_sort,
+                    progress_callback=progress_callback,
                 )
                 values = [f[field] for f in sorted_feats]
                 crit_name = f"sort_{field[:8]}"
@@ -629,7 +655,10 @@ class GeoSortDialog(QDialog):
             ref_point = None
             if axis == "dist":
                 ref_point = QgsPointXY(self.spin_ref_x.value(), self.spin_ref_y.value())
-            sorted_feats, values = sort_by_centroid(features, axis, ascending, ref_point)
+            sorted_feats, values = sort_by_centroid(
+                features, axis, ascending, ref_point,
+                progress_callback=progress_callback,
+            )
             crit_name = {"x": "sort_x", "y": "sort_y", "dist": "sort_dist"}[axis]
             return sorted_feats, values, crit_name, []
 
@@ -647,7 +676,10 @@ class GeoSortDialog(QDialog):
             }
             idx = self.combo_geom.currentIndex()
             criterion = crit_map[idx]
-            sorted_feats, values = sort_by_geometry_property(features, criterion, ascending)
+            sorted_feats, values = sort_by_geometry_property(
+                features, criterion, ascending,
+                progress_callback=progress_callback,
+            )
             return sorted_feats, values, crit_name_map[idx], []
 
         # ── Per posizione lungo linea ─────────────────────────────────────────
@@ -661,9 +693,26 @@ class GeoSortDialog(QDialog):
             line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
             mode = self.combo_line_mode.currentData()
             sorted_feats, values, excluded = sort_by_line_position(
-                features, line_geom, ascending, mode=mode
+                features, line_geom, ascending, mode=mode,
+                progress_callback=progress_callback,
             )
             return sorted_feats, values, "sort_dist", excluded
+
+        # ── Per distanza dalla linea ─────────────────────────────────────────
+        if self.rb_line_distance.isChecked():
+            ref_layer = self.combo_ref_layer_dist.currentLayer()
+            if not ref_layer:
+                raise ValueError("Nessun layer di riferimento selezionato.")
+            ref_feats = list(ref_layer.getFeatures())
+            if not ref_feats:
+                raise ValueError("Il layer di riferimento non contiene feature.")
+            line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+            mode = self.combo_line_distance_mode.currentData()
+            sorted_feats, values = sort_by_line_distance(
+                features, line_geom, ascending, mode=mode,
+                progress_callback=progress_callback,
+            )
+            return sorted_feats, values, "sort_dist", []
 
         raise ValueError("Nessun criterio selezionato.")
 
@@ -712,56 +761,119 @@ class GeoSortDialog(QDialog):
     def _run(self):
         from .geosort_core import apply_sort_order, create_memory_layer
 
-        try:
-            sorted_feats, values, crit_name, excluded = self._collect_sorted()
-        except Exception as exc:
-            QMessageBox.warning(self, "GeoSort", str(exc))
+        layer = self.layer_combo.currentLayer()
+        if not layer:
+            QMessageBox.warning(self, "GeoSort", "Nessun layer selezionato.")
             return False
 
-        layer = self.layer_combo.currentLayer()
-        add_crit = self.chk_add_value.isChecked()
-        n = len(sorted_feats)
-        excl_msg = (f"\n{len(excluded)} feature escluse (non intersecano la linea)."
-                    if excluded else "")
+        features = list(layer.getFeatures())
+        total = len(features)
+        if not total:
+            QMessageBox.warning(self, "GeoSort", "Il layer non contiene feature.")
+            return False
 
-        if self.rb_update.isChecked():
-            if layer.fields().indexOf("sort_order") != -1:
-                reply = QMessageBox.question(
-                    self,
-                    "GeoSort",
-                    "Il campo 'sort_order' esiste già nel layer.\n"
-                    "Sovrascriverlo con il nuovo ordinamento?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.Yes,
+        # Controllo sovrascrittura (prima di avviare il progress)
+        if self.rb_update.isChecked() and layer.fields().indexOf("sort_order") != -1:
+            reply = QMessageBox.question(
+                self,
+                "GeoSort",
+                "Il campo 'sort_order' esiste già nel layer.\n"
+                "Sovrascriverlo con il nuovo ordinamento?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return False
+
+        # ── Progress dialog ───────────────────────────────────────────────────
+        progress = QProgressDialog(
+            "Ordinamento in corso...", "Annulla", 0, 100, self
+        )
+        progress.setWindowTitle("GeoSort")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(500)
+        progress.setValue(0)
+
+        def _check_cancel():
+            QApplication.processEvents()
+            if progress.wasCanceled():
+                raise RuntimeError("Operazione annullata dall'utente.")
+
+        try:
+            # Fase 1: raccolta e ordinamento (0% → 50%)
+            def sort_progress(pct):
+                progress.setValue(int(pct * 0.5))
+                _check_cancel()
+
+            progress.setLabelText("Ordinamento in corso...")
+            sorted_feats, values, crit_name, excluded = self._collect_sorted(
+                progress_callback=sort_progress, features=features,
+            )
+            _check_cancel()
+
+            add_crit = self.chk_add_value.isChecked()
+            n = len(sorted_feats)
+            excl_msg = (f"\n{len(excluded)} feature escluse (non intersecano la linea)."
+                        if excluded else "")
+
+            # Fase 2: scrittura (50% → 100%)
+            def write_progress(pct):
+                progress.setValue(50 + int(pct * 0.5))
+                _check_cancel()
+
+            if self.rb_update.isChecked():
+                progress.setLabelText("Scrittura sul layer...")
+                ok = apply_sort_order(
+                    layer, sorted_feats, add_crit, values, crit_name,
+                    progress_callback=write_progress,
                 )
-                if reply != QMessageBox.StandardButton.Yes:
-                    return False
-            ok = apply_sort_order(layer, sorted_feats, add_crit, values, crit_name)
-            if ok:
-                layer.triggerRepaint()
+                _check_cancel()
+                if ok:
+                    layer.triggerRepaint()
+                    progress.close()
+                    QMessageBox.information(
+                        self,
+                        "GeoSort",
+                        f"Ordinamento applicato con successo.\n"
+                        f"Campo 'sort_order' aggiornato su {n} feature.{excl_msg}",
+                    )
+                else:
+                    progress.close()
+                    QMessageBox.critical(
+                        self, "GeoSort",
+                        "Errore durante l'applicazione dell'ordinamento.\n"
+                        "Controllare il log messaggi di QGIS per i dettagli."
+                    )
+                return ok
+
+            else:
+                progress.setLabelText("Creazione layer in memoria...")
+                mem_layer = create_memory_layer(
+                    layer, sorted_feats, add_crit, values, crit_name,
+                    progress_callback=write_progress,
+                )
+                _check_cancel()
+                QgsProject.instance().addMapLayer(mem_layer)
+                progress.close()
                 QMessageBox.information(
                     self,
                     "GeoSort",
-                    f"Ordinamento applicato con successo.\n"
-                    f"Campo 'sort_order' aggiornato su {n} feature.{excl_msg}",
+                    f"Nuovo layer 'GeoSort_output' aggiunto al progetto\n"
+                    f"con {n} feature ordinate.{excl_msg}",
                 )
-            else:
-                QMessageBox.critical(
-                    self, "GeoSort", "Errore durante l'applicazione dell'ordinamento.\n"
-                    "Controllare il log messaggi di QGIS per i dettagli."
-                )
-            return ok
+                return True
 
-        else:
-            mem_layer = create_memory_layer(layer, sorted_feats, add_crit, values, crit_name)
-            QgsProject.instance().addMapLayer(mem_layer)
+        except RuntimeError:
+            # Utente ha premuto Annulla
+            progress.close()
             QMessageBox.information(
-                self,
-                "GeoSort",
-                f"Nuovo layer 'GeoSort_output' aggiunto al progetto\n"
-                f"con {n} feature ordinate.{excl_msg}",
+                self, "GeoSort", "Operazione annullata dall'utente."
             )
-            return True
+            return False
+        except Exception as exc:
+            progress.close()
+            QMessageBox.warning(self, "GeoSort", str(exc))
+            return False
 
     def _on_ok(self):
         if self._run():

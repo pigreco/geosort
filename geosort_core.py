@@ -25,7 +25,13 @@ from qgis.core import (
     Qgis,
     NULL,
 )
-from qgis.PyQt.QtCore import QMetaType
+from qgis.PyQt.QtCore import QMetaType, Qt
+
+# Compatibilita Qt5/Qt6 per Qt.ISODate
+try:
+    _ISODATE = Qt.DateFormat.ISODate       # Qt6 / PyQt6
+except AttributeError:
+    _ISODATE = Qt.ISODate                   # Qt5 / PyQt5
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Costanti
@@ -53,6 +59,31 @@ LOG_TAG = "GeoSort"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Normalizzazione valori data/ora
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _normalize_val(val):
+    """Converte tipi data/ora in una rappresentazione stringa confrontabile.
+
+    QDate, QDateTime, QTime e i corrispondenti tipi Python ``datetime``
+    vengono convertiti in formato ISO-8601 in modo che l'ordinamento
+    lessicografico coincida con l'ordinamento cronologico.
+    Tutti gli altri tipi vengono restituiti invariati.
+    """
+    # PyQt date/time
+    try:
+        return val.toString(_ISODATE)
+    except AttributeError:
+        pass
+    # Python datetime.date / datetime.datetime
+    try:
+        return val.isoformat()
+    except AttributeError:
+        pass
+    return val
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Natural Sort
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -69,9 +100,11 @@ def _natural_key(val):
 # Ordinamento per attributo
 # ──────────────────────────────────────────────────────────────────────────────
 
-from typing import List, Tuple, Any
+from typing import List, Tuple, Any, Callable, Optional
 
-def sort_by_attribute(features: List[QgsFeature], field: str, ascending: bool = True, nulls_last: bool = True, natural_sort: bool = False) -> List[QgsFeature]:
+def sort_by_attribute(features: List[QgsFeature], field: str, ascending: bool = True,
+                      nulls_last: bool = True, natural_sort: bool = False,
+                      progress_callback: Optional[Callable[[float], None]] = None) -> List[QgsFeature]:
     """Ordina le feature per valore di un campo attributo.
 
     Args:
@@ -79,11 +112,13 @@ def sort_by_attribute(features: List[QgsFeature], field: str, ascending: bool = 
         field (str): nome del campo.
         ascending (bool): True = crescente.
         nulls_last (bool): True = NULL in fondo; False = NULL in cima.
+        progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
 
     Returns:
         list[QgsFeature]: lista ordinata.
     """
     null_priority = 1 if nulls_last else -1
+    total = len(features)
 
     def key(f):
         val = f[field]
@@ -93,18 +128,24 @@ def sort_by_attribute(features: List[QgsFeature], field: str, ascending: bool = 
         if natural_sort:
             return (0, _natural_key(val))
         try:
-            return (0, val)
+            return (0, _normalize_val(val))
         except TypeError:
             return (0, str(val))
 
-    return sorted(features, key=key, reverse=not ascending)
+    sorted_feats = sorted(features, key=key, reverse=not ascending)
+
+    if progress_callback:
+        progress_callback(100)
+
+    return sorted_feats
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Ordinamento per espressione QGIS
 # ──────────────────────────────────────────────────────────────────────────────
 
-def sort_by_expression(features, layer, expression_str, ascending=True, nulls_last=True, natural_sort=False):
+def sort_by_expression(features, layer, expression_str, ascending=True, nulls_last=True,
+                       natural_sort=False, progress_callback=None):
     """Ordina le feature valutando un'espressione QGIS per ciascuna.
 
     Supporta qualsiasi espressione valida nel field calculator di QGIS:
@@ -118,6 +159,7 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
         expression_str (str): testo dell'espressione QGIS.
         ascending (bool): True = crescente.
         nulls_last (bool): True = NULL/errori in fondo; False = in cima.
+        progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
 
     Returns:
         tuple[list[QgsFeature], list, list[str]]:
@@ -142,8 +184,9 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
     null_priority = 1 if nulls_last else -1
     warnings = []
     pairs = []
+    total = len(features)
 
-    for feat in features:
+    for i, feat in enumerate(features):
         context.setFeature(feat)
         val = expr.evaluate(context)
 
@@ -157,6 +200,9 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
         is_null = val is None or val == NULL
         pairs.append((feat, val, is_null))
 
+        if progress_callback and i % 50 == 0:
+            progress_callback(i * 100.0 / total)
+
     def sort_key(item):
         _feat, val, is_null = item
         if is_null:
@@ -164,7 +210,7 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
         if natural_sort:
             return (0, _natural_key(val))
         try:
-            return (0, val)
+            return (0, _normalize_val(val))
         except TypeError:
             return (0, str(val))
 
@@ -172,9 +218,13 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
     sorted_feats = [p[0] for p in pairs]
     values       = [p[1] for p in pairs]
 
+    if progress_callback:
+        progress_callback(100)
+
     return sorted_feats, values, warnings
 
-def sort_by_centroid(features, axis="x", ascending=True, ref_point=None):
+def sort_by_centroid(features, axis="x", ascending=True, ref_point=None,
+                     progress_callback=None):
     """Ordina le feature per coordinata X/Y del centroide o distanza da un punto.
 
     Args:
@@ -182,6 +232,7 @@ def sort_by_centroid(features, axis="x", ascending=True, ref_point=None):
         axis (str): "x", "y" o "dist".
         ascending (bool): True = crescente.
         ref_point (QgsPointXY | None): punto di riferimento (solo per axis=="dist").
+        progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
 
     Returns:
         tuple[list[QgsFeature], list[float]]: (feature ordinate, valori criterio).
@@ -202,6 +253,10 @@ def sort_by_centroid(features, axis="x", ascending=True, ref_point=None):
 
     sorted_feats = sorted(features, key=key, reverse=not ascending)
     values = [key(f) for f in sorted_feats]
+
+    if progress_callback:
+        progress_callback(100)
+
     return sorted_feats, values
 
 
@@ -264,13 +319,15 @@ def _geom_value(feature, criterion):
         raise ValueError(f"Criterio sconosciuto: '{criterion}'.")
 
 
-def sort_by_geometry_property(features: List[QgsFeature], criterion: str, ascending: bool = True) -> Tuple[List[QgsFeature], List[float]]:
+def sort_by_geometry_property(features: List[QgsFeature], criterion: str, ascending: bool = True,
+                               progress_callback = None) -> Tuple[List[QgsFeature], List[float]]:
     """Ordina le feature per proprietà geometrica.
 
     Args:
         features (list[QgsFeature]): feature da ordinare.
         criterion (str): chiave in GEOM_CRITERIA.
         ascending (bool): True = crescente.
+        progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
 
     Returns:
         tuple[list[QgsFeature], list[float]]: (feature ordinate, valori criterio).
@@ -291,6 +348,10 @@ def sort_by_geometry_property(features: List[QgsFeature], criterion: str, ascend
 
     sorted_feats = sorted(features, key=key, reverse=not ascending)
     values = [key(f) for f in sorted_feats]
+
+    if progress_callback:
+        progress_callback(100)
+
     return sorted_feats, values
 
 
@@ -303,6 +364,11 @@ LINE_MODES = {
     "centroid_projection":     "Proiezione centroide (tutte le feature)",
     "intersecting_projection": "Solo intersecanti – proiezione centroide",
     "intersecting_first_pt":   "Solo intersecanti – primo punto di intersezione",
+}
+
+LINE_DISTANCE_MODES = {
+    "centroid": "Distanza dal centroide",
+    "element":  "Distanza dall'elemento",
 }
 
 
@@ -373,7 +439,7 @@ def _first_intersection_distance(line_geom, feature_geom):
 
 
 def sort_by_line_position(features, line_geometry, ascending=True,
-                          mode="centroid_projection"):
+                          mode="centroid_projection", progress_callback=None):
     """Ordina le feature in base alla loro posizione lungo una linea di riferimento.
 
     Args:
@@ -389,6 +455,7 @@ def sort_by_line_position(features, line_geometry, ascending=True,
             * ``intersecting_first_pt`` – include solo le feature che intersecano
               la linea; usa il *primo punto di intersezione* (distanza minima
               dall'inizio della linea) invece del centroide.
+        progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
 
     Returns:
         tuple[list[QgsFeature], list[float], list[QgsFeature]]:
@@ -399,8 +466,9 @@ def sort_by_line_position(features, line_geometry, ascending=True,
     sorted_feats = []
     values = []
     excluded = []
+    total = len(features)
 
-    for f in features:
+    for i, f in enumerate(features):
         geom = f.geometry()
         geom_type = QgsWkbTypes.geometryType(geom.wkbType())
 
@@ -442,12 +510,72 @@ def sort_by_line_position(features, line_geometry, ascending=True,
             raise ValueError(f"Modalità sconosciuta: '{mode}'. "
                              f"Valori ammessi: {list(LINE_MODES.keys())}")
 
+        if progress_callback and i % 50 == 0:
+            progress_callback(i * 100.0 / total)
+
     # Ordina per distanza mantenendo l'associazione con i valori
     paired = sorted(zip(values, sorted_feats), reverse=not ascending)
     sorted_feats = [f for _, f in paired]
     values = [v for v, _ in paired]
 
+    if progress_callback:
+        progress_callback(100)
+
     return sorted_feats, values, excluded
+
+
+def sort_by_line_distance(features, line_geometry, ascending=True, mode="element",
+                          progress_callback=None):
+    """Ordina le feature per distanza (perpendicolare) dalla linea di riferimento.
+
+    Args:
+        features (list[QgsFeature]): feature da ordinare.
+        line_geometry (QgsGeometry): geometria LineString (o MultiLineString) di riferimento.
+        ascending (bool): True = crescente (più vicine prima).
+        mode (str): modalità di calcolo, una delle chiavi di ``LINE_DISTANCE_MODES``:
+            * ``centroid`` – distanza dal centroide della feature.
+            * ``element`` – distanza dal punto più vicino della geometria.
+        progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
+
+    Returns:
+        tuple[list[QgsFeature], list[float]]: (feature ordinate, valori distanza).
+
+    Raises:
+        ValueError: se la modalità non è valida.
+    """
+    if mode not in LINE_DISTANCE_MODES:
+        raise ValueError(f"Modalità sconosciuta: '{mode}'. "
+                         f"Valori ammessi: {list(LINE_DISTANCE_MODES.keys())}")
+
+    sorted_feats = []
+    values = []
+    total = len(features)
+
+    for i, f in enumerate(features):
+        geom = f.geometry()
+
+        if mode == "centroid":
+            pt_geom = geom.centroid()
+            dist = pt_geom.distance(line_geometry)
+        elif mode == "element":
+            dist = geom.distance(line_geometry)
+
+        sorted_feats.append(f)
+        values.append(dist)
+
+        if progress_callback and i % 50 == 0:
+            progress_callback(i * 100.0 / total)
+
+    # Ordina per distanza mantenendo l'associazione con i valori
+    # Usa indice per stabilizzare l'ordinamento quando distanze sono uguali
+    paired = sorted(zip(values, range(len(sorted_feats)), sorted_feats), reverse=not ascending)
+    sorted_feats = [f for _, _, f in paired]
+    values = [v for v, _, _ in paired]
+
+    if progress_callback:
+        progress_callback(100)
+
+    return sorted_feats, values
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -460,6 +588,7 @@ def apply_sort_order(
     add_criterion_field=False,
     criterion_values=None,
     criterion_field_name="sort_value",
+    progress_callback=None,
 ):
     """Scrive il campo sort_order (e opzionalmente il campo criterio) sul layer.
 
@@ -471,6 +600,7 @@ def apply_sort_order(
         add_criterion_field (bool): se True aggiunge il campo con il valore del criterio.
         criterion_values (list | None): valori numerici corrispondenti a sorted_features.
         criterion_field_name (str): nome del campo criterio aggiuntivo.
+        progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
 
     Returns:
         bool: True se riuscito, False in caso di errore.
@@ -501,6 +631,7 @@ def apply_sort_order(
                 crit_idx = layer.fields().indexOf(criterion_field_name)
 
         # ── Assegnazione valori ───────────────────────────────────────────────
+        total = len(sorted_features)
         for i, feat in enumerate(sorted_features):
             fid = feat.id()
             layer.changeAttributeValue(fid, sort_idx, i + 1)
@@ -509,6 +640,8 @@ def apply_sort_order(
                     layer.changeAttributeValue(fid, crit_idx, float(criterion_values[i]))
                 except (TypeError, ValueError):
                     pass
+            if progress_callback and i % 50 == 0:
+                progress_callback(i * 100.0 / total)
 
         if not layer.commitChanges():
             layer.rollBack()
@@ -516,6 +649,9 @@ def apply_sort_order(
                 "Errore nel commit delle modifiche.", LOG_TAG, Qgis.MessageLevel.Critical
             )
             return False
+
+        if progress_callback:
+            progress_callback(100)
 
         return True
 
@@ -536,6 +672,7 @@ def create_memory_layer(
     add_criterion_field=False,
     criterion_values=None,
     criterion_field_name="sort_value",
+    progress_callback=None,
 ):
     """Crea un nuovo layer in memoria con le feature ordinate e il campo sort_order.
 
@@ -545,6 +682,7 @@ def create_memory_layer(
         add_criterion_field (bool): se True aggiunge il campo con il valore del criterio.
         criterion_values (list | None): valori numerici corrispondenti a sorted_features.
         criterion_field_name (str): nome del campo criterio aggiuntivo.
+        progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
 
     Returns:
         QgsVectorLayer: nuovo layer in memoria con 'sort_order' aggiunto.
@@ -564,6 +702,7 @@ def create_memory_layer(
     provider.addAttributes(new_fields)
     mem_layer.updateFields()
 
+    total = len(sorted_features)
     out_features = []
     for i, feat in enumerate(sorted_features):
         new_feat = QgsFeature(mem_layer.fields())
@@ -577,7 +716,13 @@ def create_memory_layer(
             except (TypeError, ValueError):
                 pass
         out_features.append(new_feat)
+        if progress_callback and i % 50 == 0:
+            progress_callback(i * 100.0 / total)
 
     provider.addFeatures(out_features)
     mem_layer.updateExtents()
+
+    if progress_callback:
+        progress_callback(100)
+
     return mem_layer

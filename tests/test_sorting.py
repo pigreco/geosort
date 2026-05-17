@@ -14,6 +14,24 @@ import os
 import unittest
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Normalizzazione date/time (replica standalone di geosort_core._normalize_val)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _normalize_val(val):
+    """Normalizza date/time in formato ISO confrontabile Lessicograficamente."""
+    # Python datetime
+    try:
+        return val.isoformat()
+    except AttributeError:
+        pass
+    # PyQt date/time (mockato via toString nello unit test)
+    try:
+        return val.toString("yyyy-MM-dd")
+    except AttributeError:
+        pass
+    return val
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Mock leggeri (nessuna dipendenza PyQGIS)
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -93,7 +111,7 @@ def _natural_key(val):
             for chunk in re.split(r"(\d+)", str(val))]
 
 
-def _sort_by_attribute(features, field, ascending=True, nulls_last=True, natural_sort=False):
+def _sort_by_attribute(features, field, ascending=True, nulls_last=True, natural_sort=False, progress_callback=None):
     null_priority = 1 if nulls_last else -1
 
     def key(f):
@@ -103,11 +121,16 @@ def _sort_by_attribute(features, field, ascending=True, nulls_last=True, natural
         if natural_sort:
             return (0, _natural_key(val))
         try:
-            return (0, val)
+            return (0, _normalize_val(val))
         except TypeError:
             return (0, str(val))
 
-    return sorted(features, key=key, reverse=not ascending)
+    result = sorted(features, key=key, reverse=not ascending)
+
+    if progress_callback:
+        progress_callback(100)
+
+    return result
 
 
 def _sort_by_centroid(features, axis="x", ascending=True, ref_point=None):
@@ -222,6 +245,55 @@ class TestSortByAttribute(unittest.TestCase):
         )
         vals = [f["val"] for f in result]
         self.assertEqual(vals, ["file2", "file10", None])
+
+    def test_date_sorting_ascending(self):
+        """Date Python datetime.date: ordinate cronologicamente."""
+        from datetime import date
+        feats = [
+            MockFeature(0, {"data": date(2024, 6, 15)}),
+            MockFeature(1, {"data": date(2024, 1, 10)}),
+            MockFeature(2, {"data": date(2023, 12, 31)}),
+        ]
+        result = _sort_by_attribute(feats, "data", ascending=True)
+        dates = [f["data"] for f in result]
+        self.assertEqual(dates, [date(2023, 12, 31), date(2024, 1, 10), date(2024, 6, 15)])
+
+    def test_date_sorting_descending(self):
+        from datetime import date
+        feats = [
+            MockFeature(0, {"data": date(2024, 1, 10)}),
+            MockFeature(1, {"data": date(2024, 6, 15)}),
+        ]
+        result = _sort_by_attribute(feats, "data", ascending=False)
+        dates = [f["data"] for f in result]
+        self.assertEqual(dates, [date(2024, 6, 15), date(2024, 1, 10)])
+
+    def test_datetime_sorting_ascending(self):
+        """Python datetime.datetime: ordine cronologico corretto."""
+        from datetime import datetime
+        feats = [
+            MockFeature(0, {"ts": datetime(2024, 6, 15, 12, 0)}),
+            MockFeature(1, {"ts": datetime(2024, 6, 15, 8, 30)}),
+            MockFeature(2, {"ts": datetime(2024, 6, 14, 23, 59)}),
+        ]
+        result = _sort_by_attribute(feats, "ts", ascending=True)
+        ts = [f["ts"] for f in result]
+        self.assertEqual(ts[0], datetime(2024, 6, 14, 23, 59))
+        self.assertEqual(ts[1], datetime(2024, 6, 15, 8, 30))
+        self.assertEqual(ts[2], datetime(2024, 6, 15, 12, 0))
+
+    def test_date_with_nulls(self):
+        """Date con NULL: i NULL vanno in fondo (nulls_last=True)."""
+        from datetime import date
+        feats = [
+            MockFeature(0, {"data": None}),
+            MockFeature(1, {"data": date(2024, 3, 1)}),
+            MockFeature(2, {"data": date(2024, 1, 1)}),
+        ]
+        result = _sort_by_attribute(feats, "data", ascending=True, nulls_last=True)
+        self.assertEqual(result[0]["data"], date(2024, 1, 1))
+        self.assertEqual(result[1]["data"], date(2024, 3, 1))
+        self.assertIsNone(result[2]["data"])
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -549,6 +621,34 @@ class TestCriterionCompatibility(unittest.TestCase):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Test: progress_callback
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestProgressCallback(unittest.TestCase):
+
+    def _feats(self, n, field="val"):
+        return [MockFeature(i, {field: i}) for i in range(n)]
+
+    def test_callback_called_for_sort_by_attribute(self):
+        feats = self._feats(5)
+        called_with = []
+        _sort_by_attribute(feats, "val", ascending=True,
+                          progress_callback=lambda pct: called_with.append(pct))
+        self.assertGreater(len(called_with), 0)
+        self.assertEqual(called_with[-1], 100)
+
+    def test_callback_called_for_expression_sort(self):
+        feats = self._feats(5)
+        called_with = []
+        _mock_sort_by_expression(
+            feats, lambda f: f["val"], ascending=True,
+            progress_callback=lambda pct: called_with.append(pct),
+        )
+        self.assertGreater(len(called_with), 0)
+        self.assertEqual(called_with[-1], 100)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Test: sort_order progressivo
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -722,7 +822,7 @@ class TestLineSortModes(unittest.TestCase):
 # Test: ordinamento per espressione (mock standalone, senza PyQGIS)
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _mock_sort_by_expression(features, expr_fn, ascending=True, nulls_last=True, natural_sort=False):
+def _mock_sort_by_expression(features, expr_fn, ascending=True, nulls_last=True, natural_sort=False, progress_callback=None):
     """Versione standalone di sort_by_expression.
 
     ``expr_fn`` è una callable Python che riceve una MockFeature e restituisce
@@ -747,11 +847,15 @@ def _mock_sort_by_expression(features, expr_fn, ascending=True, nulls_last=True,
         if natural_sort:
             return (0, _natural_key(val))
         try:
-            return (0, val)
+            return (0, _normalize_val(val))
         except TypeError:
             return (0, str(val))
 
     pairs.sort(key=key, reverse=not ascending)
+
+    if progress_callback:
+        progress_callback(100)
+
     return [p[0] for p in pairs], [p[1] for p in pairs], []
 
 
@@ -903,6 +1007,157 @@ class TestSortByExpression(unittest.TestCase):
         )
         # Ordinamento lessicografico: "1010" < "11" < "1111"
         self.assertEqual(values, ["1010", "11", "1111"])
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Test: ordinamento per distanza dalla linea
+# ──────────────────────────────────────────────────────────────────────────────
+
+class MockLineDistanceGeometry:
+    """Mock geometria per testare sort_by_line_distance standalone."""
+
+    def __init__(self, dist_centroid, dist_element):
+        self._dist_centroid = dist_centroid
+        self._dist_element = dist_element
+        self._cx = 0  # per centroid()
+
+    def isMultipart(self):
+        return False
+
+    def centroid(self):
+        """Restituisce un geometry con il centroide."""
+        result = MockGeometryResult(self._cx, 0)
+        result._distance = self._dist_centroid
+        return result
+
+    def distance(self, line_geom):
+        """Restituisce la distanza dalla linea (elemento)."""
+        return self._dist_element
+
+    def wkbType(self):
+        return "mock"
+
+
+class MockCentroidForDistance:
+    """Mock di centroide con distanza dalla linea."""
+    def __init__(self, distance):
+        self._distance = distance
+
+    def distance(self, line_geom):
+        return self._distance
+
+
+def _mock_sort_by_line_distance(features, ascending=True, mode="element"):
+    """Versione standalone del sort_by_line_distance con mock.
+
+    Usa feature.geometry()._dist_centroid (per mode="centroid") o
+    feature.geometry()._dist_element (per mode="element") come distanza dalla linea.
+    """
+    sorted_feats = []
+    values = []
+
+    for f in features:
+        geom = f.geometry()
+        if mode == "centroid":
+            dist = geom._dist_centroid
+        elif mode == "element":
+            dist = geom._dist_element
+        else:
+            raise ValueError(f"Modalità sconosciuta: {mode}")
+
+        sorted_feats.append(f)
+        values.append(dist)
+
+    paired = sorted(zip(values, range(len(sorted_feats)), sorted_feats), reverse=not ascending)
+    return [f for _, _, f in paired], [v for v, _, _ in paired]
+
+
+class TestLineDistanceSorting(unittest.TestCase):
+
+    def _make(self, specs):
+        """specs = [distance, ...] o [(dist_centroid, dist_element), ...]"""
+        features = []
+        for i, spec in enumerate(specs):
+            if isinstance(spec, tuple):
+                dist_c, dist_e = spec
+            else:
+                # Se è un numero singolo, usa lo stesso per entrambe
+                dist_c = dist_e = spec
+            features.append(
+                MockFeature(i, geometry=MockLineDistanceGeometry(dist_c, dist_e))
+            )
+        return features
+
+    def test_line_distance_ascending(self):
+        """Ordina crescente: più vicine prima."""
+        feats = self._make([10.0, 5.0, 15.0, 2.0])
+        result, values = _mock_sort_by_line_distance(feats, ascending=True, mode="element")
+        self.assertEqual(values, [2.0, 5.0, 10.0, 15.0])
+        self.assertEqual(len(result), 4)
+
+    def test_line_distance_descending(self):
+        """Ordina decrescente: più lontane prima."""
+        feats = self._make([10.0, 5.0, 15.0, 2.0])
+        result, values = _mock_sort_by_line_distance(feats, ascending=False)
+        self.assertEqual(values, [15.0, 10.0, 5.0, 2.0])
+        self.assertEqual(len(result), 4)
+
+    def test_line_distance_with_zeros(self):
+        """Feature sulla linea (distanza = 0) ordinate per prime (ascendente)."""
+        feats = self._make([0.0, 10.0, 0.0, 5.0])
+        result, values = _mock_sort_by_line_distance(feats, ascending=True)
+        self.assertEqual(values, [0.0, 0.0, 5.0, 10.0])
+
+    def test_line_distance_single_feature(self):
+        """Una singola feature."""
+        feats = self._make([7.5])
+        result, values = _mock_sort_by_line_distance(feats)
+        self.assertEqual(values, [7.5])
+        self.assertEqual(len(result), 1)
+
+    def test_line_distance_all_same(self):
+        """Tutte le feature alla stessa distanza."""
+        feats = self._make([5.0, 5.0, 5.0])
+        result, values = _mock_sort_by_line_distance(feats, ascending=True)
+        self.assertEqual(values, [5.0, 5.0, 5.0])
+        self.assertEqual(len(result), 3)
+
+    def test_line_distance_negative(self):
+        """Distanze negative (non realistiche ma valide per testing)."""
+        feats = self._make([-5.0, 10.0, -2.0, 0.0])
+        result, values = _mock_sort_by_line_distance(feats, ascending=True)
+        self.assertEqual(values, [-5.0, -2.0, 0.0, 10.0])
+
+    def test_line_distance_empty_list(self):
+        """Lista vuota."""
+        feats = self._make([])
+        result, values = _mock_sort_by_line_distance(feats, mode="element")
+        self.assertEqual(len(result), 0)
+        self.assertEqual(len(values), 0)
+
+    def test_line_distance_mode_centroid(self):
+        """Ordina per distanza del centroide."""
+        # Tuple: (dist_centroid, dist_element)
+        feats = self._make([(5.0, 10.0), (2.0, 15.0), (8.0, 3.0)])
+        result, values = _mock_sort_by_line_distance(feats, ascending=True, mode="centroid")
+        self.assertEqual(values, [2.0, 5.0, 8.0])  # Ordina per centroide
+
+    def test_line_distance_mode_element(self):
+        """Ordina per distanza dell'elemento."""
+        # Tuple: (dist_centroid, dist_element)
+        feats = self._make([(5.0, 10.0), (2.0, 15.0), (8.0, 3.0)])
+        result, values = _mock_sort_by_line_distance(feats, ascending=True, mode="element")
+        self.assertEqual(values, [3.0, 10.0, 15.0])  # Ordina per elemento
+
+    def test_line_distance_different_modes_same_data(self):
+        """Modalità diverse producono ordini diversi."""
+        feats = self._make([(1.0, 10.0), (9.0, 2.0), (5.0, 5.0)])
+        result_c, values_c = _mock_sort_by_line_distance(feats, ascending=True, mode="centroid")
+        result_e, values_e = _mock_sort_by_line_distance(feats, ascending=True, mode="element")
+        # Centroide: 1, 5, 9
+        self.assertEqual(values_c, [1.0, 5.0, 9.0])
+        # Elemento: 2, 5, 10
+        self.assertEqual(values_e, [2.0, 5.0, 10.0])
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Entry point
