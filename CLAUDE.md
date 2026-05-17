@@ -58,3 +58,56 @@ result = processing.run("geosort:geosort_sort", {
 })
 output_layer = result['OUTPUT']
 ```
+
+## README & Documentation Best Practices
+
+### Required Badges (all QGIS plugins should have these)
+
+Every README must include **version**, **QGIS compatibility**, and **license** badges early on:
+
+```markdown
+[![Version](https://img.shields.io/badge/version-X.Y.Z-blue.svg)](https://github.com/user/repo/releases)
+[![QGIS](https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg)](#requirements)
+[![License](https://img.shields.io/badge/license-GPLv2-red.svg)](LICENSE)
+```
+
+Add a **language selector** if the plugin supports multiple languages:
+
+```markdown
+[![Languages](https://img.shields.io/badge/languages-IT%20%7C%20EN-green.svg)](#languages)
+```
+
+### Bilingual README Structure (when applicable)
+
+For multilingual plugins, create:
+- `README.md` (primary language, e.g., Italian)
+- `README.en.md` (English)
+
+Add language selector links at the top of each:
+
+```markdown
+🇮🇹 **Italiano** | [🇬🇧 English](README.en.md)
+```
+
+### README Sections (standard order)
+
+1. Title + Language selectors + Badges
+2. One-line description
+3. Screenshot (if available)
+4. Features (table format recommended)
+5. Installation
+6. Usage
+7. Processing Toolbox (if applicable)
+8. Requirements
+9. Compatibility notes (Qt5/Qt6, QGIS versions, etc.)
+10. Testing (for developers)
+11. Contributing guidelines
+12. License
+13. Acknowledgments
+
+### Translation/i18n Documentation
+
+If adding translations, document:
+- How to generate/update `.ts` files
+- How to add new language translations
+- Whether `.qm` compilation is required or optional
