@@ -75,7 +75,7 @@ class GeoSortDialog(QDialog):
         self._map_tool = None
         self._pick_completed = False   # flag anti-doppio-trigger per ESC
 
-        self.setWindowTitle("GeoSort – Ordinamento Avanzato delle Geometrie")
+        self.setWindowTitle(self.tr("GeoSort – Advanced Geometry Sorting"))
         self.setMinimumWidth(520)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
 
@@ -102,21 +102,21 @@ class GeoSortDialog(QDialog):
         self.setLayout(main)
 
     def _build_layer_group(self):
-        grp = QGroupBox("Layer di input")
+        grp = QGroupBox(self.tr("Input Layer"))
         layout = QFormLayout(grp)
 
         self.layer_combo = QgsMapLayerComboBox()
         self.layer_combo.setFilters(QgsMapLayerProxyModel.Filter.VectorLayer)
-        layout.addRow("Layer:", self.layer_combo)
+        layout.addRow(self.tr("Layer:"), self.layer_combo)
 
         self.lbl_crs = QLabel("–")
         self.lbl_crs.setStyleSheet("color: gray; font-size: 10px;")
-        layout.addRow("CRS / unità:", self.lbl_crs)
+        layout.addRow(self.tr("CRS / Units:"), self.lbl_crs)
 
         return grp
 
     def _build_criterion_group(self):
-        grp = QGroupBox("Criterio di ordinamento")
+        grp = QGroupBox(self.tr("Criterio di ordinamento"))
         outer = QVBoxLayout(grp)
         self._crit_bg = QButtonGroup(self)
 
@@ -150,10 +150,10 @@ class GeoSortDialog(QDialog):
         self.lbl_active_expr = QLabel("")
         self.lbl_active_expr.setStyleSheet("font-size: 10px; color: #1D9E75; padding-left: 4px;")
         self.lbl_active_expr.setVisible(False)
-        self.btn_remove_expression = QPushButton(QCoreApplication.translate("GeoSortDialog", "Rimuovi"))
+        self.btn_remove_expression = QPushButton(self.tr("Rimuovi"))
         self.btn_remove_expression.setFixedHeight(22)
         self.btn_remove_expression.setVisible(False)
-        self.btn_remove_expression.setToolTip("Rimuovi l'espressione attiva e torna al campo singolo")
+        self.btn_remove_expression.setToolTip(self.tr("Rimuovi l'espressione attiva e torna al campo singolo"))
         grid.addWidget(self.lbl_active_expr,       1, 0, 1, 2)
         grid.addWidget(self.btn_remove_expression, 1, 2)
 
@@ -163,7 +163,7 @@ class GeoSortDialog(QDialog):
         grid.addWidget(self.lbl_expr_warning, 2, 0, 1, 3)
 
         # ── Riga 3: Centroide ────────────────────────────────────────────────
-        self.rb_centroid = QRadioButton("Per coordinate centroide")
+        self.rb_centroid = QRadioButton(self.tr("Per coordinate centroide"))
         self._crit_bg.addButton(self.rb_centroid, 1)
         self.combo_centroid = QComboBox()
         self.combo_centroid.addItems(
@@ -173,7 +173,7 @@ class GeoSortDialog(QDialog):
         grid.addWidget(self.combo_centroid, 3, 1, 1, 2)
 
         # Punto di riferimento (mostrato solo per "Distanza")
-        self.ref_point_group = QGroupBox("Punto di riferimento (X, Y)")
+        self.ref_point_group = QGroupBox(self.tr("Punto di riferimento (X, Y)"))
         ref_layout = QFormLayout(self.ref_point_group)
         self.spin_ref_x = QDoubleSpinBox()
         self.spin_ref_x.setRange(-1e9, 1e9)
@@ -186,13 +186,13 @@ class GeoSortDialog(QDialog):
         ref_layout.addRow("X:", self.spin_ref_x)
         ref_layout.addRow("Y:", self.spin_ref_y)
         if self.iface:
-            self.btn_pick_point = QPushButton("Seleziona punto sulla mappa")
+            self.btn_pick_point = QPushButton(self.tr("Seleziona punto sulla mappa"))
             ref_layout.addRow(self.btn_pick_point)
         self.ref_point_group.setVisible(False)
         grid.addWidget(self.ref_point_group, 4, 0, 1, 3)
 
         # ── Riga 5: Proprietà geometrica ────────────────────────────────────
-        self.rb_geometry = QRadioButton("Per proprietà geometrica")
+        self.rb_geometry = QRadioButton(self.tr("Per proprietà geometrica"))
         self._crit_bg.addButton(self.rb_geometry, 2)
         self.combo_geom = QComboBox()
         self.combo_geom.addItems(
@@ -212,13 +212,13 @@ class GeoSortDialog(QDialog):
         grid.addWidget(self.combo_geom,  5, 1, 1, 2)
 
         # ── Riga 6: Distanza dalla linea + modalità ──────────────────────────
-        self.rb_line_distance = QRadioButton("Per distanza dalla linea")
+        self.rb_line_distance = QRadioButton(self.tr("Per distanza dalla linea"))
         self._crit_bg.addButton(self.rb_line_distance, 3)
         self.combo_ref_layer_dist = QgsMapLayerComboBox()
         self.combo_ref_layer_dist.setFilters(QgsMapLayerProxyModel.Filter.LineLayer)
         self.combo_line_distance_mode = QComboBox()
-        self.combo_line_distance_mode.addItem("Distanza dal centroide", "centroid")
-        self.combo_line_distance_mode.addItem("Distanza dall'elemento", "element")
+        self.combo_line_distance_mode.addItem(self.tr("Distanza dal centroide"), "centroid")
+        self.combo_line_distance_mode.addItem(self.tr("Distanza dall'elemento"), "element")
         self.combo_line_distance_mode.setToolTip(
             "Distanza dal centroide: distanza dal centro della feature.\n"
             "Distanza dall'elemento: distanza dal punto più vicino della geometria."
@@ -228,7 +228,7 @@ class GeoSortDialog(QDialog):
         grid.addWidget(self.combo_line_distance_mode, 6, 2)
 
         # ── Riga 7: Posizione lungo linea + modalità ─────────────────────────
-        self.rb_spatial = QRadioButton("Per posizione lungo linea")
+        self.rb_spatial = QRadioButton(self.tr("Per posizione lungo linea"))
         self._crit_bg.addButton(self.rb_spatial, 4)
         self.combo_ref_layer = QgsMapLayerComboBox()
         self.combo_ref_layer.setFilters(QgsMapLayerProxyModel.Filter.LineLayer)
@@ -259,16 +259,16 @@ class GeoSortDialog(QDialog):
         return grp
 
     def _build_options_group(self):
-        grp = QGroupBox("Opzioni")
+        grp = QGroupBox(self.tr("Opzioni"))
         layout = QVBoxLayout(grp)
 
         # Direzione
         dir_row = QHBoxLayout()
-        dir_row.addWidget(QLabel("Direzione:"))
+        dir_row.addWidget(QLabel(self.tr("Direzione:")))
         self._dir_bg = QButtonGroup(self)
-        self.rb_asc = QRadioButton("Ascendente ↑")
+        self.rb_asc = QRadioButton(self.tr("Ascendente ↑"))
         self.rb_asc.setChecked(True)
-        self.rb_desc = QRadioButton("Discendente ↓")
+        self.rb_desc = QRadioButton(self.tr("Discendente ↓"))
         self._dir_bg.addButton(self.rb_asc, 0)
         self._dir_bg.addButton(self.rb_desc, 1)
         dir_row.addWidget(self.rb_asc)
@@ -276,11 +276,11 @@ class GeoSortDialog(QDialog):
         dir_row.addStretch()
         layout.addLayout(dir_row)
 
-        self.chk_nulls_last = QCheckBox("Valori NULL in fondo (attributo e espressione)")
+        self.chk_nulls_last = QCheckBox(self.tr("Valori NULL in fondo (attributo e espressione)"))
         self.chk_nulls_last.setChecked(True)
         layout.addWidget(self.chk_nulls_last)
 
-        self.chk_natural_sort = QCheckBox("Ordinamento naturale – Natural Sort (es. 1, 2, 10 invece di 1, 10, 2)")
+        self.chk_natural_sort = QCheckBox(self.tr("Ordinamento naturale – Natural Sort (es. 1, 2, 10 invece di 1, 10, 2)"))
         self.chk_natural_sort.setChecked(False)
         self.chk_natural_sort.setToolTip(
             "<b>Lessicografico</b> (default): confronto carattere per carattere.\n"
@@ -295,13 +295,13 @@ class GeoSortDialog(QDialog):
         return grp
 
     def _build_output_group(self):
-        grp = QGroupBox("Output")
+        grp = QGroupBox(self.tr("Output"))
         layout = QVBoxLayout(grp)
 
         self._out_bg = QButtonGroup(self)
         self.rb_update = QRadioButton("Aggiorna layer corrente (aggiunge/aggiorna il campo 'sort_order')")
         self.rb_update.setChecked(True)
-        self.rb_new_layer = QRadioButton("Crea nuovo layer in memoria")
+        self.rb_new_layer = QRadioButton(self.tr("Crea nuovo layer in memoria"))
         self._out_bg.addButton(self.rb_update, 0)
         self._out_bg.addButton(self.rb_new_layer, 1)
         layout.addWidget(self.rb_update)
@@ -315,7 +315,7 @@ class GeoSortDialog(QDialog):
         return grp
 
     def _build_preview_group(self):
-        grp = QGroupBox("Anteprima (prime 10 feature ordinate)")
+        grp = QGroupBox(self.tr("Anteprima (prime 10 feature ordinate)"))
         layout = QVBoxLayout(grp)
 
         self.preview_table = QTableWidget(0, 3)
@@ -325,18 +325,18 @@ class GeoSortDialog(QDialog):
         self.preview_table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.preview_table)
 
-        self.btn_preview = QPushButton("Aggiorna anteprima")
+        self.btn_preview = QPushButton(self.tr("Aggiorna anteprima"))
         layout.addWidget(self.btn_preview)
 
         return grp
 
     def _build_buttons(self):
         row = QHBoxLayout()
-        self.btn_help = QPushButton("Help")
-        self.btn_apply = QPushButton("Applica")
+        self.btn_help = QPushButton(self.tr("Help"))
+        self.btn_apply = QPushButton(self.tr("Applica"))
         self.btn_ok = QPushButton("OK")
-        self.btn_cancel = QPushButton("Annulla")
-        self.btn_close = QPushButton("Chiudi")
+        self.btn_cancel = QPushButton(self.tr("Annulla"))
+        self.btn_close = QPushButton(self.tr("Chiudi"))
         self.btn_ok.setDefault(True)
         row.addWidget(self.btn_help)
         row.addStretch()
