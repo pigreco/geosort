@@ -14,6 +14,24 @@ import os
 import unittest
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Normalizzazione date/time (replica standalone di geosort_core._normalize_val)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _normalize_val(val):
+    """Normalizza date/time in formato ISO confrontabile Lessicograficamente."""
+    # Python datetime
+    try:
+        return val.isoformat()
+    except AttributeError:
+        pass
+    # PyQt date/time (mockato via toString nello unit test)
+    try:
+        return val.toString("yyyy-MM-dd")
+    except AttributeError:
+        pass
+    return val
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Mock leggeri (nessuna dipendenza PyQGIS)
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -93,7 +111,7 @@ def _natural_key(val):
             for chunk in re.split(r"(\d+)", str(val))]
 
 
-def _sort_by_attribute(features, field, ascending=True, nulls_last=True, natural_sort=False):
+def _sort_by_attribute(features, field, ascending=True, nulls_last=True, natural_sort=False, progress_callback=None):
     null_priority = 1 if nulls_last else -1
 
     def key(f):
@@ -103,11 +121,16 @@ def _sort_by_attribute(features, field, ascending=True, nulls_last=True, natural
         if natural_sort:
             return (0, _natural_key(val))
         try:
-            return (0, val)
+            return (0, _normalize_val(val))
         except TypeError:
             return (0, str(val))
 
-    return sorted(features, key=key, reverse=not ascending)
+    result = sorted(features, key=key, reverse=not ascending)
+
+    if progress_callback:
+        progress_callback(100)
+
+    return result
 
 
 def _sort_by_centroid(features, axis="x", ascending=True, ref_point=None):
@@ -222,6 +245,55 @@ class TestSortByAttribute(unittest.TestCase):
         )
         vals = [f["val"] for f in result]
         self.assertEqual(vals, ["file2", "file10", None])
+
+    def test_date_sorting_ascending(self):
+        """Date Python datetime.date: ordinate cronologicamente."""
+        from datetime import date
+        feats = [
+            MockFeature(0, {"data": date(2024, 6, 15)}),
+            MockFeature(1, {"data": date(2024, 1, 10)}),
+            MockFeature(2, {"data": date(2023, 12, 31)}),
+        ]
+        result = _sort_by_attribute(feats, "data", ascending=True)
+        dates = [f["data"] for f in result]
+        self.assertEqual(dates, [date(2023, 12, 31), date(2024, 1, 10), date(2024, 6, 15)])
+
+    def test_date_sorting_descending(self):
+        from datetime import date
+        feats = [
+            MockFeature(0, {"data": date(2024, 1, 10)}),
+            MockFeature(1, {"data": date(2024, 6, 15)}),
+        ]
+        result = _sort_by_attribute(feats, "data", ascending=False)
+        dates = [f["data"] for f in result]
+        self.assertEqual(dates, [date(2024, 6, 15), date(2024, 1, 10)])
+
+    def test_datetime_sorting_ascending(self):
+        """Python datetime.datetime: ordine cronologico corretto."""
+        from datetime import datetime
+        feats = [
+            MockFeature(0, {"ts": datetime(2024, 6, 15, 12, 0)}),
+            MockFeature(1, {"ts": datetime(2024, 6, 15, 8, 30)}),
+            MockFeature(2, {"ts": datetime(2024, 6, 14, 23, 59)}),
+        ]
+        result = _sort_by_attribute(feats, "ts", ascending=True)
+        ts = [f["ts"] for f in result]
+        self.assertEqual(ts[0], datetime(2024, 6, 14, 23, 59))
+        self.assertEqual(ts[1], datetime(2024, 6, 15, 8, 30))
+        self.assertEqual(ts[2], datetime(2024, 6, 15, 12, 0))
+
+    def test_date_with_nulls(self):
+        """Date con NULL: i NULL vanno in fondo (nulls_last=True)."""
+        from datetime import date
+        feats = [
+            MockFeature(0, {"data": None}),
+            MockFeature(1, {"data": date(2024, 3, 1)}),
+            MockFeature(2, {"data": date(2024, 1, 1)}),
+        ]
+        result = _sort_by_attribute(feats, "data", ascending=True, nulls_last=True)
+        self.assertEqual(result[0]["data"], date(2024, 1, 1))
+        self.assertEqual(result[1]["data"], date(2024, 3, 1))
+        self.assertIsNone(result[2]["data"])
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -549,6 +621,34 @@ class TestCriterionCompatibility(unittest.TestCase):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Test: progress_callback
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestProgressCallback(unittest.TestCase):
+
+    def _feats(self, n, field="val"):
+        return [MockFeature(i, {field: i}) for i in range(n)]
+
+    def test_callback_called_for_sort_by_attribute(self):
+        feats = self._feats(5)
+        called_with = []
+        _sort_by_attribute(feats, "val", ascending=True,
+                          progress_callback=lambda pct: called_with.append(pct))
+        self.assertGreater(len(called_with), 0)
+        self.assertEqual(called_with[-1], 100)
+
+    def test_callback_called_for_expression_sort(self):
+        feats = self._feats(5)
+        called_with = []
+        _mock_sort_by_expression(
+            feats, lambda f: f["val"], ascending=True,
+            progress_callback=lambda pct: called_with.append(pct),
+        )
+        self.assertGreater(len(called_with), 0)
+        self.assertEqual(called_with[-1], 100)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Test: sort_order progressivo
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -722,7 +822,7 @@ class TestLineSortModes(unittest.TestCase):
 # Test: ordinamento per espressione (mock standalone, senza PyQGIS)
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _mock_sort_by_expression(features, expr_fn, ascending=True, nulls_last=True, natural_sort=False):
+def _mock_sort_by_expression(features, expr_fn, ascending=True, nulls_last=True, natural_sort=False, progress_callback=None):
     """Versione standalone di sort_by_expression.
 
     ``expr_fn`` è una callable Python che riceve una MockFeature e restituisce
@@ -747,11 +847,15 @@ def _mock_sort_by_expression(features, expr_fn, ascending=True, nulls_last=True,
         if natural_sort:
             return (0, _natural_key(val))
         try:
-            return (0, val)
+            return (0, _normalize_val(val))
         except TypeError:
             return (0, str(val))
 
     pairs.sort(key=key, reverse=not ascending)
+
+    if progress_callback:
+        progress_callback(100)
+
     return [p[0] for p in pairs], [p[1] for p in pairs], []
 
 

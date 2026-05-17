@@ -9,6 +9,7 @@ import os
 
 from qgis.PyQt.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
@@ -25,6 +26,7 @@ from qgis.PyQt.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QMessageBox,
+    QProgressDialog,
     QSizePolicy,
 )
 from qgis.PyQt.QtCore import Qt, QSize, pyqtSignal, QCoreApplication
@@ -568,8 +570,12 @@ class GeoSortDialog(QDialog):
     # Ordinamento
     # ──────────────────────────────────────────────────────────────────────────
 
-    def _collect_sorted(self):
-        """Esegue l'ordinamento e restituisce (sorted_features, values, crit_field_name).
+    def _collect_sorted(self, progress_callback=None, features=None):
+        """Esegue l'ordinamento e restituisce (sorted_features, values, crit_field_name, excluded).
+
+        Args:
+            progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
+            features (list[QgsFeature] | None): feature pre-caricate (se None le carica dal layer).
 
         Raises:
             ValueError: in caso di input non valido o criterio incompatibile.
@@ -584,7 +590,8 @@ class GeoSortDialog(QDialog):
         layer = self.layer_combo.currentLayer()
         if not layer:
             raise ValueError("Nessun layer selezionato.")
-        features = list(layer.getFeatures())
+        if features is None:
+            features = list(layer.getFeatures())
         if not features:
             raise ValueError("Il layer non contiene feature.")
 
@@ -600,7 +607,7 @@ class GeoSortDialog(QDialog):
                 from .geosort_core import sort_by_expression
                 sorted_feats, values, warnings = sort_by_expression(
                     features, layer, self._active_expression, ascending, nulls_last,
-                    natural_sort=natural_sort,
+                    natural_sort=natural_sort, progress_callback=progress_callback,
                 )
                 if warnings:
                     from qgis.core import QgsMessageLog, Qgis
@@ -616,7 +623,8 @@ class GeoSortDialog(QDialog):
                 if not field:
                     raise ValueError("Nessun campo selezionato.")
                 sorted_feats = sort_by_attribute(
-                    features, field, ascending, nulls_last, natural_sort=natural_sort
+                    features, field, ascending, nulls_last, natural_sort=natural_sort,
+                    progress_callback=progress_callback,
                 )
                 values = [f[field] for f in sorted_feats]
                 crit_name = f"sort_{field[:8]}"
@@ -629,7 +637,10 @@ class GeoSortDialog(QDialog):
             ref_point = None
             if axis == "dist":
                 ref_point = QgsPointXY(self.spin_ref_x.value(), self.spin_ref_y.value())
-            sorted_feats, values = sort_by_centroid(features, axis, ascending, ref_point)
+            sorted_feats, values = sort_by_centroid(
+                features, axis, ascending, ref_point,
+                progress_callback=progress_callback,
+            )
             crit_name = {"x": "sort_x", "y": "sort_y", "dist": "sort_dist"}[axis]
             return sorted_feats, values, crit_name, []
 
@@ -647,7 +658,10 @@ class GeoSortDialog(QDialog):
             }
             idx = self.combo_geom.currentIndex()
             criterion = crit_map[idx]
-            sorted_feats, values = sort_by_geometry_property(features, criterion, ascending)
+            sorted_feats, values = sort_by_geometry_property(
+                features, criterion, ascending,
+                progress_callback=progress_callback,
+            )
             return sorted_feats, values, crit_name_map[idx], []
 
         # ── Per posizione lungo linea ─────────────────────────────────────────
@@ -661,7 +675,8 @@ class GeoSortDialog(QDialog):
             line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
             mode = self.combo_line_mode.currentData()
             sorted_feats, values, excluded = sort_by_line_position(
-                features, line_geom, ascending, mode=mode
+                features, line_geom, ascending, mode=mode,
+                progress_callback=progress_callback,
             )
             return sorted_feats, values, "sort_dist", excluded
 
@@ -712,56 +727,119 @@ class GeoSortDialog(QDialog):
     def _run(self):
         from .geosort_core import apply_sort_order, create_memory_layer
 
-        try:
-            sorted_feats, values, crit_name, excluded = self._collect_sorted()
-        except Exception as exc:
-            QMessageBox.warning(self, "GeoSort", str(exc))
+        layer = self.layer_combo.currentLayer()
+        if not layer:
+            QMessageBox.warning(self, "GeoSort", "Nessun layer selezionato.")
             return False
 
-        layer = self.layer_combo.currentLayer()
-        add_crit = self.chk_add_value.isChecked()
-        n = len(sorted_feats)
-        excl_msg = (f"\n{len(excluded)} feature escluse (non intersecano la linea)."
-                    if excluded else "")
+        features = list(layer.getFeatures())
+        total = len(features)
+        if not total:
+            QMessageBox.warning(self, "GeoSort", "Il layer non contiene feature.")
+            return False
 
-        if self.rb_update.isChecked():
-            if layer.fields().indexOf("sort_order") != -1:
-                reply = QMessageBox.question(
-                    self,
-                    "GeoSort",
-                    "Il campo 'sort_order' esiste già nel layer.\n"
-                    "Sovrascriverlo con il nuovo ordinamento?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.Yes,
+        # Controllo sovrascrittura (prima di avviare il progress)
+        if self.rb_update.isChecked() and layer.fields().indexOf("sort_order") != -1:
+            reply = QMessageBox.question(
+                self,
+                "GeoSort",
+                "Il campo 'sort_order' esiste già nel layer.\n"
+                "Sovrascriverlo con il nuovo ordinamento?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return False
+
+        # ── Progress dialog ───────────────────────────────────────────────────
+        progress = QProgressDialog(
+            "Ordinamento in corso...", "Annulla", 0, 100, self
+        )
+        progress.setWindowTitle("GeoSort")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(500)
+        progress.setValue(0)
+
+        def _check_cancel():
+            QApplication.processEvents()
+            if progress.wasCanceled():
+                raise RuntimeError("Operazione annullata dall'utente.")
+
+        try:
+            # Fase 1: raccolta e ordinamento (0% → 50%)
+            def sort_progress(pct):
+                progress.setValue(int(pct * 0.5))
+                _check_cancel()
+
+            progress.setLabelText("Ordinamento in corso...")
+            sorted_feats, values, crit_name, excluded = self._collect_sorted(
+                progress_callback=sort_progress, features=features,
+            )
+            _check_cancel()
+
+            add_crit = self.chk_add_value.isChecked()
+            n = len(sorted_feats)
+            excl_msg = (f"\n{len(excluded)} feature escluse (non intersecano la linea)."
+                        if excluded else "")
+
+            # Fase 2: scrittura (50% → 100%)
+            def write_progress(pct):
+                progress.setValue(50 + int(pct * 0.5))
+                _check_cancel()
+
+            if self.rb_update.isChecked():
+                progress.setLabelText("Scrittura sul layer...")
+                ok = apply_sort_order(
+                    layer, sorted_feats, add_crit, values, crit_name,
+                    progress_callback=write_progress,
                 )
-                if reply != QMessageBox.StandardButton.Yes:
-                    return False
-            ok = apply_sort_order(layer, sorted_feats, add_crit, values, crit_name)
-            if ok:
-                layer.triggerRepaint()
+                _check_cancel()
+                if ok:
+                    layer.triggerRepaint()
+                    progress.close()
+                    QMessageBox.information(
+                        self,
+                        "GeoSort",
+                        f"Ordinamento applicato con successo.\n"
+                        f"Campo 'sort_order' aggiornato su {n} feature.{excl_msg}",
+                    )
+                else:
+                    progress.close()
+                    QMessageBox.critical(
+                        self, "GeoSort",
+                        "Errore durante l'applicazione dell'ordinamento.\n"
+                        "Controllare il log messaggi di QGIS per i dettagli."
+                    )
+                return ok
+
+            else:
+                progress.setLabelText("Creazione layer in memoria...")
+                mem_layer = create_memory_layer(
+                    layer, sorted_feats, add_crit, values, crit_name,
+                    progress_callback=write_progress,
+                )
+                _check_cancel()
+                QgsProject.instance().addMapLayer(mem_layer)
+                progress.close()
                 QMessageBox.information(
                     self,
                     "GeoSort",
-                    f"Ordinamento applicato con successo.\n"
-                    f"Campo 'sort_order' aggiornato su {n} feature.{excl_msg}",
+                    f"Nuovo layer 'GeoSort_output' aggiunto al progetto\n"
+                    f"con {n} feature ordinate.{excl_msg}",
                 )
-            else:
-                QMessageBox.critical(
-                    self, "GeoSort", "Errore durante l'applicazione dell'ordinamento.\n"
-                    "Controllare il log messaggi di QGIS per i dettagli."
-                )
-            return ok
+                return True
 
-        else:
-            mem_layer = create_memory_layer(layer, sorted_feats, add_crit, values, crit_name)
-            QgsProject.instance().addMapLayer(mem_layer)
+        except RuntimeError:
+            # Utente ha premuto Annulla
+            progress.close()
             QMessageBox.information(
-                self,
-                "GeoSort",
-                f"Nuovo layer 'GeoSort_output' aggiunto al progetto\n"
-                f"con {n} feature ordinate.{excl_msg}",
+                self, "GeoSort", "Operazione annullata dall'utente."
             )
-            return True
+            return False
+        except Exception as exc:
+            progress.close()
+            QMessageBox.warning(self, "GeoSort", str(exc))
+            return False
 
     def _on_ok(self):
         if self._run():
