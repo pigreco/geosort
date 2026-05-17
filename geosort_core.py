@@ -567,9 +567,10 @@ def sort_by_line_distance(features, line_geometry, ascending=True, mode="element
             progress_callback(i * 100.0 / total)
 
     # Ordina per distanza mantenendo l'associazione con i valori
-    paired = sorted(zip(values, sorted_feats), reverse=not ascending)
-    sorted_feats = [f for _, f in paired]
-    values = [v for v, _ in paired]
+    # Usa indice per stabilizzare l'ordinamento quando distanze sono uguali
+    paired = sorted(zip(values, range(len(sorted_feats)), sorted_feats), reverse=not ascending)
+    sorted_feats = [f for _, _, f in paired]
+    values = [v for v, _, _ in paired]
 
     if progress_callback:
         progress_callback(100)
