@@ -131,11 +131,8 @@ class GeoSortDialog(QDialog):
         self._crit_bg.addButton(self.rb_attribute, 0)
         self.combo_field = QgsFieldComboBox()
         self.combo_field.setFilters(QgsFieldProxyModel.Filter.AllTypes)
-        self.btn_expression_builder = QPushButton()
-        _expr_icon_path = os.path.join(os.path.dirname(__file__), "icon_expression.svg")
-        self.btn_expression_builder.setIcon(QIcon(_expr_icon_path))
-        self.btn_expression_builder.setIconSize(QSize(20, 20))
-        self.btn_expression_builder.setFixedSize(28, 28)
+        self.btn_expression_builder = QPushButton("ε")
+        self.btn_expression_builder.setFixedWidth(28)
         self.btn_expression_builder.setToolTip(
             "Apri il Field Calculator di QGIS\n"
             "Permette di costruire un'espressione personalizzata come criterio di ordinamento\n"
