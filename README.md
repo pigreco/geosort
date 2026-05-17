@@ -22,7 +22,8 @@ Compatibile con **QGIS 3.16+** (Qt5 / PyQt5) e **QGIS 4.x** (Qt6 / PyQt6).
 | Lunghezza | Linee | Lunghezza totale della linea |
 | Numero di vertici | Tutti | Conteggio dei vertici della geometria |
 | Bounding Box | Tutti | Larghezza, altezza, area, Xmin, Ymin del bounding box |
-| Posizione lungo linea | Tutti | Proiezione del centroide su una linea di riferimento |
+| Distanza dalla linea | Tutti | Distanza perpendicolare da una linea di riferimento (due modalità: centroide o elemento) |
+| Posizione lungo linea | Tutti | Proiezione del centroide su una linea di riferimento (tre modalità) |
 | Espressione QGIS | Tutti | Ordina per il risultato di un'espressione QGIS arbitraria |
 
 ### Modalità di ordinamento testuale
@@ -115,12 +116,21 @@ I test della logica di ordinamento non richiedono QGIS:
 ```bash
 cd geosort
 python -m unittest tests.test_sorting -v
+# 88 test sulla logica core (sort_by_attribute, sort_by_centroid, sort_by_line_distance, ecc.)
 ```
 
-I test del dialog richiedono QGIS nel PATH:
+I test del dialog e dell'algoritmo Processing richiedono QGIS nel PATH:
 
 ```bash
-python -m pytest tests/test_dialog.py -v
+python -m unittest tests.test_dialog -v     # Test UI
+python -m unittest tests.test_algorithm -v  # Test Processing Toolbox (18 test)
+```
+
+Eseguire tutti i test:
+
+```bash
+python -m unittest discover tests -p "test_*.py" -v
+# Output: 129 tests (88 ok, 41 skipped che richiedono QGIS)
 ```
 
 ---
