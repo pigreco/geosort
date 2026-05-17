@@ -1,0 +1,230 @@
+# GeoSort – Advanced Geometry Sorting
+
+[🇮🇹 Italiano](README.md) | 🇬🇧 **English**
+
+---
+
+QGIS plugin to sort vector layer features by geometric and attribute criteria,
+with automatic assignment of the progressive `sort_order` field.
+
+Compatible with **QGIS 3.16+** (Qt5 / PyQt5) and **QGIS 4.x** (Qt6 / PyQt6).
+
+![](gui.png)
+
+---
+
+## Features
+
+| Criterion | Geometry Types | Description |
+|---|---|---|
+| Attribute / Expression | All | Sort by the value of any field (String, Int, Double, Date) |
+| Centroid Coordinates X / Y | All | Sort by the geographic position of the centroid |
+| Distance from Origin | All | Euclidean distance of centroid from origin (0, 0) |
+| Area | Polygons | Surface area of the geometry |
+| Perimeter | Polygons | Length of the perimeter |
+| Length | Lines | Total length of the line |
+| Vertex Count | All | Count of vertices in the geometry |
+| Bounding Box | All | Width, height, area, Xmin, Ymin of the bounding box |
+| Distance from Line | All | Perpendicular distance from a reference line (two modes: centroid or element) |
+| Position along Line | All | Projection of centroid onto a reference line (three modes) |
+| QGIS Expression | All | Sort by the result of an arbitrary QGIS expression |
+
+### Text Sorting Modes
+
+For **Attribute** and **QGIS Expression** criteria, you can choose between two modes:
+
+| Mode | Behavior | Example |
+|---|---|---|
+| **Lexicographic** (default) | Character-by-character comparison | `"1010"` < `"11"` < `"1111"` |
+| **Natural Sort** | Digit sequences are compared as integers | `"11"` < `"1010"` < `"1111"` |
+
+Natural Sort is useful with concatenation expressions (e.g. `"fid" || "id_poly"`)
+or with alphanumeric fields like `FILE1`, `FILE2`, `FILE10`.
+
+---
+
+## Installation
+
+1. Download the plugin `.zip` file
+2. In QGIS: **Plugins → Manage and Install Plugins → Install from ZIP**
+3. Select the `geosort.zip` file
+4. The plugin will be available in the **Vector → GeoSort** menu
+
+---
+
+## Usage
+
+1. Load a vector layer into your QGIS project
+2. Open **Vector → GeoSort → GeoSort – Sort Features**
+3. Select the input layer and sorting criterion
+4. Choose the direction (Ascending / Descending)
+5. Use the **Preview** button to verify the result
+6. Press **OK** to apply or **Apply** to keep the dialog open
+
+The `sort_order` field is added/updated on the layer (or on a new in-memory layer,
+if the corresponding option is selected).
+
+---
+
+## Processing Toolbox
+
+GeoSort is also available in QGIS Processing Toolbox:
+**Toolbox → GeoSort → Sort Features (GeoSort)**
+
+This allows you to use it in batch processing, the graphical modeler, and headless PyQGIS:
+
+```python
+import processing
+result = processing.run("geosort:geosort_sort", {
+    'INPUT': layer,
+    'CRITERION': 0,          # 0 = Attribute
+    'ATTRIBUTE_FIELD': 'area',
+    'DIRECTION': True,        # True = Ascending
+    'NULLS_LAST': True,
+    'NATURAL_SORT': False,   # True = Natural Sort (digits as numbers)
+    'ADD_VALUE_FIELD': False,
+    'OUTPUT': 'memory:'
+})
+output_layer = result['OUTPUT']
+```
+
+---
+
+## Languages / Lingue
+
+GeoSort supports **Italian** and **English**. The language is automatically detected from
+your QGIS system configuration — no user intervention required.
+
+### Adding a new language
+
+To add a new translation (e.g. French, Spanish):
+
+```bash
+# 1. Regenerate .ts files
+python3 scripts/generate_ts.py
+
+# 2. Create a translation dictionary for the new language
+# (see scripts/add_italian_translations.py for the pattern)
+
+# 3. Apply the translations
+python3 scripts/your_language_translations.py
+
+# 4. Compile .qm files (optional, the plugin loads .ts directly as fallback):
+lrelease i18n/geosort_*.ts
+```
+
+The plugin automatically detects compiled `.qm` files; if not available, it loads `.ts`
+files as a fallback.
+
+---
+
+## Requirements
+
+- QGIS ≥ 3.16 LTR or QGIS 4.x
+- Python ≥ 3.9
+- No external dependencies (only PyQGIS API and Python standard library)
+
+---
+
+## Qt5 / Qt6 Compatibility
+
+The plugin uses standard PyQGIS APIs and does not directly depend on Qt5 or Qt6.
+Adaptation to QGIS 4 / PyQt6 includes:
+
+- Qualified enums (`QgsWkbTypes.GeometryType.PointGeometry` instead of `QgsWkbTypes.PointGeometry`)
+- `QMetaType.Type` instead of `QVariant.Type` for field definitions
+- `exec()` instead of `exec_()` for modal dialogs (deprecated in PyQt6)
+
+No modifications are required for end users: the same `.zip` file works
+on both QGIS versions.
+
+---
+
+## Testing
+
+Core sorting logic tests do not require QGIS:
+
+```bash
+cd geosort
+python -m unittest tests.test_sorting -v
+# 88 tests on core logic (sort_by_attribute, sort_by_centroid, sort_by_line_distance, etc.)
+```
+
+Dialog and Processing algorithm tests require QGIS in PATH:
+
+```bash
+python -m unittest tests.test_dialog -v     # UI tests
+python -m unittest tests.test_algorithm -v  # Processing Toolbox tests (18 tests)
+```
+
+Run all tests:
+
+```bash
+python -m unittest discover tests -p "test_*.py" -v
+# Output: 129 tests (88 ok, 41 skipped that require QGIS)
+```
+
+---
+
+## Contributing
+
+### Clone and set up environment
+
+```bash
+git clone https://github.com/<user>/geosort.git
+cd geosort
+# No pip dependencies: the plugin uses only PyQGIS and Python stdlib
+```
+
+### Run tests
+
+Core logic tests do not require QGIS:
+
+```bash
+python3 -m unittest tests.test_sorting -v
+# or, if pytest is installed:
+python3 -m pytest tests/test_sorting.py -v
+```
+
+Dialog tests require QGIS in PATH:
+
+```bash
+python3 -m pytest tests/test_dialog.py -v
+```
+
+### Commit style
+
+- Messages in English, present tense: `Add`, `Fix`, `Remove`
+- First line ≤ 72 characters; details in body after blank line
+- One commit per logically separate feature/fix
+
+### Naming conventions
+
+- **Modules**: `snake_case` (`geosort_core.py`)
+- **Classes**: `PascalCase` (`GeoSortDialog`)
+- **Methods and variables**: `snake_case`; slots `_on_<event>`, builders `_build_<widget>`
+- **Constants**: `UPPER_SNAKE_CASE` (`LOG_TAG`, `GEOM_CRITERIA`)
+
+### Release ZIP structure
+
+```
+geosort.zip
+└── geosort/          ← root folder (same as repository)
+    ├── metadata.txt
+    ├── __init__.py
+    └── ...
+```
+
+The ZIP filename **does not include** the version number.
+
+---
+
+## License
+
+GPL v2 or later – see `LICENSE` file.
+
+---
+
+## Acknowledgments
+
+This plugin was developed with the assistance of [Claude Code](https://claude.ai/code) (Anthropic).

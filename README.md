@@ -1,5 +1,9 @@
 # GeoSort – Ordinamento Avanzato delle Geometrie
 
+🇮🇹 **Italiano** | [🇬🇧 English](README.en.md)
+
+---
+
 Plugin QGIS per ordinare le feature di un layer vettoriale in base a criteri
 geometrici e attributivi, con assegnazione automatica del campo progressivo
 `sort_order`.
