@@ -171,7 +171,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         )
         param_ref = QgsProcessingParameterMapLayer(
             self.REF_LAYER,
-            "Layer linea di riferimento (solo per criterio 'Posizione lungo linea')",
+            "Layer linea di riferimento (solo per criteri 'Posizione/Distanza dalla linea')",
             optional=True,
         )
         self.addParameter(param_ref)
@@ -179,13 +179,25 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterEnum(
                 "LINE_MODE",
-                "Modalità di calcolo linea",
+                "Modalità di calcolo – Posizione lungo linea",
                 options=[
                     "Proiezione centroide  –  tutte le feature",
                     "Solo intersecanti –  proiezione centroide",
                     "Solo intersecanti –  primo punto di intersezione",
                 ],
                 defaultValue=0,
+            )
+        )
+        # Modalità di calcolo per il criterio "Distanza dalla linea"
+        self.addParameter(
+            QgsProcessingParameterEnum(
+                "LINE_DISTANCE_MODE",
+                "Modalità di calcolo – Distanza dalla linea",
+                options=[
+                    "Distanza dal centroide",
+                    "Distanza dall'elemento",
+                ],
+                defaultValue=1,
             )
         )
         from qgis.core import QgsProcessingParameterExpression
@@ -300,8 +312,11 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             if not ref_feats:
                 raise QgsProcessingException("Il layer di riferimento non contiene feature.")
             line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+            dist_mode_keys = ["centroid", "element"]
+            dist_mode_idx = self.parameterAsEnum(parameters, "LINE_DISTANCE_MODE", context)
+            dist_mode = dist_mode_keys[dist_mode_idx]
             sorted_feats, values = sort_by_line_distance(
-                features, line_geom, ascending
+                features, line_geom, ascending, mode=dist_mode
             )
             excluded = []
 

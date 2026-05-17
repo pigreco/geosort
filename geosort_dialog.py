@@ -211,20 +211,21 @@ class GeoSortDialog(QDialog):
         grid.addWidget(self.rb_geometry, 5, 0)
         grid.addWidget(self.combo_geom,  5, 1, 1, 2)
 
-        # ── Riga 6: Posizione lungo linea ────────────────────────────────────
-        self.rb_spatial = QRadioButton("Per posizione lungo linea")
-        self._crit_bg.addButton(self.rb_spatial, 3)
-        self.combo_ref_layer = QgsMapLayerComboBox()
-        self.combo_ref_layer.setFilters(QgsMapLayerProxyModel.Filter.LineLayer)
-        grid.addWidget(self.rb_spatial,      6, 0)
-        grid.addWidget(self.combo_ref_layer, 6, 1, 1, 2)
-
+        # ── Riga 6: Distanza dalla linea ─────────────────────────────────────
         self.rb_line_distance = QRadioButton("Per distanza dalla linea")
-        self._crit_bg.addButton(self.rb_line_distance, 4)
+        self._crit_bg.addButton(self.rb_line_distance, 3)
         self.combo_ref_layer_dist = QgsMapLayerComboBox()
         self.combo_ref_layer_dist.setFilters(QgsMapLayerProxyModel.Filter.LineLayer)
-        grid.addWidget(self.rb_line_distance,         7, 0)
-        grid.addWidget(self.combo_ref_layer_dist,     7, 1, 1, 2)
+        grid.addWidget(self.rb_line_distance,         6, 0)
+        grid.addWidget(self.combo_ref_layer_dist,     6, 1, 1, 2)
+
+        # ── Riga 7: Posizione lungo linea ────────────────────────────────────
+        self.rb_spatial = QRadioButton("Per posizione lungo linea")
+        self._crit_bg.addButton(self.rb_spatial, 4)
+        self.combo_ref_layer = QgsMapLayerComboBox()
+        self.combo_ref_layer.setFilters(QgsMapLayerProxyModel.Filter.LineLayer)
+        grid.addWidget(self.rb_spatial,      7, 0)
+        grid.addWidget(self.combo_ref_layer, 7, 1, 1, 2)
 
         outer.addLayout(grid)
 
@@ -248,6 +249,16 @@ class GeoSortDialog(QDialog):
             "Solo intersecanti – primo punto: usa il punto in cui la feature tocca per primo la linea."
         )
         outer.addWidget(self.combo_line_mode)
+
+        # ── Modalità distanza dalla linea ────────────────────────────────────
+        self.combo_line_distance_mode = QComboBox()
+        self.combo_line_distance_mode.addItem("Distanza dal centroide", "centroid")
+        self.combo_line_distance_mode.addItem("Distanza dall'elemento", "element")
+        self.combo_line_distance_mode.setToolTip(
+            "Distanza dal centroide: distanza dal centro della feature.\n"
+            "Distanza dall'elemento: distanza dal punto più vicino della geometria."
+        )
+        outer.addWidget(self.combo_line_distance_mode)
 
         return grp
 
@@ -407,6 +418,7 @@ class GeoSortDialog(QDialog):
         self.combo_ref_layer.setEnabled(is_spatial)
         self.combo_line_mode.setEnabled(is_spatial)
         self.combo_ref_layer_dist.setEnabled(is_line_distance)
+        self.combo_line_distance_mode.setEnabled(is_line_distance)
 
         # Se si cambia criterio, resetta l'espressione attiva
         if not is_attr:
@@ -699,8 +711,9 @@ class GeoSortDialog(QDialog):
             if not ref_feats:
                 raise ValueError("Il layer di riferimento non contiene feature.")
             line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+            mode = self.combo_line_distance_mode.currentData()
             sorted_feats, values = sort_by_line_distance(
-                features, line_geom, ascending,
+                features, line_geom, ascending, mode=mode,
                 progress_callback=progress_callback,
             )
             return sorted_feats, values, "sort_dist", []

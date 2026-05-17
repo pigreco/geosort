@@ -1016,31 +1016,55 @@ class TestSortByExpression(unittest.TestCase):
 class MockLineDistanceGeometry:
     """Mock geometria per testare sort_by_line_distance standalone."""
 
-    def __init__(self, distance_from_line):
-        self._dist = distance_from_line
+    def __init__(self, dist_centroid, dist_element):
+        self._dist_centroid = dist_centroid
+        self._dist_element = dist_element
+        self._cx = 0  # per centroid()
 
     def isMultipart(self):
         return False
 
+    def centroid(self):
+        """Restituisce un geometry con il centroide."""
+        result = MockGeometryResult(self._cx, 0)
+        result._distance = self._dist_centroid
+        return result
+
     def distance(self, line_geom):
-        """Restituisce la distanza dalla linea."""
-        return self._dist
+        """Restituisce la distanza dalla linea (elemento)."""
+        return self._dist_element
 
     def wkbType(self):
         return "mock"
 
 
-def _mock_sort_by_line_distance(features, ascending=True):
+class MockCentroidForDistance:
+    """Mock di centroide con distanza dalla linea."""
+    def __init__(self, distance):
+        self._distance = distance
+
+    def distance(self, line_geom):
+        return self._distance
+
+
+def _mock_sort_by_line_distance(features, ascending=True, mode="element"):
     """Versione standalone del sort_by_line_distance con mock.
 
-    Usa feature.geometry()._dist come distanza dalla linea.
+    Usa feature.geometry()._dist_centroid (per mode="centroid") o
+    feature.geometry()._dist_element (per mode="element") come distanza dalla linea.
     """
     sorted_feats = []
     values = []
 
     for f in features:
         geom = f.geometry()
-        dist = geom._dist
+        if mode == "centroid":
+            dist = geom._dist_centroid
+        elif mode == "element":
+            dist = geom._dist_element
+        else:
+            raise ValueError(f"Modalità sconosciuta: {mode}")
+
         sorted_feats.append(f)
         values.append(dist)
 
@@ -1051,16 +1075,23 @@ def _mock_sort_by_line_distance(features, ascending=True):
 class TestLineDistanceSorting(unittest.TestCase):
 
     def _make(self, specs):
-        """specs = [distance, ...]"""
-        return [
-            MockFeature(i, geometry=MockLineDistanceGeometry(dist))
-            for i, dist in enumerate(specs)
-        ]
+        """specs = [distance, ...] o [(dist_centroid, dist_element), ...]"""
+        features = []
+        for i, spec in enumerate(specs):
+            if isinstance(spec, tuple):
+                dist_c, dist_e = spec
+            else:
+                # Se è un numero singolo, usa lo stesso per entrambe
+                dist_c = dist_e = spec
+            features.append(
+                MockFeature(i, geometry=MockLineDistanceGeometry(dist_c, dist_e))
+            )
+        return features
 
     def test_line_distance_ascending(self):
         """Ordina crescente: più vicine prima."""
         feats = self._make([10.0, 5.0, 15.0, 2.0])
-        result, values = _mock_sort_by_line_distance(feats, ascending=True)
+        result, values = _mock_sort_by_line_distance(feats, ascending=True, mode="element")
         self.assertEqual(values, [2.0, 5.0, 10.0, 15.0])
         self.assertEqual(len(result), 4)
 
@@ -1100,9 +1131,33 @@ class TestLineDistanceSorting(unittest.TestCase):
     def test_line_distance_empty_list(self):
         """Lista vuota."""
         feats = self._make([])
-        result, values = _mock_sort_by_line_distance(feats)
+        result, values = _mock_sort_by_line_distance(feats, mode="element")
         self.assertEqual(len(result), 0)
         self.assertEqual(len(values), 0)
+
+    def test_line_distance_mode_centroid(self):
+        """Ordina per distanza del centroide."""
+        # Tuple: (dist_centroid, dist_element)
+        feats = self._make([(5.0, 10.0), (2.0, 15.0), (8.0, 3.0)])
+        result, values = _mock_sort_by_line_distance(feats, ascending=True, mode="centroid")
+        self.assertEqual(values, [2.0, 5.0, 8.0])  # Ordina per centroide
+
+    def test_line_distance_mode_element(self):
+        """Ordina per distanza dell'elemento."""
+        # Tuple: (dist_centroid, dist_element)
+        feats = self._make([(5.0, 10.0), (2.0, 15.0), (8.0, 3.0)])
+        result, values = _mock_sort_by_line_distance(feats, ascending=True, mode="element")
+        self.assertEqual(values, [3.0, 10.0, 15.0])  # Ordina per elemento
+
+    def test_line_distance_different_modes_same_data(self):
+        """Modalità diverse producono ordini diversi."""
+        feats = self._make([(1.0, 10.0), (9.0, 2.0), (5.0, 5.0)])
+        result_c, values_c = _mock_sort_by_line_distance(feats, ascending=True, mode="centroid")
+        result_e, values_e = _mock_sort_by_line_distance(feats, ascending=True, mode="element")
+        # Centroide: 1, 5, 9
+        self.assertEqual(values_c, [1.0, 5.0, 9.0])
+        # Elemento: 2, 5, 10
+        self.assertEqual(values_e, [2.0, 5.0, 10.0])
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Entry point

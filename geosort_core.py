@@ -366,7 +366,10 @@ LINE_MODES = {
     "intersecting_first_pt":   "Solo intersecanti – primo punto di intersezione",
 }
 
-LINE_DISTANCE = "Distanza dalla linea"
+LINE_DISTANCE_MODES = {
+    "centroid": "Distanza dal centroide",
+    "element":  "Distanza dall'elemento",
+}
 
 
 def _extract_points_from_geometry(geom):
@@ -521,7 +524,7 @@ def sort_by_line_position(features, line_geometry, ascending=True,
     return sorted_feats, values, excluded
 
 
-def sort_by_line_distance(features, line_geometry, ascending=True,
+def sort_by_line_distance(features, line_geometry, ascending=True, mode="element",
                           progress_callback=None):
     """Ordina le feature per distanza (perpendicolare) dalla linea di riferimento.
 
@@ -529,18 +532,34 @@ def sort_by_line_distance(features, line_geometry, ascending=True,
         features (list[QgsFeature]): feature da ordinare.
         line_geometry (QgsGeometry): geometria LineString (o MultiLineString) di riferimento.
         ascending (bool): True = crescente (più vicine prima).
+        mode (str): modalità di calcolo, una delle chiavi di ``LINE_DISTANCE_MODES``:
+            * ``centroid`` – distanza dal centroide della feature.
+            * ``element`` – distanza dal punto più vicino della geometria.
         progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
 
     Returns:
         tuple[list[QgsFeature], list[float]]: (feature ordinate, valori distanza).
+
+    Raises:
+        ValueError: se la modalità non è valida.
     """
+    if mode not in LINE_DISTANCE_MODES:
+        raise ValueError(f"Modalità sconosciuta: '{mode}'. "
+                         f"Valori ammessi: {list(LINE_DISTANCE_MODES.keys())}")
+
     sorted_feats = []
     values = []
     total = len(features)
 
     for i, f in enumerate(features):
         geom = f.geometry()
-        dist = geom.distance(line_geometry)
+
+        if mode == "centroid":
+            pt_geom = geom.centroid()
+            dist = pt_geom.distance(line_geometry)
+        elif mode == "element":
+            dist = geom.distance(line_geometry)
+
         sorted_feats.append(f)
         values.append(dist)
 
