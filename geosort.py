@@ -32,9 +32,10 @@ class GeoSort:
     # ──────────────────────────────────────────────────────────────────────────
 
     def _setup_translator(self):
-        """Carica il traduttore in base alla lingua di sistema."""
-        locale = QLocale()
-        locale_name = locale.name()  # es. 'it_IT', 'en_US'
+        """Carica il traduttore in base alla lingua di QGIS."""
+        # Rileva la lingua da QGIS, non dal sistema
+        qgis_locale = QgsApplication.instance().locale()
+        locale_name = qgis_locale.name()  # es. 'it_IT', 'en_US'
         lang_code = locale_name.split('_')[0].lower()  # es. 'it', 'en'
 
         # Supportate solo it e en; fallback a en per altre lingue

@@ -4,119 +4,119 @@
     <name>GeoSort</name>
     <message>
       <source>Aggiorna anteprima</source>
-      <translation type="unfinished" />
+      <translation>Refresh Preview</translation>
     </message>
     <message>
       <source>Annulla</source>
-      <translation type="unfinished" />
+      <translation>Cancel</translation>
     </message>
     <message>
       <source>Anteprima (prime 10 feature ordinate)</source>
-      <translation type="unfinished" />
+      <translation>Preview (first 10 sorted features)</translation>
     </message>
     <message>
       <source>Applica</source>
-      <translation type="unfinished" />
+      <translation>Apply</translation>
     </message>
     <message>
       <source>Ascendente ↑</source>
-      <translation type="unfinished" />
+      <translation>Ascending ↑</translation>
     </message>
     <message>
       <source>CRS / Units:</source>
-      <translation type="unfinished" />
+      <translation>CRS / Units:</translation>
     </message>
     <message>
       <source>Chiudi</source>
-      <translation type="unfinished" />
+      <translation>Close</translation>
     </message>
     <message>
       <source>Crea nuovo layer in memoria</source>
-      <translation type="unfinished" />
+      <translation>Create new memory layer</translation>
     </message>
     <message>
       <source>Criterio di ordinamento</source>
-      <translation type="unfinished" />
+      <translation>Sort Criterion</translation>
     </message>
     <message>
       <source>Direzione:</source>
-      <translation type="unfinished" />
+      <translation>Direction:</translation>
     </message>
     <message>
       <source>Discendente ↓</source>
-      <translation type="unfinished" />
+      <translation>Descending ↓</translation>
     </message>
     <message>
       <source>Distanza dal centroide</source>
-      <translation type="unfinished" />
+      <translation>Distance from Centroid</translation>
     </message>
     <message>
       <source>Distanza dall'elemento</source>
-      <translation type="unfinished" />
+      <translation>Distance from Feature</translation>
     </message>
     <message>
       <source>GeoSort – Advanced Geometry Sorting</source>
-      <translation type="unfinished" />
+      <translation>GeoSort – Advanced Geometry Sorting</translation>
     </message>
     <message>
       <source>Help</source>
-      <translation type="unfinished" />
+      <translation>Help</translation>
     </message>
     <message>
       <source>Input Layer</source>
-      <translation type="unfinished" />
+      <translation>Input Layer</translation>
     </message>
     <message>
       <source>Layer:</source>
-      <translation type="unfinished" />
+      <translation>Layer:</translation>
     </message>
     <message>
       <source>Opzioni</source>
-      <translation type="unfinished" />
+      <translation>Options</translation>
     </message>
     <message>
       <source>Ordinamento naturale – Natural Sort (es. 1, 2, 10 invece di 1, 10, 2)</source>
-      <translation type="unfinished" />
+      <translation>Natural Sort – Natural Sort (e.g. 1, 2, 10 instead of 1, 10, 2)</translation>
     </message>
     <message>
       <source>Output</source>
-      <translation type="unfinished" />
+      <translation>Output</translation>
     </message>
     <message>
       <source>Per coordinate centroide</source>
-      <translation type="unfinished" />
+      <translation>By Centroid Coordinates</translation>
     </message>
     <message>
       <source>Per distanza dalla linea</source>
-      <translation type="unfinished" />
+      <translation>By Distance from Line</translation>
     </message>
     <message>
       <source>Per posizione lungo linea</source>
-      <translation type="unfinished" />
+      <translation>By Position Along Line</translation>
     </message>
     <message>
       <source>Per proprietà geometrica</source>
-      <translation type="unfinished" />
+      <translation>By Geometry Property</translation>
     </message>
     <message>
       <source>Punto di riferimento (X, Y)</source>
-      <translation type="unfinished" />
+      <translation>Reference Point (X, Y)</translation>
     </message>
     <message>
       <source>Rimuovi</source>
-      <translation type="unfinished" />
+      <translation>Remove</translation>
     </message>
     <message>
       <source>Rimuovi l'espressione attiva e torna al campo singolo</source>
-      <translation type="unfinished" />
+      <translation>Remove active expression and return to single field</translation>
     </message>
     <message>
       <source>Seleziona punto sulla mappa</source>
-      <translation type="unfinished" />
+      <translation>Select point on map</translation>
     </message>
     <message>
       <source>Valori NULL in fondo (attributo e espressione)</source>
-      <translation type="unfinished" />
+      <translation>NULL values last (attribute and expression)</translation>
     </message>
   </context>
 </TS>
