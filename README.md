@@ -1,5 +1,14 @@
 # GeoSort – Ordinamento Avanzato delle Geometrie
 
+🇮🇹 **Italiano** | [🇬🇧 English](README.en.md)
+
+[![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](https://github.com/pigreco/geosort/releases)
+[![Languages](https://img.shields.io/badge/languages-IT%20%7C%20EN-green.svg)](#lingue--languages)
+[![QGIS](https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg)](#requisiti)
+[![License](https://img.shields.io/badge/license-GPLv2-red.svg)](LICENSE)
+
+---
+
 Plugin QGIS per ordinare le feature di un layer vettoriale in base a criteri
 geometrici e attributivi, con assegnazione automatica del campo progressivo
 `sort_order`.
@@ -84,6 +93,34 @@ result = processing.run("geosort:geosort_sort", {
 })
 output_layer = result['OUTPUT']
 ```
+
+---
+
+## Lingue / Languages
+
+GeoSort supporta **Italiano** e **Inglese**. La lingua è rilevata automaticamente dalla
+configurazione di sistema di QGIS — non è richiesto nessun intervento da parte dell'utente.
+
+### Aggiungere una nuova lingua
+
+Per aggiungere una nuova traduzione (es. Francese, Spagnolo):
+
+```bash
+# 1. Rigenera i file .ts
+python3 scripts/generate_ts.py
+
+# 2. Crea un dizionario di traduzioni per la nuova lingua
+# (vedi scripts/add_italian_translations.py per il pattern)
+
+# 3. Applica le traduzioni
+python3 scripts/your_language_translations.py
+
+# 4. Compila i .qm (opzionale, il plugin carica anche i .ts direttamente):
+lrelease i18n/geosort_*.ts
+```
+
+Il plugin rileva automaticamente i file `.qm` compilati; se non disponibili, carica i `.ts`
+come fallback.
 
 ---
 

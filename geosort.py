@@ -5,9 +5,9 @@ GeoSort – Classe principale del plugin.
 
 import os
 
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import QAction, QApplication
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtCore import Qt, QTranslator, QLocale
 from qgis.core import QgsApplication
 
 
@@ -24,6 +24,39 @@ class GeoSort:
 
         self.toolbar = self.iface.addToolBar("GeoSort")
         self.toolbar.setObjectName("GeoSortToolbar")
+
+        self._setup_translator()
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Setup traduzioni
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def _setup_translator(self):
+        """Carica il traduttore in base alla lingua di sistema."""
+        locale = QLocale()
+        locale_name = locale.name()  # es. 'it_IT', 'en_US'
+        lang_code = locale_name.split('_')[0].lower()  # es. 'it', 'en'
+
+        # Supportate solo it e en; fallback a en per altre lingue
+        if lang_code not in ('it', 'en'):
+            lang_code = 'en'
+
+        i18n_dir = os.path.join(self.plugin_dir, 'i18n')
+        qm_file = os.path.join(i18n_dir, f'geosort_{lang_code}.qm')
+        ts_file = os.path.join(i18n_dir, f'geosort_{lang_code}.ts')
+
+        # Prova a caricare il file .qm compilato (preferito)
+        if os.path.exists(qm_file):
+            translator = QTranslator()
+            if translator.load(qm_file):
+                QApplication.installTranslator(translator)
+                return
+
+        # Fallback: carica i .ts direttamente (utile in sviluppo)
+        if os.path.exists(ts_file):
+            from .geosort_translator import TsTranslator
+            translator = TsTranslator(lang_code)
+            QApplication.installTranslator(translator)
 
     # ──────────────────────────────────────────────────────────────────────────
     # Ciclo di vita QGIS
