@@ -8,7 +8,7 @@ import os
 from qgis.PyQt.QtWidgets import QAction, QApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import Qt, QTranslator, QLocale
-from qgis.core import QgsApplication
+from qgis.core import QgsApplication, QgsMessageLog, Qgis
 
 
 class GeoSort:
@@ -47,17 +47,8 @@ class GeoSort:
             lang_code = 'en'
 
         i18n_dir = os.path.join(self.plugin_dir, 'i18n')
-        qm_file = os.path.join(i18n_dir, f'geosort_{lang_code}.qm')
         ts_file = os.path.join(i18n_dir, f'geosort_{lang_code}.ts')
 
-        # Prova a caricare il file .qm compilato (preferito)
-        if os.path.exists(qm_file):
-            translator = QTranslator()
-            if translator.load(qm_file):
-                QApplication.installTranslator(translator)
-                return
-
-        # Fallback: carica i .ts direttamente (utile in sviluppo)
         if os.path.exists(ts_file):
             from .geosort_translator import TsTranslator
             translator = TsTranslator(lang_code)
