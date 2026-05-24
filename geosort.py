@@ -49,10 +49,17 @@ class GeoSort:
         i18n_dir = os.path.join(self.plugin_dir, 'i18n')
         ts_file = os.path.join(i18n_dir, f'geosort_{lang_code}.ts')
 
+        QgsMessageLog.logMessage(f"[INIT] QGIS locale={qgis_locale}, lang_code={lang_code}", "GeoSort", Qgis.MessageLevel.Info)
+        QgsMessageLog.logMessage(f"[INIT] plugin_dir={self.plugin_dir}", "GeoSort", Qgis.MessageLevel.Info)
+        QgsMessageLog.logMessage(f"[INIT] ts_file={ts_file}, exists={os.path.exists(ts_file)}", "GeoSort", Qgis.MessageLevel.Info)
+
         if os.path.exists(ts_file):
             from .geosort_translator import TsTranslator
             translator = TsTranslator(lang_code)
             QApplication.installTranslator(translator)
+            QgsMessageLog.logMessage(f"[INIT] Translator loaded for {lang_code}", "GeoSort", Qgis.MessageLevel.Success)
+        else:
+            QgsMessageLog.logMessage(f"[INIT] ✗ No .ts file found: {ts_file}", "GeoSort", Qgis.MessageLevel.Critical)
 
     # ──────────────────────────────────────────────────────────────────────────
     # Ciclo di vita QGIS
