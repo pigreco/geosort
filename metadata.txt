@@ -33,7 +33,7 @@ experimental=False
 deprecated=False
 server=False
 changelog=
-    1.5.0 Interfaccia multilingua (Italiano & Inglese); rilevamento automatico della lingua di sistema; infrastruttura di traduzione per estendere ad altre lingue
+    1.5.0 Interfaccia multilingua (Italiano & Inglese); rilevamento automatico della lingua di sistema; infrastruttura di traduzione per estendere ad altre lingue; fix type inference per campi attributo (issue #8)
     1.4.0 Ordinamento per distanza dalla linea (issue #6); due modalità: centroide e elemento; layout criteri compatto; 18 test Processing; fix SVG tema scuro QGIS 4
     1.3.0 Pulsante Rimuovi espressione; conferma sovrascrittura sort_order; fix enum QGIS 4 / PyQt6
     1.2.0 Aggiunge Natural Sort per criteri attributo/espressione (issue #3)
