@@ -2,7 +2,7 @@
 
 [🇮🇹 Italiano](README.md) | 🇬🇧 **English**
 
-[![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](https://github.com/pigreco/geosort/releases)
+[![Version](https://img.shields.io/badge/version-1.5.1-blue.svg)](https://github.com/pigreco/geosort/releases)
 [![Languages](https://img.shields.io/badge/languages-IT%20%7C%20EN-green.svg)](#languageslingue)
 [![QGIS](https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg)](#requirements)
 [![License](https://img.shields.io/badge/license-GPLv2-red.svg)](LICENSE)
@@ -97,8 +97,11 @@ output_layer = result['OUTPUT']
 
 ## Languages / Lingue
 
-GeoSort supports **Italian** and **English**. The language is automatically detected from
-your QGIS system configuration — no user intervention required.
+GeoSort supports **Italian** and **English** with complete translations. The language is 
+automatically detected from your QGIS system configuration — no user intervention required.
+
+Translations are provided in both source (`.ts`) and compiled (`.qm` binary) formats, 
+enabling instant loading without compilation dependencies.
 
 ### Adding a new language
 
