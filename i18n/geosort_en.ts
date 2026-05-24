@@ -120,83 +120,83 @@
     </message>
     <message>
       <source>Aggiorna layer corrente (aggiunge/aggiorna il campo 'sort_order')</source>
-      <translation/>
+      <translation>Update current layer (adds/updates 'sort_order' field)</translation>
     </message>
     <message>
       <source>Altezza Bounding Box</source>
-      <translation/>
+      <translation>Bounding Box Height</translation>
     </message>
     <message>
       <source>Area</source>
-      <translation/>
+      <translation>Area</translation>
     </message>
     <message>
       <source>Area Bounding Box</source>
-      <translation/>
+      <translation>Bounding Box Area</translation>
     </message>
     <message>
       <source>Coordinata X</source>
-      <translation/>
+      <translation>X Coordinate</translation>
     </message>
     <message>
       <source>Coordinata Y</source>
-      <translation/>
+      <translation>Y Coordinate</translation>
     </message>
     <message>
       <source>Distanza da punto di riferimento</source>
-      <translation/>
+      <translation>Distance from Reference Point</translation>
     </message>
     <message>
       <source>FID</source>
-      <translation/>
+      <translation>FID</translation>
     </message>
     <message>
       <source>Larghezza Bounding Box</source>
-      <translation/>
+      <translation>Bounding Box Width</translation>
     </message>
     <message>
       <source>Lunghezza</source>
-      <translation/>
+      <translation>Length</translation>
     </message>
     <message>
       <source>Numero di vertici</source>
-      <translation/>
+      <translation>Number of Vertices</translation>
     </message>
     <message>
       <source>Per attributo / espressione</source>
-      <translation/>
+      <translation>By Attribute / Expression</translation>
     </message>
     <message>
       <source>Perimetro</source>
-      <translation/>
+      <translation>Perimeter</translation>
     </message>
     <message>
       <source>Proiezione centroide  –  tutte le feature</source>
-      <translation/>
+      <translation>Centroid Projection – all features</translation>
     </message>
     <message>
       <source>Solo intersecanti  –  primo punto di intersezione</source>
-      <translation/>
+      <translation>Intersecting only – first intersection point</translation>
     </message>
     <message>
       <source>Solo intersecanti  –  proiezione centroide</source>
-      <translation/>
+      <translation>Intersecting only – centroid projection</translation>
     </message>
     <message>
       <source>Valore criterio</source>
-      <translation/>
+      <translation>Criterion Value</translation>
     </message>
     <message>
       <source>Xmin Bounding Box</source>
-      <translation/>
+      <translation>Bounding Box Xmin</translation>
     </message>
     <message>
       <source>Ymin Bounding Box</source>
-      <translation/>
+      <translation>Bounding Box Ymin</translation>
     </message>
     <message>
       <source>sort_order</source>
-      <translation/>
+      <translation>sort_order</translation>
     </message>
   </context>
 </TS>
