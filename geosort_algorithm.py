@@ -25,6 +25,7 @@ from qgis.core import (
     QgsGeometry,
     QgsMessageLog,
     Qgis,
+    NULL,
 )
 from qgis.PyQt.QtCore import QMetaType
 from qgis.PyQt.QtGui import QIcon
@@ -233,6 +234,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             sort_by_geometry_property,
             sort_by_line_position,
             sort_by_line_distance,
+            _infer_field_type,
         )
 
         layer = self.parameterAsVectorLayer(parameters, self.INPUT, context)
@@ -360,8 +362,10 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         for field in layer.fields():
             out_fields.append(field)
         out_fields.append(QgsField("sort_order", QMetaType.Type.Int))
-        if add_value:
-            out_fields.append(QgsField("sort_value", QMetaType.Type.Double))
+        value_field_type = QMetaType.Type.Double
+        if add_value and values:
+            value_field_type = _infer_field_type(values)
+            out_fields.append(QgsField("sort_value", value_field_type))
 
         (sink, dest_id) = self.parameterAsSink(
             parameters,
@@ -384,10 +388,20 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 new_feat[field.name()] = feat[field.name()]
             new_feat["sort_order"] = i + 1
             if add_value and i < len(values):
-                try:
-                    new_feat["sort_value"] = float(values[i])
-                except (TypeError, ValueError):
-                    pass
+                val = values[i]
+                if value_field_type == QMetaType.Type.Double:
+                    try:
+                        val = float(val)
+                    except (TypeError, ValueError):
+                        val = None
+                elif value_field_type == QMetaType.Type.Int:
+                    try:
+                        val = int(val)
+                    except (TypeError, ValueError):
+                        val = None
+                else:
+                    val = str(val) if val not in (None, NULL) else None
+                new_feat["sort_value"] = val
             sink.addFeature(new_feat, QgsFeatureSink.FastInsert)
             if i % 100 == 0:
                 feedback.setProgress(60 + int(40 * i / total))

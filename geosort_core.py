@@ -59,6 +59,32 @@ LOG_TAG = "GeoSort"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Type inference per field creation
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _infer_field_type(values):
+    """Rileva il QMetaType appropriato dal primo valore non-NULL.
+
+    Args:
+        values (list): lista di valori.
+
+    Returns:
+        QMetaType.Type: tipo rilevato (Double, Int, o QString).
+    """
+    for v in values:
+        if v is None or v == NULL:
+            continue
+        if isinstance(v, bool):
+            return QMetaType.Type.Int
+        if isinstance(v, int):
+            return QMetaType.Type.Int
+        if isinstance(v, float):
+            return QMetaType.Type.Double
+        return QMetaType.Type.QString
+    return QMetaType.Type.Double  # fallback
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Normalizzazione valori data/ora
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -623,10 +649,12 @@ def apply_sort_order(
 
         # ── Campo criterio (opzionale) ────────────────────────────────────────
         crit_idx = -1
+        crit_field_type = QMetaType.Type.Double
         if add_criterion_field and criterion_values:
             crit_idx = layer.fields().indexOf(criterion_field_name)
             if crit_idx == -1:
-                layer.addAttribute(QgsField(criterion_field_name, QMetaType.Type.Double))
+                crit_field_type = _infer_field_type(criterion_values)
+                layer.addAttribute(QgsField(criterion_field_name, crit_field_type))
                 layer.updateFields()
                 crit_idx = layer.fields().indexOf(criterion_field_name)
 
@@ -636,10 +664,20 @@ def apply_sort_order(
             fid = feat.id()
             layer.changeAttributeValue(fid, sort_idx, i + 1)
             if add_criterion_field and criterion_values and crit_idx != -1:
-                try:
-                    layer.changeAttributeValue(fid, crit_idx, float(criterion_values[i]))
-                except (TypeError, ValueError):
-                    pass
+                val = criterion_values[i]
+                if crit_field_type == QMetaType.Type.Double:
+                    try:
+                        val = float(val)
+                    except (TypeError, ValueError):
+                        val = NULL
+                elif crit_field_type == QMetaType.Type.Int:
+                    try:
+                        val = int(val)
+                    except (TypeError, ValueError):
+                        val = NULL
+                else:
+                    val = str(val) if val not in (None, NULL) else NULL
+                layer.changeAttributeValue(fid, crit_idx, val)
             if progress_callback and i % 50 == 0:
                 progress_callback(i * 100.0 / total)
 
@@ -696,8 +734,10 @@ def create_memory_layer(
 
     original_fields = source_layer.fields().toList()
     new_fields = original_fields + [QgsField("sort_order", QMetaType.Type.Int)]
+    crit_field_type = QMetaType.Type.Double
     if add_criterion_field and criterion_values:
-        new_fields.append(QgsField(criterion_field_name, QMetaType.Type.Double))
+        crit_field_type = _infer_field_type(criterion_values)
+        new_fields.append(QgsField(criterion_field_name, crit_field_type))
 
     provider.addAttributes(new_fields)
     mem_layer.updateFields()
@@ -711,10 +751,20 @@ def create_memory_layer(
             new_feat[field.name()] = feat[field.name()]
         new_feat["sort_order"] = i + 1
         if add_criterion_field and criterion_values:
-            try:
-                new_feat[criterion_field_name] = float(criterion_values[i])
-            except (TypeError, ValueError):
-                pass
+            val = criterion_values[i]
+            if crit_field_type == QMetaType.Type.Double:
+                try:
+                    val = float(val)
+                except (TypeError, ValueError):
+                    val = NULL
+            elif crit_field_type == QMetaType.Type.Int:
+                try:
+                    val = int(val)
+                except (TypeError, ValueError):
+                    val = NULL
+            else:
+                val = str(val) if val not in (None, NULL) else NULL
+            new_feat[criterion_field_name] = val
         out_features.append(new_feat)
         if progress_callback and i % 50 == 0:
             progress_callback(i * 100.0 / total)
