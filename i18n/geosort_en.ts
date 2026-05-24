@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <TS version="2.1" language="en">
   <context>
     <name>GeoSort</name>
@@ -117,6 +117,86 @@
     <message>
       <source>Valori NULL in fondo (attributo e espressione)</source>
       <translation>NULL values last (attribute and expression)</translation>
+    </message>
+    <message>
+      <source>Aggiorna layer corrente (aggiunge/aggiorna il campo 'sort_order')</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Altezza Bounding Box</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Area</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Area Bounding Box</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Coordinata X</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Coordinata Y</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Distanza da punto di riferimento</source>
+      <translation/>
+    </message>
+    <message>
+      <source>FID</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Larghezza Bounding Box</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Lunghezza</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Numero di vertici</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Per attributo / espressione</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Perimetro</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Proiezione centroide  –  tutte le feature</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Solo intersecanti  –  primo punto di intersezione</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Solo intersecanti  –  proiezione centroide</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Valore criterio</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Xmin Bounding Box</source>
+      <translation/>
+    </message>
+    <message>
+      <source>Ymin Bounding Box</source>
+      <translation/>
+    </message>
+    <message>
+      <source>sort_order</source>
+      <translation/>
     </message>
   </context>
 </TS>
