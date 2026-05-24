@@ -126,7 +126,7 @@ class GeoSortDialog(QDialog):
         grid.setVerticalSpacing(4)
 
         # ── Riga 0: Attributo / espressione ─────────────────────────────────
-        self.rb_attribute = QRadioButton("Per attributo / espressione")
+        self.rb_attribute = QRadioButton(self.tr("Per attributo / espressione"))
         self.rb_attribute.setChecked(True)
         self._crit_bg.addButton(self.rb_attribute, 0)
         self.combo_field = QgsFieldComboBox()
@@ -136,11 +136,11 @@ class GeoSortDialog(QDialog):
         self.btn_expression_builder.setIcon(QIcon(_expr_icon_path))
         self.btn_expression_builder.setIconSize(QSize(20, 20))
         self.btn_expression_builder.setFixedSize(28, 28)
-        self.btn_expression_builder.setToolTip(
+        self.btn_expression_builder.setToolTip(self.tr(
             "Apri il Field Calculator di QGIS\n"
             "Permette di costruire un'espressione personalizzata come criterio di ordinamento\n"
             "Es: \"area_kmq\" / \"popolazione\"   oppure   length($geometry)"
-        )
+        ))
         grid.addWidget(self.rb_attribute,           0, 0)
         grid.addWidget(self.combo_field,            0, 1)
         grid.addWidget(self.btn_expression_builder, 0, 2)
@@ -166,9 +166,9 @@ class GeoSortDialog(QDialog):
         self.rb_centroid = QRadioButton(self.tr("Per coordinate centroide"))
         self._crit_bg.addButton(self.rb_centroid, 1)
         self.combo_centroid = QComboBox()
-        self.combo_centroid.addItems(
-            ["Coordinata X", "Coordinata Y", "Distanza da punto di riferimento"]
-        )
+        self.combo_centroid.addItems([
+            self.tr("Coordinata X"), self.tr("Coordinata Y"), self.tr("Distanza da punto di riferimento")
+        ])
         grid.addWidget(self.rb_centroid,    3, 0)
         grid.addWidget(self.combo_centroid, 3, 1, 1, 2)
 
@@ -195,19 +195,17 @@ class GeoSortDialog(QDialog):
         self.rb_geometry = QRadioButton(self.tr("Per proprietà geometrica"))
         self._crit_bg.addButton(self.rb_geometry, 2)
         self.combo_geom = QComboBox()
-        self.combo_geom.addItems(
-            [
-                "Area",
-                "Perimetro",
-                "Lunghezza",
-                "Numero di vertici",
-                "Larghezza Bounding Box",
-                "Altezza Bounding Box",
-                "Area Bounding Box",
-                "Xmin Bounding Box",
-                "Ymin Bounding Box",
-            ]
-        )
+        self.combo_geom.addItems([
+            self.tr("Area"),
+            self.tr("Perimetro"),
+            self.tr("Lunghezza"),
+            self.tr("Numero di vertici"),
+            self.tr("Larghezza Bounding Box"),
+            self.tr("Altezza Bounding Box"),
+            self.tr("Area Bounding Box"),
+            self.tr("Xmin Bounding Box"),
+            self.tr("Ymin Bounding Box"),
+        ])
         grid.addWidget(self.rb_geometry, 5, 0)
         grid.addWidget(self.combo_geom,  5, 1, 1, 2)
 
@@ -219,10 +217,10 @@ class GeoSortDialog(QDialog):
         self.combo_line_distance_mode = QComboBox()
         self.combo_line_distance_mode.addItem(self.tr("Distanza dal centroide"), "centroid")
         self.combo_line_distance_mode.addItem(self.tr("Distanza dall'elemento"), "element")
-        self.combo_line_distance_mode.setToolTip(
+        self.combo_line_distance_mode.setToolTip(self.tr(
             "Distanza dal centroide: distanza dal centro della feature.\n"
             "Distanza dall'elemento: distanza dal punto più vicino della geometria."
-        )
+        ))
         grid.addWidget(self.rb_line_distance,         6, 0)
         grid.addWidget(self.combo_ref_layer_dist,     6, 1)
         grid.addWidget(self.combo_line_distance_mode, 6, 2)
@@ -234,22 +232,22 @@ class GeoSortDialog(QDialog):
         self.combo_ref_layer.setFilters(QgsMapLayerProxyModel.Filter.LineLayer)
         self.combo_line_mode = QComboBox()
         self.combo_line_mode.addItem(
-            "Proiezione centroide  –  tutte le feature",
+            self.tr("Proiezione centroide  –  tutte le feature"),
             "centroid_projection"
         )
         self.combo_line_mode.addItem(
-            "Solo intersecanti  –  proiezione centroide",
+            self.tr("Solo intersecanti  –  proiezione centroide"),
             "intersecting_projection"
         )
         self.combo_line_mode.addItem(
-            "Solo intersecanti  –  primo punto di intersezione",
+            self.tr("Solo intersecanti  –  primo punto di intersezione"),
             "intersecting_first_pt"
         )
-        self.combo_line_mode.setToolTip(
+        self.combo_line_mode.setToolTip(self.tr(
             "Proiezione centroide: include tutte le feature, usa il centroide proiettato sulla linea.\n"
             "Solo intersecanti – centroide: esclude le feature che non intersecano la linea.\n"
             "Solo intersecanti – primo punto: usa il punto in cui la feature tocca per primo la linea."
-        )
+        ))
         grid.addWidget(self.rb_spatial,      7, 0)
         grid.addWidget(self.combo_ref_layer, 7, 1)
         grid.addWidget(self.combo_line_mode, 7, 2)
@@ -282,14 +280,14 @@ class GeoSortDialog(QDialog):
 
         self.chk_natural_sort = QCheckBox(self.tr("Ordinamento naturale – Natural Sort (es. 1, 2, 10 invece di 1, 10, 2)"))
         self.chk_natural_sort.setChecked(False)
-        self.chk_natural_sort.setToolTip(
+        self.chk_natural_sort.setToolTip(self.tr(
             "<b>Lessicografico</b> (default): confronto carattere per carattere.\n"
             "Esempio: «1010» precede «11» precede «1111».\n\n"
             "<b>Natural Sort</b>: le sequenze di cifre sono confrontate come numeri interi.\n"
             "Esempio: «11» precede «1010» precede «1111».\n\n"
             "Attivalo con campi alfanumerici (FILE1, FILE2, FILE10)\n"
             "o espressioni di concatenazione come \"fid\" || \"id_poly\"."
-        )
+        ))
         layout.addWidget(self.chk_natural_sort)
 
         return grp
@@ -299,7 +297,7 @@ class GeoSortDialog(QDialog):
         layout = QVBoxLayout(grp)
 
         self._out_bg = QButtonGroup(self)
-        self.rb_update = QRadioButton("Aggiorna layer corrente (aggiunge/aggiorna il campo 'sort_order')")
+        self.rb_update = QRadioButton(self.tr("Aggiorna layer corrente (aggiunge/aggiorna il campo 'sort_order')"))
         self.rb_update.setChecked(True)
         self.rb_new_layer = QRadioButton(self.tr("Crea nuovo layer in memoria"))
         self._out_bg.addButton(self.rb_update, 0)
@@ -307,9 +305,9 @@ class GeoSortDialog(QDialog):
         layout.addWidget(self.rb_update)
         layout.addWidget(self.rb_new_layer)
 
-        self.chk_add_value = QCheckBox(
+        self.chk_add_value = QCheckBox(self.tr(
             "Aggiungi campo con il valore del criterio usato (es. sort_area, sort_dist)"
-        )
+        ))
         layout.addWidget(self.chk_add_value)
 
         return grp
@@ -319,7 +317,7 @@ class GeoSortDialog(QDialog):
         layout = QVBoxLayout(grp)
 
         self.preview_table = QTableWidget(0, 3)
-        self.preview_table.setHorizontalHeaderLabels(["FID", "sort_order", "Valore criterio"])
+        self.preview_table.setHorizontalHeaderLabels([self.tr("FID"), self.tr("sort_order"), self.tr("Valore criterio")])
         self.preview_table.setMaximumHeight(180)
         self.preview_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.preview_table.horizontalHeader().setStretchLastSection(True)
