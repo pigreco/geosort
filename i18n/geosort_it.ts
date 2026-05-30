@@ -1,122 +1,234 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <TS version="2.1" language="it">
   <context>
     <name>GeoSort</name>
     <message>
+      <source>&lt;b&gt;Lessicografico&lt;/b&gt; (default): confronto carattere per carattere.
+</source>
+      <translation>&lt;b&gt;Lessicografico&lt;/b&gt; (default): confronto carattere per carattere.
+</translation>
+    </message>
+    <message>
       <source>Aggiorna anteprima</source>
-      <translation type="">Aggiorna anteprima</translation>
+      <translation>Aggiorna anteprima</translation>
+    </message>
+    <message>
+      <source>Aggiorna layer corrente (aggiunge/aggiorna il campo 'sort_order')</source>
+      <translation>Aggiorna layer corrente (aggiunge/aggiorna il campo 'sort_order')</translation>
+    </message>
+    <message>
+      <source>Aggiungi campo con il valore del criterio usato (es. sort_area, sort_dist)</source>
+      <translation>Aggiungi campo con il valore del criterio usato (es. sort_area, sort_dist)</translation>
+    </message>
+    <message>
+      <source>Altezza Bounding Box</source>
+      <translation>Altezza Bounding Box</translation>
     </message>
     <message>
       <source>Annulla</source>
-      <translation type="">Annulla</translation>
+      <translation>Annulla</translation>
     </message>
     <message>
       <source>Anteprima (prime 10 feature ordinate)</source>
-      <translation type="">Anteprima (prime 10 feature ordinate)</translation>
+      <translation>Anteprima (prime 10 feature ordinate)</translation>
     </message>
     <message>
       <source>Applica</source>
-      <translation type="">Applica</translation>
+      <translation>Applica</translation>
+    </message>
+    <message>
+      <source>Apri il Field Calculator di QGIS
+</source>
+      <translation>Apri il Field Calculator di QGIS
+</translation>
+    </message>
+    <message>
+      <source>Area</source>
+      <translation>Area</translation>
+    </message>
+    <message>
+      <source>Area Bounding Box</source>
+      <translation>Area Bounding Box</translation>
     </message>
     <message>
       <source>Ascendente ↑</source>
-      <translation type="">Ascendente ↑</translation>
+      <translation>Ascendente ↑</translation>
     </message>
     <message>
       <source>CRS / Units:</source>
-      <translation type="">CRS / Unità:</translation>
+      <translation>CRS / Unità:</translation>
     </message>
     <message>
       <source>Chiudi</source>
-      <translation type="">Chiudi</translation>
+      <translation>Chiudi</translation>
+    </message>
+    <message>
+      <source>Coordinata X</source>
+      <translation>Coordinata X</translation>
+    </message>
+    <message>
+      <source>Coordinata Y</source>
+      <translation>Coordinata Y</translation>
     </message>
     <message>
       <source>Crea nuovo layer in memoria</source>
-      <translation type="">Crea nuovo layer in memoria</translation>
+      <translation>Crea nuovo layer in memoria</translation>
     </message>
     <message>
       <source>Criterio di ordinamento</source>
-      <translation type="">Criterio di ordinamento</translation>
+      <translation>Criterio di ordinamento</translation>
     </message>
     <message>
       <source>Direzione:</source>
-      <translation type="">Direzione:</translation>
+      <translation>Direzione:</translation>
     </message>
     <message>
       <source>Discendente ↓</source>
-      <translation type="">Discendente ↓</translation>
+      <translation>Discendente ↓</translation>
+    </message>
+    <message>
+      <source>Distanza da punto di riferimento</source>
+      <translation>Distanza da punto di riferimento</translation>
     </message>
     <message>
       <source>Distanza dal centroide</source>
-      <translation type="">Distanza dal centroide</translation>
+      <translation>Distanza dal centroide</translation>
+    </message>
+    <message>
+      <source>Distanza dal centroide: distanza dal centro della feature.
+</source>
+      <translation>Distanza dal centroide: distanza dal centro della feature.
+</translation>
     </message>
     <message>
       <source>Distanza dall'elemento</source>
-      <translation type="">Distanza dall'elemento</translation>
+      <translation>Distanza dall'elemento</translation>
+    </message>
+    <message>
+      <source>FID</source>
+      <translation>FID</translation>
     </message>
     <message>
       <source>GeoSort – Advanced Geometry Sorting</source>
-      <translation type="">GeoSort – Ordinamento Avanzato delle Geometrie</translation>
+      <translation>GeoSort – Ordinamento Avanzato delle Geometrie</translation>
     </message>
     <message>
       <source>Help</source>
-      <translation type="">Aiuto</translation>
+      <translation>Aiuto</translation>
     </message>
     <message>
       <source>Input Layer</source>
-      <translation type="">Layer di input</translation>
+      <translation>Layer di input</translation>
+    </message>
+    <message>
+      <source>Larghezza Bounding Box</source>
+      <translation>Larghezza Bounding Box</translation>
     </message>
     <message>
       <source>Layer:</source>
-      <translation type="">Layer:</translation>
+      <translation>Layer:</translation>
+    </message>
+    <message>
+      <source>Lunghezza</source>
+      <translation>Lunghezza</translation>
+    </message>
+    <message>
+      <source>Numero di vertici</source>
+      <translation>Numero di vertici</translation>
     </message>
     <message>
       <source>Opzioni</source>
-      <translation type="">Opzioni</translation>
+      <translation>Opzioni</translation>
+    </message>
+    <message>
+      <source>Ordina le feature di un layer vettoriale per criteri geometrici e attributivi</source>
+      <translation>Ordina le feature di un layer vettoriale per criteri geometrici e attributivi</translation>
     </message>
     <message>
       <source>Ordinamento naturale – Natural Sort (es. 1, 2, 10 invece di 1, 10, 2)</source>
-      <translation type="">Ordinamento naturale – Natural Sort (es. 1, 2, 10 invece di 1, 10, 2)</translation>
+      <translation>Ordinamento naturale – Natural Sort (es. 1, 2, 10 invece di 1, 10, 2)</translation>
     </message>
     <message>
       <source>Output</source>
-      <translation type="">Output</translation>
+      <translation>Output</translation>
+    </message>
+    <message>
+      <source>Per attributo / espressione</source>
+      <translation>Per attributo / espressione</translation>
     </message>
     <message>
       <source>Per coordinate centroide</source>
-      <translation type="">Per coordinate centroide</translation>
+      <translation>Per coordinate centroide</translation>
     </message>
     <message>
       <source>Per distanza dalla linea</source>
-      <translation type="">Per distanza dalla linea</translation>
+      <translation>Per distanza dalla linea</translation>
     </message>
     <message>
       <source>Per posizione lungo linea</source>
-      <translation type="">Per posizione lungo linea</translation>
+      <translation>Per posizione lungo linea</translation>
     </message>
     <message>
       <source>Per proprietà geometrica</source>
-      <translation type="">Per proprietà geometrica</translation>
+      <translation>Per proprietà geometrica</translation>
+    </message>
+    <message>
+      <source>Perimetro</source>
+      <translation>Perimetro</translation>
+    </message>
+    <message>
+      <source>Proiezione centroide  –  tutte le feature</source>
+      <translation>Proiezione centroide  –  tutte le feature</translation>
+    </message>
+    <message>
+      <source>Proiezione centroide: include tutte le feature, usa il centroide proiettato sulla linea.
+</source>
+      <translation>Proiezione centroide: include tutte le feature, usa il centroide proiettato sulla linea.
+</translation>
     </message>
     <message>
       <source>Punto di riferimento (X, Y)</source>
-      <translation type="">Punto di riferimento (X, Y)</translation>
+      <translation>Punto di riferimento (X, Y)</translation>
     </message>
     <message>
       <source>Rimuovi</source>
-      <translation type="">Rimuovi</translation>
+      <translation>Rimuovi</translation>
     </message>
     <message>
       <source>Rimuovi l'espressione attiva e torna al campo singolo</source>
-      <translation type="">Rimuovi l'espressione attiva e torna al campo singolo</translation>
+      <translation>Rimuovi l'espressione attiva e torna al campo singolo</translation>
     </message>
     <message>
       <source>Seleziona punto sulla mappa</source>
-      <translation type="">Seleziona punto sulla mappa</translation>
+      <translation>Seleziona punto sulla mappa</translation>
+    </message>
+    <message>
+      <source>Solo intersecanti  –  primo punto di intersezione</source>
+      <translation>Solo intersecanti  –  primo punto di intersezione</translation>
+    </message>
+    <message>
+      <source>Solo intersecanti  –  proiezione centroide</source>
+      <translation>Solo intersecanti  –  proiezione centroide</translation>
+    </message>
+    <message>
+      <source>Valore criterio</source>
+      <translation>Valore criterio</translation>
     </message>
     <message>
       <source>Valori NULL in fondo (attributo e espressione)</source>
-      <translation type="">Valori NULL in fondo (attributo e espressione)</translation>
+      <translation>Valori NULL in fondo (attributo e espressione)</translation>
+    </message>
+    <message>
+      <source>Xmin Bounding Box</source>
+      <translation>Xmin Bounding Box</translation>
+    </message>
+    <message>
+      <source>Ymin Bounding Box</source>
+      <translation>Ymin Bounding Box</translation>
+    </message>
+    <message>
+      <source>sort_order</source>
+      <translation>sort_order</translation>
     </message>
   </context>
 </TS>

@@ -7,7 +7,7 @@ import os
 
 from qgis.PyQt.QtWidgets import QAction, QApplication
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtCore import Qt, QTranslator, QLocale
+from qgis.PyQt.QtCore import Qt, QCoreApplication
 from qgis.core import QgsApplication, QgsMessageLog, Qgis
 
 
@@ -21,6 +21,7 @@ class GeoSort:
         self.menu = "&GeoSort"
         self._provider = None
         self._dlg = None  # riferimento al dialog non-modale (evita GC)
+        self.translator = None  # riferimento al traduttore (evita GC)
 
         self.toolbar = self.iface.addToolBar("GeoSort")
         self.toolbar.setObjectName("GeoSortToolbar")
@@ -31,9 +32,17 @@ class GeoSort:
     # Setup traduzioni
     # ──────────────────────────────────────────────────────────────────────────
 
+    def tr(self, message):
+        """Traduce una stringa nel contesto 'GeoSort'.
+
+        Usabile anche fuori da un QObject (questa classe non lo è): instrada
+        attraverso i traduttori installati su QCoreApplication.
+        """
+        return QCoreApplication.translate("GeoSort", message)
+
     def _setup_translator(self):
-        """Carica il traduttore in base alla lingua di QGIS."""
-        # Rileva la lingua da QGIS, non dal sistema
+        """Carica il traduttore in base alla lingua dell'interfaccia QGIS."""
+        # Rileva la lingua da QGIS (rispetta l'override in Opzioni), non dal sistema
         qgis_locale = QgsApplication.instance().locale()
         # In QGIS 3.44+ locale() può restituire una stringa, non un QLocale
         if isinstance(qgis_locale, str):
@@ -46,20 +55,18 @@ class GeoSort:
         if lang_code not in ('it', 'en'):
             lang_code = 'en'
 
-        i18n_dir = os.path.join(self.plugin_dir, 'i18n')
-        ts_file = os.path.join(i18n_dir, f'geosort_{lang_code}.ts')
+        ts_file = os.path.join(self.plugin_dir, 'i18n', f'geosort_{lang_code}.ts')
+        if not os.path.exists(ts_file):
+            QgsMessageLog.logMessage(
+                f"File traduzione non trovato: {ts_file}", "GeoSort", Qgis.MessageLevel.Warning
+            )
+            return
 
-        QgsMessageLog.logMessage(f"[INIT] QGIS locale={qgis_locale}, lang_code={lang_code}", "GeoSort", Qgis.MessageLevel.Info)
-        QgsMessageLog.logMessage(f"[INIT] plugin_dir={self.plugin_dir}", "GeoSort", Qgis.MessageLevel.Info)
-        QgsMessageLog.logMessage(f"[INIT] ts_file={ts_file}, exists={os.path.exists(ts_file)}", "GeoSort", Qgis.MessageLevel.Info)
-
-        if os.path.exists(ts_file):
-            from .geosort_translator import TsTranslator
-            translator = TsTranslator(lang_code)
-            QApplication.installTranslator(translator)
-            QgsMessageLog.logMessage(f"[INIT] Translator loaded for {lang_code}", "GeoSort", Qgis.MessageLevel.Success)
-        else:
-            QgsMessageLog.logMessage(f"[INIT] ✗ No .ts file found: {ts_file}", "GeoSort", Qgis.MessageLevel.Critical)
+        from .geosort_translator import TsTranslator
+        # Mantenuto come attributo: installTranslator() non acquisisce ownership
+        # dell'oggetto Python, che altrimenti verrebbe garbage-collected.
+        self.translator = TsTranslator(lang_code)
+        QApplication.installTranslator(self.translator)
 
     # ──────────────────────────────────────────────────────────────────────────
     # Ciclo di vita QGIS
@@ -69,11 +76,11 @@ class GeoSort:
         icon_path = os.path.join(self.plugin_dir, "icon.svg")
         action = QAction(
             QIcon(icon_path),
-            "GeoSort – Ordinamento geometrie",
+            self.tr("GeoSort – Advanced Geometry Sorting"),
             self.iface.mainWindow(),
         )
         action.setStatusTip(
-            "Ordina le feature di un layer vettoriale per criteri geometrici e attributivi"
+            self.tr("Ordina le feature di un layer vettoriale per criteri geometrici e attributivi")
         )
         action.triggered.connect(self.run)
 
@@ -88,6 +95,9 @@ class GeoSort:
     def unload(self):
         if self._dlg:
             self._dlg.close()
+        if self.translator is not None:
+            QApplication.removeTranslator(self.translator)
+            self.translator = None
         for action in self.actions:
             self.iface.removePluginVectorMenu(self.menu, action)
             self.iface.removeToolBarIcon(action)
