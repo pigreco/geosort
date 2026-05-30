@@ -3,7 +3,7 @@ name=GeoSort
 qgisMinimumVersion=3.16
 qgisMaximumVersion=4.99
 description=Sort vector layer features by geometric and attribute criteria | Ordina le feature di un layer vettoriale per criteri geometrici e attributivi
-version=1.5.1
+version=1.5.2
 author=Salvatore Fiandaca
 email=pigrecoinfinito@gmail.com
 about=GeoSort sorts points, lines and polygons by centroid coordinates, area, length,
@@ -33,6 +33,7 @@ experimental=False
 deprecated=False
 server=False
 changelog=
+    1.5.2 Correzioni i18n: traduttore mantenuto come attributo (evita garbage collection dopo installTranslator); voce di menu/toolbar ora tradotta; file .ts IT/EN completi e sincronizzati (incluse stringhe multilinea di tooltip/help); rimossi log di debug; nuovo generatore scripts/gen_ts.py
     1.5.1 Completamento e compilazione traduzioni inglesi in formato .qm; switch a QgsApplication.locale() per rilevamento lingua QGIS
     1.5.0 Interfaccia multilingua (Italiano & Inglese); rilevamento automatico della lingua di sistema; infrastruttura di traduzione per estendere ad altre lingue; fix type inference per campi attributo (issue #8)
     1.4.0 Ordinamento per distanza dalla linea (issue #6); due modalità: centroide e elemento; layout criteri compatto; 18 test Processing; fix SVG tema scuro QGIS 4

@@ -2,7 +2,7 @@
 
 🇮🇹 **Italiano** | [🇬🇧 English](README.en.md)
 
-[![Version](https://img.shields.io/badge/version-1.5.1-blue.svg)](https://github.com/pigreco/geosort/releases)
+[![Version](https://img.shields.io/badge/version-1.5.2-blue.svg)](https://github.com/pigreco/geosort/releases)
 [![Languages](https://img.shields.io/badge/languages-IT%20%7C%20EN-green.svg)](#lingue--languages)
 [![QGIS](https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg)](#requisiti)
 [![License](https://img.shields.io/badge/license-GPLv2-red.svg)](LICENSE)
@@ -107,19 +107,19 @@ permettendo il caricamento istantaneo senza dipendenze di compilazione.
 
 ### Aggiungere una nuova lingua
 
-Per aggiungere una nuova traduzione (es. Francese, Spagnolo):
+I file `.ts` **non vanno modificati a mano**: sono generati da `scripts/gen_ts.py`, unica
+fonte di verità che estrae tutte le stringhe `self.tr()` dal codice e riscrive entrambi i
+file `i18n/geosort_*.ts` sincronizzati e ben formati.
 
 ```bash
-# 1. Rigenera i file .ts
-python3 scripts/generate_ts.py
+# 1. Aggiungi le traduzioni nella mappa del generatore scripts/gen_ts.py
+#    (dizionario EN per l'inglese; per una nuova lingua aggiungi una mappa
+#     XX e una chiamata build('xx', XX))
 
-# 2. Crea un dizionario di traduzioni per la nuova lingua
-# (vedi scripts/add_italian_translations.py per il pattern)
+# 2. Rigenera i file .ts (IT ed EN sempre allineati)
+python3 scripts/gen_ts.py
 
-# 3. Applica le traduzioni
-python3 scripts/your_language_translations.py
-
-# 4. Compila i .qm (opzionale, il plugin carica anche i .ts direttamente):
+# 3. (Opzionale) Compila i .qm per la distribuzione
 lrelease i18n/geosort_*.ts
 ```
 
