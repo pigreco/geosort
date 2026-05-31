@@ -3,12 +3,13 @@ name=GeoSort
 qgisMinimumVersion=3.16
 qgisMaximumVersion=4.99
 description=Sort vector layer features by geometric and attribute criteria | Ordina le feature di un layer vettoriale per criteri geometrici e attributivi
-version=1.5.2
+version=1.6.0
 author=Salvatore Fiandaca
 email=pigrecoinfinito@gmail.com
 about=GeoSort sorts points, lines and polygons by centroid coordinates, area, length,
     vertex count, bounding box, distance from a reference point, position along a line,
-    and custom QGIS expressions. Supports both lexicographic and Natural Sort ordering
+    and custom QGIS expressions. Supports hierarchical multi-criteria sorting (a secondary
+    criterion breaks ties of the primary one) and both lexicographic and Natural Sort ordering
     for text and expression criteria (e.g. "11" < "1010" < "1111" instead of "1010" < "11" < "1111").
     It adds a progressive 'sort_order' field to the layer or creates a new in-memory sorted layer.
     Also available in the Processing Toolbox for batch use and the graphical modeler.
@@ -16,7 +17,8 @@ about=GeoSort sorts points, lines and polygons by centroid coordinates, area, le
     GeoSort permette di ordinare punti, linee e poligoni per coordinate centroide,
     area, lunghezza, numero di vertici, bounding box, distanza da punto di riferimento,
     posizione lungo una linea ed espressioni QGIS personalizzate. Supporta l'ordinamento
-    lessicografico e Natural Sort per criteri testuali ed espressioni (es. "11" < "1010" < "1111"
+    gerarchico multi-criterio (un criterio secondario spezza i pareggi del primario) e
+    l'ordinamento lessicografico e Natural Sort per criteri testuali ed espressioni (es. "11" < "1010" < "1111"
     invece di "1010" < "11" < "1111"). Aggiunge un campo progressivo 'sort_order' al layer
     o crea un nuovo layer ordinato in memoria. Disponibile anche nel Processing Toolbox
     per uso in batch e nel modellatore grafico.
@@ -26,13 +28,14 @@ tracker=https://github.com/pigreco/geosort/issues
 repository=https://github.com/pigreco/geosort
 homepage=https://github.com/pigreco/geosort
 hasProcessingProvider=yes
-tags=ordinamento, geometria, attributi, vettoriale, sort, order, natural sort, punti, linee, poligoni
+tags=ordinamento, geometria, attributi, vettoriale, sort, order, natural sort, multi-criterio, multicriteria, punti, linee, poligoni
 category=Vector
 icon=icon.svg
 experimental=False
 deprecated=False
 server=False
 changelog=
+    1.6.0 Ordinamento gerarchico multi-criterio: criterio secondario per spezzare i pareggi del primario (es. regione poi area), nel dialogo e nel Processing; robustezza: feature con geometria NULL/vuota e layer a geometria mista non causano più crash (relegate in fondo); ottimizzazione performance (chiave geometrica calcolata una sola volta per centroide e proprietà geometriche); fix distanza centroide-origine nel Processing; deduplicazione coercizione valori; 100 test sulla logica core
     1.5.2 Correzioni i18n: traduttore mantenuto come attributo (evita garbage collection dopo installTranslator); voce di menu/toolbar ora tradotta; file .ts IT/EN completi e sincronizzati (incluse stringhe multilinea di tooltip/help); rimossi log di debug; nuovo generatore scripts/gen_ts.py
     1.5.1 Completamento e compilazione traduzioni inglesi in formato .qm; switch a QgsApplication.locale() per rilevamento lingua QGIS
     1.5.0 Interfaccia multilingua (Italiano & Inglese); rilevamento automatico della lingua di sistema; infrastruttura di traduzione per estendere ad altre lingue; fix type inference per campi attributo (issue #8)

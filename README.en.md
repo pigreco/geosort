@@ -2,7 +2,7 @@
 
 [🇮🇹 Italiano](README.md) | 🇬🇧 **English**
 
-[![Version](https://img.shields.io/badge/version-1.5.2-blue.svg)](https://github.com/pigreco/geosort/releases)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/pigreco/geosort/releases)
 [![Languages](https://img.shields.io/badge/languages-IT%20%7C%20EN-green.svg)](#languageslingue)
 [![QGIS](https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg)](#requirements)
 [![License](https://img.shields.io/badge/license-GPLv2-red.svg)](LICENSE)
@@ -33,6 +33,17 @@ Compatible with **QGIS 3.16+** (Qt5 / PyQt5) and **QGIS 4.x** (Qt6 / PyQt6).
 | Distance from Line | All | Perpendicular distance from a reference line (two modes: centroid or element) |
 | Position along Line | All | Projection of centroid onto a reference line (three modes) |
 | QGIS Expression | All | Sort by the result of an arbitrary QGIS expression |
+| **Multi-criteria (hierarchical)** | All | Secondary criterion to break ties of the primary one (e.g. region → area) |
+
+> **Robustness:** features with NULL/empty geometry and mixed-geometry layers no longer
+> cause errors — features that cannot be sorted spatially are pushed to the end.
+
+### Multi-criteria sorting
+
+You can set a **secondary criterion** that breaks ties of the primary one. Typical example:
+sort by *region* (ascending) and, within the same region, by *area* (descending). Each level
+has its own direction. Available both in the dialog (**Secondary criterion** dropdown) and in
+Processing (`SECONDARY_*` parameters). Not available when the primary criterion is line-based.
 
 ### Text Sorting Modes
 
@@ -83,15 +94,22 @@ import processing
 result = processing.run("geosort:geosort_sort", {
     'INPUT': layer,
     'CRITERION': 0,          # 0 = Attribute
-    'ATTRIBUTE_FIELD': 'area',
+    'ATTRIBUTE_FIELD': 'region',
     'DIRECTION': True,        # True = Ascending
     'NULLS_LAST': True,
     'NATURAL_SORT': False,   # True = Natural Sort (digits as numbers)
+    # Secondary criterion (tie-break): 0 = none, 1 = attribute, 2 = expression,
+    # 3 = centroid X, 4 = centroid Y, 5 = area, ...
+    'SECONDARY_CRITERION': 5,    # 5 = Area (polygons)
+    'SECONDARY_DIRECTION': False,  # False = Descending
     'ADD_VALUE_FIELD': False,
     'OUTPUT': 'memory:'
 })
 output_layer = result['OUTPUT']
 ```
+
+> The secondary criterion is ignored when the primary criterion is line-based
+> (`line_position` / `line_distance`).
 
 ---
 
@@ -155,21 +173,21 @@ Core sorting logic tests do not require QGIS:
 ```bash
 cd geosort
 python -m unittest tests.test_sorting -v
-# 88 tests on core logic (sort_by_attribute, sort_by_centroid, sort_by_line_distance, etc.)
+# 100 tests on core logic (sort_by_attribute, sort_by_centroid, sort_multi, NULL geometry robustness, etc.)
 ```
 
 Dialog and Processing algorithm tests require QGIS in PATH:
 
 ```bash
-python -m unittest tests.test_dialog -v     # UI tests
-python -m unittest tests.test_algorithm -v  # Processing Toolbox tests (18 tests)
+python -m unittest tests.test_dialog -v     # UI tests (23 tests)
+python -m unittest tests.test_algorithm -v  # Processing Toolbox tests (24 tests)
 ```
 
 Run all tests:
 
 ```bash
 python -m unittest discover tests -p "test_*.py" -v
-# Output: 129 tests (88 ok, 41 skipped that require QGIS)
+# Output: 147 tests (100 ok, 47 skipped that require QGIS)
 ```
 
 ---

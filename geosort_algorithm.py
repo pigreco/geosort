@@ -23,12 +23,34 @@ from qgis.core import (
     QgsFeature,
     QgsFields,
     QgsGeometry,
+    QgsPointXY,
     QgsMessageLog,
     Qgis,
     NULL,
 )
 from qgis.PyQt.QtCore import QMetaType
 from qgis.PyQt.QtGui import QIcon
+
+
+def _spec_from(key, field, expression, ascending, nulls_last, natural_sort):
+    """Costruisce un descrittore di criterio per ``geosort_core.sort_multi``.
+
+    Supporta solo i criteri "semplici" (senza geometria di riferimento esterna):
+    attributo, espressione, centroide X/Y/distanza-da-origine, proprietà geometriche.
+    """
+    spec = {
+        "key": key,
+        "ascending": ascending,
+        "nulls_last": nulls_last,
+        "natural_sort": natural_sort,
+    }
+    if key == "attribute":
+        spec["field"] = field
+    elif key == "expression":
+        spec["expression"] = expression
+    elif key == "centroid_dist":
+        spec["ref_point"] = QgsPointXY(0, 0)  # distanza dall'origine (0,0)
+    return spec
 
 
 class GeoSortAlgorithm(QgsProcessingAlgorithm):
@@ -63,6 +85,38 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         "line_position",
         "line_distance",
         "expression",
+    ]
+
+    # ── Criterio secondario (tie-break) per l'ordinamento multi-criterio ──
+    SECONDARY_CRITERION = "SECONDARY_CRITERION"
+    SECONDARY_FIELD = "SECONDARY_FIELD"
+    SECONDARY_EXPRESSION = "SECONDARY_EXPRESSION"
+    SECONDARY_DIRECTION = "SECONDARY_DIRECTION"
+
+    # Criteri ammessi come primario in modalità multi-criterio (no linea: niente
+    # geometria di riferimento esterna né semantica di esclusione).
+    _MULTI_PRIMARY_KEYS = frozenset({
+        "attribute", "expression",
+        "centroid_x", "centroid_y", "centroid_dist",
+        "area", "perimeter", "length", "n_vertices",
+        "bbox_width", "bbox_height", "bbox_area", "bbox_xmin", "bbox_ymin",
+    })
+
+    # 0 = nessuno; gli altri indici → chiave di criterio secondario
+    _SECONDARY_KEYS = [
+        None,
+        "attribute", "expression",
+        "centroid_x", "centroid_y",
+        "area", "perimeter", "length", "n_vertices",
+        "bbox_width", "bbox_height", "bbox_area", "bbox_xmin", "bbox_ymin",
+    ]
+    _SECONDARY_LABELS = [
+        "(nessuno)",
+        "Attributo tabellare", "Espressione QGIS",
+        "Centroide – coordinata X", "Centroide – coordinata Y",
+        "Area (poligoni)", "Perimetro (poligoni)", "Lunghezza (linee)",
+        "Numero di vertici", "Larghezza Bounding Box", "Altezza Bounding Box",
+        "Area Bounding Box", "Xmin Bounding Box", "Ymin Bounding Box",
     ]
 
     _CRITERIA_LABELS = [
@@ -114,6 +168,9 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             "Esempio: «11» &lt; «1010» &lt; «1111». "
             "Utile con campi alfanumerici (FILE1, FILE2, FILE10) o espressioni "
             "di concatenazione come <code>\"fid\" || \"id_poly\"</code>.\n\n"
+            "<b>Ordinamento multi-criterio:</b> imposta un <b>criterio secondario</b> "
+            "per spezzare i pareggi del criterio primario (es. primario = regione, "
+            "secondario = area decrescente). Disponibile per i criteri non basati su linea.\n\n"
             "Compatibile con il Processing Toolbox, il modellatore grafico e PyQGIS headless."
         )
 
@@ -212,6 +269,41 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             )
         )
 
+        # ── Criterio secondario (tie-break) – ordinamento multi-criterio ──
+        self.addParameter(
+            QgsProcessingParameterEnum(
+                self.SECONDARY_CRITERION,
+                "Criterio secondario per i pareggi (opzionale)",
+                options=self._SECONDARY_LABELS,
+                defaultValue=0,
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterField(
+                self.SECONDARY_FIELD,
+                "Campo del criterio secondario (solo se 'Attributo tabellare')",
+                parentLayerParameterName=self.INPUT,
+                optional=True,
+            )
+        )
+        from qgis.core import QgsProcessingParameterExpression
+        self.addParameter(
+            QgsProcessingParameterExpression(
+                self.SECONDARY_EXPRESSION,
+                "Espressione del criterio secondario (solo se 'Espressione QGIS')",
+                defaultValue="",
+                parentLayerParameterName=self.INPUT,
+                optional=True,
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                self.SECONDARY_DIRECTION,
+                "Criterio secondario: ordine ascendente",
+                defaultValue=True,
+            )
+        )
+
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.ADD_VALUE_FIELD,
@@ -226,6 +318,53 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     # ──────────────────────────────────────────────────────────────────────────
     # Esecuzione
     # ──────────────────────────────────────────────────────────────────────────
+
+    def _run_multi(self, parameters, context, feedback, layer, features,
+                   primary_key, sec_key, ascending, nulls_last, natural_sort):
+        """Esegue l'ordinamento gerarchico (primario + secondario) via sort_multi.
+
+        Returns:
+            tuple[list, list, list]: (feature ordinate, valori primario, escluse=[]).
+        """
+        from .geosort_core import sort_multi
+
+        primary_field = self.parameterAsString(parameters, self.ATTRIBUTE_FIELD, context)
+        primary_expr = self.parameterAsExpression(parameters, "EXPRESSION", context)
+        if primary_key == "attribute" and not primary_field:
+            raise QgsProcessingException(
+                "Specificare un campo attributo per il criterio primario."
+            )
+        if primary_key == "expression" and not (primary_expr and primary_expr.strip()):
+            raise QgsProcessingException(
+                "Specificare un'espressione per il criterio primario."
+            )
+        primary_spec = _spec_from(
+            primary_key, primary_field, primary_expr, ascending, nulls_last, natural_sort
+        )
+
+        sec_field = self.parameterAsString(parameters, self.SECONDARY_FIELD, context)
+        sec_expr = self.parameterAsExpression(parameters, self.SECONDARY_EXPRESSION, context)
+        sec_asc = self.parameterAsBoolean(parameters, self.SECONDARY_DIRECTION, context)
+        if sec_key == "attribute" and not sec_field:
+            raise QgsProcessingException(
+                "Specificare un campo per il criterio secondario."
+            )
+        if sec_key == "expression" and not (sec_expr and sec_expr.strip()):
+            raise QgsProcessingException(
+                "Specificare un'espressione per il criterio secondario."
+            )
+        secondary_spec = _spec_from(
+            sec_key, sec_field, sec_expr, sec_asc, nulls_last, natural_sort
+        )
+
+        feedback.pushInfo("GeoSort: ordinamento multi-criterio (primario + secondario).")
+        try:
+            sorted_feats, values = sort_multi(
+                features, [primary_spec, secondary_spec], layer
+            )
+        except ValueError as exc:
+            raise QgsProcessingException(str(exc))
+        return sorted_feats, values, []
 
     def processAlgorithm(self, parameters, context, feedback):
         from .geosort_core import (
@@ -261,7 +400,23 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         feedback.setProgressText("Ordinamento in corso...")
         values = []
 
-        if criterion == "attribute":
+        # Criterio secondario (tie-break) → ordinamento multi-criterio
+        sec_idx = self.parameterAsEnum(parameters, self.SECONDARY_CRITERION, context)
+        sec_key = self._SECONDARY_KEYS[sec_idx]
+        multi_active = sec_key is not None and criterion in self._MULTI_PRIMARY_KEYS
+        if sec_key is not None and not multi_active:
+            feedback.pushWarning(
+                "GeoSort: criterio secondario ignorato perché il criterio primario "
+                "è basato su una linea di riferimento."
+            )
+
+        if multi_active:
+            sorted_feats, values, excluded = self._run_multi(
+                parameters, context, feedback, layer, features,
+                criterion, sec_key, ascending, nulls_last, natural_sort,
+            )
+
+        elif criterion == "attribute":
             field = self.parameterAsString(parameters, self.ATTRIBUTE_FIELD, context)
             if not field:
                 raise QgsProcessingException(
@@ -278,8 +433,9 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 "centroid_dist": "dist",
             }
             axis = axis_map[criterion]
+            ref_point = QgsPointXY(0, 0) if axis == "dist" else None
             sorted_feats, values = sort_by_centroid(
-                features, axis=axis, ascending=ascending
+                features, axis=axis, ascending=ascending, ref_point=ref_point
             )
             excluded = []
 

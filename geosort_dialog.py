@@ -290,6 +290,31 @@ class GeoSortDialog(QDialog):
         ))
         layout.addWidget(self.chk_natural_sort)
 
+        # ── Criterio secondario (tie-break) per l'ordinamento multi-criterio ──
+        sec_row = QHBoxLayout()
+        sec_row.addWidget(QLabel(self.tr("Criterio secondario (pareggi):")))
+        self.combo_secondary = QComboBox()
+        self.combo_secondary.addItem(self.tr("(nessuno)"), None)
+        self.combo_secondary.addItem(self.tr("Attributo tabellare"), "attribute")
+        self.combo_secondary.addItem(self.tr("Centroide – coordinata X"), "centroid_x")
+        self.combo_secondary.addItem(self.tr("Centroide – coordinata Y"), "centroid_y")
+        self.combo_secondary.addItem(self.tr("Area (poligoni)"), "area")
+        self.combo_secondary.addItem(self.tr("Perimetro (poligoni)"), "perimeter")
+        self.combo_secondary.addItem(self.tr("Lunghezza (linee)"), "length")
+        self.combo_secondary.addItem(self.tr("Numero di vertici"), "n_vertices")
+        self.combo_secondary.setToolTip(self.tr(
+            "Spezza i pareggi del criterio primario (es. primario = Regione, secondario = Area). Non disponibile se il criterio primario è basato su linea."
+        ))
+        sec_row.addWidget(self.combo_secondary)
+        self.combo_secondary_field = QgsFieldComboBox()
+        self.combo_secondary_field.setEnabled(False)
+        sec_row.addWidget(self.combo_secondary_field)
+        sec_row.addStretch()
+        layout.addLayout(sec_row)
+
+        self.chk_secondary_desc = QCheckBox(self.tr("Criterio secondario discendente ↓"))
+        layout.addWidget(self.chk_secondary_desc)
+
         return grp
 
     def _build_output_group(self):
@@ -353,6 +378,7 @@ class GeoSortDialog(QDialog):
         for rb in (self.rb_attribute, self.rb_centroid, self.rb_geometry, self.rb_spatial, self.rb_line_distance):
             rb.toggled.connect(self._on_criterion_changed)
         self.combo_centroid.currentIndexChanged.connect(self._on_centroid_mode_changed)
+        self.combo_secondary.currentIndexChanged.connect(self._on_secondary_changed)
 
         self.btn_preview.clicked.connect(self._update_preview)
         self.btn_ok.clicked.connect(self._on_ok)
@@ -374,6 +400,7 @@ class GeoSortDialog(QDialog):
         layer = self.layer_combo.currentLayer()
         if layer:
             self.combo_field.setLayer(layer)
+            self.combo_secondary_field.setLayer(layer)
             crs = layer.crs()
             unit_map = {
                 0: "metri",
@@ -413,6 +440,16 @@ class GeoSortDialog(QDialog):
         self.combo_line_mode.setEnabled(is_spatial)
         self.combo_ref_layer_dist.setEnabled(is_line_distance)
         self.combo_line_distance_mode.setEnabled(is_line_distance)
+
+        # Il criterio secondario (multi-criterio) non è disponibile per i criteri
+        # basati su linea (posizione/distanza lungo linea).
+        is_line_based = is_spatial or is_line_distance
+        self.combo_secondary.setEnabled(not is_line_based)
+        self.chk_secondary_desc.setEnabled(not is_line_based)
+        if is_line_based:
+            self.combo_secondary_field.setEnabled(False)
+        else:
+            self._on_secondary_changed()
 
         # Se si cambia criterio, resetta l'espressione attiva
         if not is_attr:
@@ -585,6 +622,71 @@ class GeoSortDialog(QDialog):
     # Ordinamento
     # ──────────────────────────────────────────────────────────────────────────
 
+    def _on_secondary_changed(self):
+        """Abilita il selettore di campo solo per il criterio secondario 'Attributo'."""
+        is_attr = self.combo_secondary.currentData() == "attribute"
+        self.combo_secondary_field.setEnabled(is_attr)
+        if is_attr:
+            layer = self.layer_combo.currentLayer()
+            if layer:
+                self.combo_secondary_field.setLayer(layer)
+
+    def _primary_spec_for_multi(self):
+        """Descrittore del criterio primario per sort_multi.
+
+        Returns:
+            dict | None: ``None`` se il primario è basato su linea (multi non
+            supportato), altrimenti lo spec del criterio.
+
+        Raises:
+            ValueError: se il primario è 'Attributo' senza campo selezionato.
+        """
+        ascending = self.rb_asc.isChecked()
+        nulls_last = self.chk_nulls_last.isChecked()
+        natural = self.chk_natural_sort.isChecked()
+
+        if self.rb_attribute.isChecked():
+            if self._active_expression:
+                return {"key": "expression", "expression": self._active_expression,
+                        "ascending": ascending, "nulls_last": nulls_last,
+                        "natural_sort": natural}
+            field = self.combo_field.currentField()
+            if not field:
+                raise ValueError("Nessun campo selezionato.")
+            return {"key": "attribute", "field": field, "ascending": ascending,
+                    "nulls_last": nulls_last, "natural_sort": natural}
+
+        if self.rb_centroid.isChecked():
+            key = {0: "centroid_x", 1: "centroid_y", 2: "centroid_dist"}[
+                self.combo_centroid.currentIndex()]
+            spec = {"key": key, "ascending": ascending}
+            if key == "centroid_dist":
+                spec["ref_point"] = QgsPointXY(self.spin_ref_x.value(),
+                                               self.spin_ref_y.value())
+            return spec
+
+        if self.rb_geometry.isChecked():
+            crit_map = {0: "area", 1: "perimeter", 2: "length", 3: "n_vertices",
+                        4: "bbox_width", 5: "bbox_height", 6: "bbox_area",
+                        7: "bbox_xmin", 8: "bbox_ymin"}
+            return {"key": crit_map[self.combo_geom.currentIndex()],
+                    "ascending": ascending}
+
+        return None  # criteri basati su linea → multi non supportato
+
+    def _secondary_spec(self, key):
+        """Descrittore del criterio secondario per sort_multi."""
+        spec = {"key": key,
+                "ascending": not self.chk_secondary_desc.isChecked(),
+                "nulls_last": self.chk_nulls_last.isChecked(),
+                "natural_sort": self.chk_natural_sort.isChecked()}
+        if key == "attribute":
+            field = self.combo_secondary_field.currentField()
+            if not field:
+                raise ValueError("Nessun campo selezionato per il criterio secondario.")
+            spec["field"] = field
+        return spec
+
     def _collect_sorted(self, progress_callback=None, features=None):
         """Esegue l'ordinamento e restituisce (sorted_features, values, crit_field_name, excluded).
 
@@ -612,6 +714,20 @@ class GeoSortDialog(QDialog):
             raise ValueError("Il layer non contiene feature.")
 
         ascending = self.rb_asc.isChecked()
+
+        # ── Multi-criterio: criterio secondario per i pareggi ────────────────
+        sec_key = self.combo_secondary.currentData()
+        if sec_key is not None:
+            primary_spec = self._primary_spec_for_multi()
+            if primary_spec is not None:
+                from .geosort_core import sort_multi
+                secondary_spec = self._secondary_spec(sec_key)
+                sorted_feats, values = sort_multi(
+                    features, [primary_spec, secondary_spec], layer,
+                    progress_callback=progress_callback,
+                )
+                return sorted_feats, values, "sort_value", []
+            # Primario basato su linea: secondario ignorato, prosegue il flusso normale.
 
         # ── Per attributo / espressione ──────────────────────────────────────
         if self.rb_attribute.isChecked():

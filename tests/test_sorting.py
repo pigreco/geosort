@@ -1160,6 +1160,254 @@ class TestLineDistanceSorting(unittest.TestCase):
         self.assertEqual(values_e, [2.0, 5.0, 10.0])
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Robustezza: geometrie NULL / tipi misti (replica di geosort_core)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _sort_by_centroid_robust(features, axis="x", ascending=True, ref_point=None):
+    """Replica di geosort_core.sort_by_centroid: chiave calcolata una sola volta,
+    feature senza geometria relegate in fondo con valore None."""
+    def _value(f):
+        geom = f.geometry()
+        if geom is None:                      # geometria assente
+            return None
+        pt = geom.centroid().asPoint()
+        if axis == "dist" and ref_point is not None:
+            return math.sqrt((pt.x() - ref_point[0]) ** 2 + (pt.y() - ref_point[1]) ** 2)
+        return pt.x() if axis == "x" else pt.y()
+
+    valid, invalid = [], []
+    for f in features:
+        v = _value(f)
+        (invalid if v is None else valid).append((f, v))
+    valid.sort(key=lambda p: p[1], reverse=not ascending)
+    sorted_feats = [p[0] for p in valid] + [p[0] for p in invalid]
+    values = [p[1] for p in valid] + [None] * len(invalid)
+    return sorted_feats, values
+
+
+def _sort_by_geom_prop_robust(features, criterion, ascending=True):
+    """Replica di geosort_core.sort_by_geometry_property: validazione per-feature,
+    geometrie NULL/incompatibili in fondo, ValueError solo se nessuna compatibile."""
+    def _geom_val(f):
+        geom = f.geometry()
+        if criterion == "area":
+            return geom.area()          # MockGeometry.area() solleva su non-poligoni
+        if criterion in ("perimeter", "length"):
+            _check_criterion_compatibility(geom._type, criterion)
+            return geom._length
+        if criterion == "n_vertices":
+            return geom._n_vertices
+        return 0.0
+
+    valid, invalid = [], []
+    first_error = None
+    for f in features:
+        geom = f.geometry()
+        if geom is None:
+            invalid.append(f)
+            continue
+        try:
+            valid.append((f, _geom_val(f)))
+        except ValueError as exc:
+            if first_error is None:
+                first_error = exc
+            invalid.append(f)
+    if not valid and first_error is not None:
+        raise first_error
+    valid.sort(key=lambda p: p[1], reverse=not ascending)
+    sorted_feats = [p[0] for p in valid] + invalid
+    values = [p[1] for p in valid] + [None] * len(invalid)
+    return sorted_feats, values
+
+
+class TestNullGeometryRobustness(unittest.TestCase):
+    """A2/A3: feature senza geometria o con tipo incompatibile non causano crash."""
+
+    def test_centroid_null_geometry_relegated_last(self):
+        feats = [
+            MockFeature(0, geometry=MockGeometry("point", cx=3.0)),
+            MockFeature(1, geometry=None),                       # niente geometria
+            MockFeature(2, geometry=MockGeometry("point", cx=1.0)),
+        ]
+        sorted_feats, values = _sort_by_centroid_robust(feats, axis="x", ascending=True)
+        self.assertEqual([f.id() for f in sorted_feats], [2, 0, 1])
+        self.assertEqual(values, [1.0, 3.0, None])
+
+    def test_centroid_null_last_even_when_descending(self):
+        feats = [
+            MockFeature(0, geometry=None),
+            MockFeature(1, geometry=MockGeometry("point", cx=5.0)),
+        ]
+        sorted_feats, values = _sort_by_centroid_robust(feats, axis="x", ascending=False)
+        self.assertEqual(sorted_feats[-1].id(), 0)
+        self.assertIsNone(values[-1])
+
+    def test_geom_prop_mixed_types_relegated(self):
+        # Un poligono valido + un punto (incompatibile con 'area') → punto in fondo
+        feats = [
+            MockFeature(0, geometry=MockGeometry("polygon", area=50.0)),
+            MockFeature(1, geometry=MockGeometry("point")),
+            MockFeature(2, geometry=MockGeometry("polygon", area=10.0)),
+        ]
+        sorted_feats, values = _sort_by_geom_prop_robust(feats, "area", ascending=True)
+        self.assertEqual([f.id() for f in sorted_feats], [2, 0, 1])
+        self.assertEqual(values, [10.0, 50.0, None])
+
+    def test_geom_prop_all_incompatible_raises(self):
+        feats = [MockFeature(0, geometry=MockGeometry("point"))]
+        with self.assertRaises(ValueError):
+            _sort_by_geom_prop_robust(feats, "area")
+
+    def test_geom_prop_null_geometry_relegated(self):
+        feats = [
+            MockFeature(0, geometry=MockGeometry("polygon", area=20.0)),
+            MockFeature(1, geometry=None),
+        ]
+        sorted_feats, values = _sort_by_geom_prop_robust(feats, "area")
+        self.assertEqual(sorted_feats[-1].id(), 1)
+        self.assertIsNone(values[-1])
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# B1: ordinamento multi-criterio gerarchico (replica di geosort_core.sort_multi)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _multi_level_keys(features, spec):
+    key = spec["key"]
+    ascending = spec.get("ascending", True)
+    nulls_last = spec.get("nulls_last", True)
+    natural = spec.get("natural_sort", False)
+    null_priority = 1 if nulls_last else -1
+    keys, raw = [], []
+    for f in features:
+        if key in ("attribute", "expression"):
+            val = f[spec["field"]] if key == "attribute" else spec["evaluate"](f)
+            is_null = val is None
+            raw.append(None if is_null else val)
+            if is_null:
+                keys.append((null_priority, ""))
+            elif natural:
+                keys.append((0, _natural_key(val)))
+            else:
+                try:
+                    keys.append((0, _normalize_val(val)))
+                except TypeError:
+                    keys.append((0, str(val)))
+        else:  # criterio numerico (geometrico): spec["value"](f) -> float|None
+            v = spec["value"](f)
+            raw.append(v)
+            keys.append((null_priority, 0.0) if v is None else (0, v))
+    return keys, (not ascending), raw
+
+
+def _sort_multi(features, criteria):
+    features = list(features)
+    n = len(features)
+    if not criteria:
+        return features, [None] * n
+    levels = [_multi_level_keys(features, s) for s in criteria]
+    order = list(range(n))
+    for keys, reverse, _raw in reversed(levels):
+        order.sort(key=lambda idx, k=keys: k[idx], reverse=reverse)
+    sorted_feats = [features[i] for i in order]
+    primary_raw = levels[0][2]
+    return sorted_feats, [primary_raw[i] for i in order]
+
+
+class TestSortMulti(unittest.TestCase):
+    """B1: sort gerarchico — criterio primario + secondario per i pareggi."""
+
+    def _feats(self, rows):
+        # rows: list of (region, area)
+        return [MockFeature(i, {"region": r, "area": a}) for i, (r, a) in enumerate(rows)]
+
+    def _num_spec(self, field, ascending=True):
+        return {"key": "geom", "ascending": ascending, "value": lambda f, fl=field: f[fl]}
+
+    def test_secondary_breaks_ties(self):
+        # Primario: region asc. Secondario: area desc per i pari-region.
+        feats = self._feats([("B", 1), ("A", 5), ("A", 9), ("B", 7)])
+        criteria = [
+            {"key": "attribute", "field": "region", "ascending": True},
+            self._num_spec("area", ascending=False),
+        ]
+        result, _ = _sort_multi(feats, criteria)
+        self.assertEqual(
+            [(f["region"], f["area"]) for f in result],
+            [("A", 9), ("A", 5), ("B", 7), ("B", 1)],
+        )
+
+    def test_single_criterion_matches_simple_sort(self):
+        feats = self._feats([("B", 1), ("A", 5), ("C", 9)])
+        result, values = _sort_multi(feats, [{"key": "attribute", "field": "region", "ascending": True}])
+        self.assertEqual([f["region"] for f in result], ["A", "B", "C"])
+        self.assertEqual(values, ["A", "B", "C"])  # valori del criterio primario
+
+    def test_secondary_ignored_when_primary_distinct(self):
+        feats = self._feats([("B", 1), ("A", 1), ("C", 1)])
+        criteria = [
+            {"key": "attribute", "field": "region", "ascending": True},
+            self._num_spec("area", ascending=False),
+        ]
+        result, _ = _sort_multi(feats, criteria)
+        self.assertEqual([f["region"] for f in result], ["A", "B", "C"])
+
+    def test_mixed_directions(self):
+        # region desc, poi area asc
+        feats = self._feats([("A", 5), ("B", 1), ("A", 2), ("B", 8)])
+        criteria = [
+            {"key": "attribute", "field": "region", "ascending": False},
+            self._num_spec("area", ascending=True),
+        ]
+        result, _ = _sort_multi(feats, criteria)
+        self.assertEqual(
+            [(f["region"], f["area"]) for f in result],
+            [("B", 1), ("B", 8), ("A", 2), ("A", 5)],
+        )
+
+    def test_primary_nulls_last(self):
+        feats = self._feats([("B", 1), (None, 5), ("A", 9)])
+        criteria = [
+            {"key": "attribute", "field": "region", "ascending": True, "nulls_last": True},
+            self._num_spec("area", ascending=True),
+        ]
+        result, _ = _sort_multi(feats, criteria)
+        self.assertIsNone(result[-1]["region"])
+        self.assertEqual([result[0]["region"], result[1]["region"]], ["A", "B"])
+
+    def test_three_levels(self):
+        feats = [
+            MockFeature(0, {"a": 1, "b": 1, "c": 2}),
+            MockFeature(1, {"a": 1, "b": 1, "c": 1}),
+            MockFeature(2, {"a": 1, "b": 0, "c": 9}),
+        ]
+        criteria = [
+            self._num_spec_field("a", True),
+            self._num_spec_field("b", True),
+            self._num_spec_field("c", True),
+        ]
+        result, _ = _sort_multi(feats, criteria)
+        self.assertEqual([f.id() for f in result], [2, 1, 0])
+
+    def _num_spec_field(self, field, ascending):
+        return {"key": "geom", "ascending": ascending, "value": lambda f, fl=field: f[fl]}
+
+    def test_numeric_secondary_with_null_geometry(self):
+        # Secondario numerico con un None (geom assente) → relegato in fondo nel gruppo
+        feats = [
+            MockFeature(0, {"region": "A"}),
+            MockFeature(1, {"region": "A"}),
+        ]
+        criteria = [
+            {"key": "attribute", "field": "region", "ascending": True},
+            {"key": "geom", "ascending": True, "value": lambda f: None if f.id() == 0 else 5.0},
+        ]
+        result, _ = _sort_multi(feats, criteria)
+        # id 1 (valore 5.0) prima di id 0 (None, relegato)
+        self.assertEqual([f.id() for f in result], [1, 0])
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Entry point
 # ──────────────────────────────────────────────────────────────────────────────
 

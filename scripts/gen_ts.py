@@ -84,6 +84,19 @@ EN = {
     "Applica": "Apply",
     "Annulla": "Cancel",
     "Chiudi": "Close",
+    # Ordinamento multi-criterio (criterio secondario)
+    "Criterio secondario (pareggi):": "Secondary criterion (ties):",
+    "(nessuno)": "(none)",
+    "Attributo tabellare": "Table attribute",
+    "Centroide – coordinata X": "Centroid – X coordinate",
+    "Centroide – coordinata Y": "Centroid – Y coordinate",
+    "Area (poligoni)": "Area (polygons)",
+    "Perimetro (poligoni)": "Perimeter (polygons)",
+    "Lunghezza (linee)": "Length (lines)",
+    "Criterio secondario discendente ↓": "Secondary criterion descending ↓",
+    "Spezza i pareggi del criterio primario (es. primario = Regione, secondario = Area). Non disponibile se il criterio primario è basato su linea.":
+        "Breaks ties of the primary criterion (e.g. primary = Region, secondary = Area). "
+        "Not available when the primary criterion is line-based.",
 }
 
 # Traduzioni italiane: identità tranne i source in inglese

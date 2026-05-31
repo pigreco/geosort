@@ -2,7 +2,7 @@
 
 🇮🇹 **Italiano** | [🇬🇧 English](README.en.md)
 
-[![Version](https://img.shields.io/badge/version-1.5.2-blue.svg)](https://github.com/pigreco/geosort/releases)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/pigreco/geosort/releases)
 [![Languages](https://img.shields.io/badge/languages-IT%20%7C%20EN-green.svg)](#lingue--languages)
 [![QGIS](https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg)](#requisiti)
 [![License](https://img.shields.io/badge/license-GPLv2-red.svg)](LICENSE)
@@ -34,6 +34,18 @@ Compatibile con **QGIS 3.16+** (Qt5 / PyQt5) e **QGIS 4.x** (Qt6 / PyQt6).
 | Distanza dalla linea | Tutti | Distanza perpendicolare da una linea di riferimento (due modalità: centroide o elemento) |
 | Posizione lungo linea | Tutti | Proiezione del centroide su una linea di riferimento (tre modalità) |
 | Espressione QGIS | Tutti | Ordina per il risultato di un'espressione QGIS arbitraria |
+| **Multi-criterio (gerarchico)** | Tutti | Criterio secondario per spezzare i pareggi del primario (es. regione → area) |
+
+> **Robustezza:** le feature con geometria NULL/vuota e i layer a geometria mista non
+> causano errori — le feature non ordinabili spazialmente vengono relegate in fondo.
+
+### Ordinamento multi-criterio
+
+È possibile impostare un **criterio secondario** che spezza i pareggi del criterio primario.
+Esempio tipico: ordinare per *regione* (crescente) e, a parità di regione, per *area*
+(decrescente). Ogni livello ha la propria direzione. Disponibile sia nel dialogo
+(menu a tendina **Criterio secondario**) sia nel Processing (parametri `SECONDARY_*`).
+Non disponibile quando il criterio primario è basato su una linea di riferimento.
 
 ### Modalità di ordinamento testuale
 
@@ -84,15 +96,22 @@ import processing
 result = processing.run("geosort:geosort_sort", {
     'INPUT': layer,
     'CRITERION': 0,          # 0 = Attributo tabellare
-    'ATTRIBUTE_FIELD': 'area',
+    'ATTRIBUTE_FIELD': 'regione',
     'DIRECTION': True,        # True = Ascendente
     'NULLS_LAST': True,
     'NATURAL_SORT': False,   # True = Natural Sort (cifre come numeri)
+    # Criterio secondario (tie-break): 0 = nessuno, 1 = attributo, 2 = espressione,
+    # 3 = centroide X, 4 = centroide Y, 5 = area, ...
+    'SECONDARY_CRITERION': 5,    # 5 = Area (poligoni)
+    'SECONDARY_DIRECTION': False,  # False = Discendente
     'ADD_VALUE_FIELD': False,
     'OUTPUT': 'memory:'
 })
 output_layer = result['OUTPUT']
 ```
+
+> Il criterio secondario è ignorato se il criterio primario è basato su una linea
+> (`line_position` / `line_distance`).
 
 ---
 
@@ -157,21 +176,21 @@ I test della logica di ordinamento non richiedono QGIS:
 ```bash
 cd geosort
 python -m unittest tests.test_sorting -v
-# 88 test sulla logica core (sort_by_attribute, sort_by_centroid, sort_by_line_distance, ecc.)
+# 100 test sulla logica core (sort_by_attribute, sort_by_centroid, sort_multi, robustezza geometrie NULL, ecc.)
 ```
 
 I test del dialog e dell'algoritmo Processing richiedono QGIS nel PATH:
 
 ```bash
-python -m unittest tests.test_dialog -v     # Test UI
-python -m unittest tests.test_algorithm -v  # Test Processing Toolbox (18 test)
+python -m unittest tests.test_dialog -v     # Test UI (23 test)
+python -m unittest tests.test_algorithm -v  # Test Processing Toolbox (24 test)
 ```
 
 Eseguire tutti i test:
 
 ```bash
 python -m unittest discover tests -p "test_*.py" -v
-# Output: 129 tests (88 ok, 41 skipped che richiedono QGIS)
+# Output: 147 tests (100 ok, 47 skipped che richiedono QGIS)
 ```
 
 ---

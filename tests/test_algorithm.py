@@ -183,6 +183,54 @@ class TestGeoSortAlgorithm(unittest.TestCase):
         """'expression' deve essere l'ultimo criterio."""
         self.assertEqual(self.algo._CRITERIA_KEYS[-1], "expression")
 
+    # ── Criterio secondario (multi-criterio) ──────────────────────────────────
+
+    def test_algorithm_has_secondary_criterion_parameter(self):
+        """L'algoritmo deve esporre il parametro SECONDARY_CRITERION."""
+        param_names = [p.name() for p in self.algo.parameterDefinitions()]
+        self.assertIn("SECONDARY_CRITERION", param_names)
+
+    def test_algorithm_has_secondary_field_and_direction(self):
+        """Devono esserci i parametri di supporto al criterio secondario."""
+        param_names = [p.name() for p in self.algo.parameterDefinitions()]
+        self.assertIn("SECONDARY_FIELD", param_names)
+        self.assertIn("SECONDARY_EXPRESSION", param_names)
+        self.assertIn("SECONDARY_DIRECTION", param_names)
+
+    def test_secondary_keys_first_is_none(self):
+        """L'indice 0 del criterio secondario significa 'nessuno'."""
+        self.assertIsNone(self.algo._SECONDARY_KEYS[0])
+
+    def test_secondary_keys_and_labels_match(self):
+        """Numero di chiavi ed etichette del secondario deve coincidere."""
+        self.assertEqual(
+            len(self.algo._SECONDARY_KEYS),
+            len(self.algo._SECONDARY_LABELS),
+        )
+
+    def test_multi_primary_keys_excludes_line_criteria(self):
+        """I criteri basati su linea non sono ammessi come primario in multi-criterio."""
+        self.assertNotIn("line_position", self.algo._MULTI_PRIMARY_KEYS)
+        self.assertNotIn("line_distance", self.algo._MULTI_PRIMARY_KEYS)
+
+    def test_end_to_end_multi_criteria(self):
+        """Esecuzione completa con criterio primario + secondario."""
+        import processing
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": self.layer,
+            "CRITERION": 0,                 # attributo
+            "ATTRIBUTE_FIELD": "name",
+            "DIRECTION": True,
+            "SECONDARY_CRITERION": 3,       # centroide X
+            "SECONDARY_DIRECTION": False,
+            "OUTPUT": "memory:",
+        })
+        out = result["OUTPUT"]
+        self.assertEqual(out.featureCount(), 3)
+        self.assertIn("sort_order", [f.name() for f in out.fields()])
+        orders = sorted(f["sort_order"] for f in out.getFeatures())
+        self.assertEqual(orders, [1, 2, 3])
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Entry point

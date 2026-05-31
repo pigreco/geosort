@@ -3,6 +3,10 @@
   <context>
     <name>GeoSort</name>
     <message>
+      <source>(nessuno)</source>
+      <translation>(nessuno)</translation>
+    </message>
+    <message>
       <source>&lt;b&gt;Lessicografico&lt;/b&gt; (default): confronto carattere per carattere.
 </source>
       <translation>&lt;b&gt;Lessicografico&lt;/b&gt; (default): confronto carattere per carattere.
@@ -47,6 +51,10 @@
       <translation>Area</translation>
     </message>
     <message>
+      <source>Area (poligoni)</source>
+      <translation>Area (poligoni)</translation>
+    </message>
+    <message>
       <source>Area Bounding Box</source>
       <translation>Area Bounding Box</translation>
     </message>
@@ -55,8 +63,20 @@
       <translation>Ascendente ↑</translation>
     </message>
     <message>
+      <source>Attributo tabellare</source>
+      <translation>Attributo tabellare</translation>
+    </message>
+    <message>
       <source>CRS / Units:</source>
       <translation>CRS / Unità:</translation>
+    </message>
+    <message>
+      <source>Centroide – coordinata X</source>
+      <translation>Centroide – coordinata X</translation>
+    </message>
+    <message>
+      <source>Centroide – coordinata Y</source>
+      <translation>Centroide – coordinata Y</translation>
     </message>
     <message>
       <source>Chiudi</source>
@@ -77,6 +97,14 @@
     <message>
       <source>Criterio di ordinamento</source>
       <translation>Criterio di ordinamento</translation>
+    </message>
+    <message>
+      <source>Criterio secondario (pareggi):</source>
+      <translation>Criterio secondario (pareggi):</translation>
+    </message>
+    <message>
+      <source>Criterio secondario discendente ↓</source>
+      <translation>Criterio secondario discendente ↓</translation>
     </message>
     <message>
       <source>Direzione:</source>
@@ -133,6 +161,10 @@
       <translation>Lunghezza</translation>
     </message>
     <message>
+      <source>Lunghezza (linee)</source>
+      <translation>Lunghezza (linee)</translation>
+    </message>
+    <message>
       <source>Numero di vertici</source>
       <translation>Numero di vertici</translation>
     </message>
@@ -177,6 +209,10 @@
       <translation>Perimetro</translation>
     </message>
     <message>
+      <source>Perimetro (poligoni)</source>
+      <translation>Perimetro (poligoni)</translation>
+    </message>
+    <message>
       <source>Proiezione centroide  –  tutte le feature</source>
       <translation>Proiezione centroide  –  tutte le feature</translation>
     </message>
@@ -209,6 +245,10 @@
     <message>
       <source>Solo intersecanti  –  proiezione centroide</source>
       <translation>Solo intersecanti  –  proiezione centroide</translation>
+    </message>
+    <message>
+      <source>Spezza i pareggi del criterio primario (es. primario = Regione, secondario = Area). Non disponibile se il criterio primario è basato su linea.</source>
+      <translation>Spezza i pareggi del criterio primario (es. primario = Regione, secondario = Area). Non disponibile se il criterio primario è basato su linea.</translation>
     </message>
     <message>
       <source>Valore criterio</source>

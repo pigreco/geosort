@@ -84,6 +84,32 @@ def _infer_field_type(values):
     return QMetaType.Type.Double  # fallback
 
 
+def _coerce_value(val, field_type):
+    """Converte ``val`` al tipo del campo, restituendo NULL se non convertibile.
+
+    Centralizza la logica di coercizione condivisa da :func:`apply_sort_order`
+    e :func:`create_memory_layer`.
+
+    Args:
+        val: valore grezzo del criterio.
+        field_type (QMetaType.Type): tipo di destinazione del campo.
+
+    Returns:
+        Il valore convertito (float/int/str) oppure ``NULL``.
+    """
+    if field_type == QMetaType.Type.Double:
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return NULL
+    if field_type == QMetaType.Type.Int:
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return NULL
+    return str(val) if val not in (None, NULL) else NULL
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Normalizzazione valori data/ora
 # ──────────────────────────────────────────────────────────────────────────────
@@ -249,9 +275,18 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
 
     return sorted_feats, values, warnings
 
+def _is_empty_geom(geom):
+    """True se la geometria è assente, nulla o vuota (feature non ordinabile spazialmente)."""
+    return geom is None or geom.isNull() or geom.isEmpty()
+
+
 def sort_by_centroid(features, axis="x", ascending=True, ref_point=None,
                      progress_callback=None):
     """Ordina le feature per coordinata X/Y del centroide o distanza da un punto.
+
+    Le feature prive di geometria (NULL/vuota) non vengono scartate: sono
+    relegate in fondo all'elenco con valore ``None``, indipendentemente dalla
+    direzione di ordinamento.
 
     Args:
         features (list[QgsFeature]): feature da ordinare.
@@ -263,22 +298,27 @@ def sort_by_centroid(features, axis="x", ascending=True, ref_point=None,
     Returns:
         tuple[list[QgsFeature], list[float]]: (feature ordinate, valori criterio).
     """
-    def _centroid(f):
+    def _value(f):
         geom = f.geometry()
-        if geom.isMultipart():
-            return geom.pointOnSurface().asPoint()
-        return geom.centroid().asPoint()
-
-    def key(f):
-        pt = _centroid(f)
+        if _is_empty_geom(geom):
+            return None
+        pt = (geom.pointOnSurface() if geom.isMultipart() else geom.centroid()).asPoint()
         if axis == "dist" and ref_point is not None:
             return math.sqrt(
                 (pt.x() - ref_point.x()) ** 2 + (pt.y() - ref_point.y()) ** 2
             )
         return pt.x() if axis == "x" else pt.y()
 
-    sorted_feats = sorted(features, key=key, reverse=not ascending)
-    values = [key(f) for f in sorted_feats]
+    # Decorate-sort-undecorate: la chiave geometrica è calcolata una sola volta.
+    valid = []
+    invalid = []
+    for f in features:
+        v = _value(f)
+        (invalid if v is None else valid).append((f, v))
+
+    valid.sort(key=lambda p: p[1], reverse=not ascending)
+    sorted_feats = [p[0] for p in valid] + [p[0] for p in invalid]
+    values = [p[1] for p in valid] + [None] * len(invalid)
 
     if progress_callback:
         progress_callback(100)
@@ -358,22 +398,39 @@ def sort_by_geometry_property(features: List[QgsFeature], criterion: str, ascend
     Returns:
         tuple[list[QgsFeature], list[float]]: (feature ordinate, valori criterio).
 
+    Le feature prive di geometria o con un tipo di geometria incompatibile col
+    criterio (es. layer a geometria mista) non interrompono l'ordinamento: sono
+    relegate in fondo con valore ``None``.
+
     Raises:
-        ValueError: se il criterio non è compatibile con il tipo di geometria della
-                    prima feature (validazione anticipata).
+        ValueError: se *nessuna* feature è compatibile con il criterio scelto
+                    (criterio errato per il dato o criterio sconosciuto).
     """
-    if features:
-        _geom_value(features[0], criterion)  # solleva subito se incompatibile
-
-    def key(f):
+    # Decorate-sort-undecorate con validazione per-feature.
+    valid = []
+    invalid = []
+    incompatible = 0
+    first_error = None
+    for f in features:
+        geom = f.geometry()
+        if _is_empty_geom(geom):
+            invalid.append(f)
+            continue
         try:
-            return _geom_value(f, criterion)
-        except Exception as exc:
-            # Propagate incompatibility errors instead of silencing them
-            raise
+            valid.append((f, _geom_value(f, criterion)))
+        except ValueError as exc:
+            incompatible += 1
+            if first_error is None:
+                first_error = exc
+            invalid.append(f)
 
-    sorted_feats = sorted(features, key=key, reverse=not ascending)
-    values = [key(f) for f in sorted_feats]
+    # Se il criterio non è compatibile con nessuna feature, è un errore d'uso.
+    if not valid and first_error is not None:
+        raise first_error
+
+    valid.sort(key=lambda p: p[1], reverse=not ascending)
+    sorted_feats = [p[0] for p in valid] + invalid
+    values = [p[1] for p in valid] + [None] * len(invalid)
 
     if progress_callback:
         progress_callback(100)
@@ -488,7 +545,14 @@ def sort_by_line_position(features, line_geometry, ascending=True,
             (feature ordinate, valori distanza, feature escluse).
             Le feature escluse sono quelle che non intersecano la linea
             (rilevanti solo per le modalità ``intersecting_*``).
+            Anche le feature prive di geometria finiscono fra le escluse.
+
+    Raises:
+        ValueError: se la geometria di riferimento è assente o vuota.
     """
+    if _is_empty_geom(line_geometry):
+        raise ValueError("La geometria della linea di riferimento è assente o vuota.")
+
     sorted_feats = []
     values = []
     excluded = []
@@ -496,6 +560,9 @@ def sort_by_line_position(features, line_geometry, ascending=True,
 
     for i, f in enumerate(features):
         geom = f.geometry()
+        if _is_empty_geom(geom):
+            excluded.append(f)
+            continue
         geom_type = QgsWkbTypes.geometryType(geom.wkbType())
 
         # ── Punto rappresentativo della feature (centroide / punto stesso) ──
@@ -565,43 +632,228 @@ def sort_by_line_distance(features, line_geometry, ascending=True, mode="element
 
     Returns:
         tuple[list[QgsFeature], list[float]]: (feature ordinate, valori distanza).
+        Le feature prive di geometria sono relegate in fondo con valore ``None``.
 
     Raises:
-        ValueError: se la modalità non è valida.
+        ValueError: se la modalità non è valida o la linea di riferimento è vuota.
     """
     if mode not in LINE_DISTANCE_MODES:
         raise ValueError(f"Modalità sconosciuta: '{mode}'. "
                          f"Valori ammessi: {list(LINE_DISTANCE_MODES.keys())}")
+    if _is_empty_geom(line_geometry):
+        raise ValueError("La geometria della linea di riferimento è assente o vuota.")
 
-    sorted_feats = []
-    values = []
+    valid = []        # (dist, idx, feat) – idx stabilizza i pari-distanza
+    invalid = []
     total = len(features)
 
     for i, f in enumerate(features):
         geom = f.geometry()
+        if _is_empty_geom(geom):
+            invalid.append(f)
+            continue
 
         if mode == "centroid":
-            pt_geom = geom.centroid()
-            dist = pt_geom.distance(line_geometry)
-        elif mode == "element":
+            dist = geom.centroid().distance(line_geometry)
+        else:  # "element"
             dist = geom.distance(line_geometry)
-
-        sorted_feats.append(f)
-        values.append(dist)
+        valid.append((dist, i, f))
 
         if progress_callback and i % 50 == 0:
             progress_callback(i * 100.0 / total)
 
-    # Ordina per distanza mantenendo l'associazione con i valori
-    # Usa indice per stabilizzare l'ordinamento quando distanze sono uguali
-    paired = sorted(zip(values, range(len(sorted_feats)), sorted_feats), reverse=not ascending)
-    sorted_feats = [f for _, _, f in paired]
-    values = [v for v, _, _ in paired]
+    valid.sort(reverse=not ascending)
+    sorted_feats = [f for _, _, f in valid] + invalid
+    values = [v for v, _, _ in valid] + [None] * len(invalid)
 
     if progress_callback:
         progress_callback(100)
 
     return sorted_feats, values
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Ordinamento multi-criterio (gerarchico)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _numeric_extractor(key, spec):
+    """Restituisce una funzione ``feat -> float | None`` per i criteri geometrici.
+
+    Le feature prive di geometria (o non compatibili/intersecanti) producono
+    ``None`` e verranno relegate in fondo.
+
+    Raises:
+        ValueError: criterio sconosciuto o linea di riferimento mancante.
+    """
+    if key in ("centroid_x", "centroid_y", "centroid_dist"):
+        axis = {"centroid_x": "x", "centroid_y": "y", "centroid_dist": "dist"}[key]
+        ref = spec.get("ref_point")
+
+        def _ex(f):
+            geom = f.geometry()
+            if _is_empty_geom(geom):
+                return None
+            pt = (geom.pointOnSurface() if geom.isMultipart() else geom.centroid()).asPoint()
+            if axis == "dist" and ref is not None:
+                return math.sqrt((pt.x() - ref.x()) ** 2 + (pt.y() - ref.y()) ** 2)
+            return pt.x() if axis == "x" else pt.y()
+        return _ex
+
+    if key in GEOM_CRITERIA:
+        def _ex(f):
+            geom = f.geometry()
+            if _is_empty_geom(geom):
+                return None
+            try:
+                return _geom_value(f, key)
+            except ValueError:
+                return None
+        return _ex
+
+    if key == "line_position":
+        line = spec.get("line_geometry")
+        mode = spec.get("mode", "centroid_projection")
+        if _is_empty_geom(line):
+            raise ValueError("Linea di riferimento assente o vuota.")
+
+        def _ex(f):
+            geom = f.geometry()
+            if _is_empty_geom(geom):
+                return None
+            if mode == "intersecting_first_pt":
+                return _first_intersection_distance(line, geom)
+            if mode == "intersecting_projection" and not line.intersects(geom):
+                return None
+            gt = QgsWkbTypes.geometryType(geom.wkbType())
+            pt_geom = (QgsGeometry(geom)
+                       if gt == QgsWkbTypes.GeometryType.PointGeometry
+                       else geom.centroid())
+            return line.lineLocatePoint(line.nearestPoint(pt_geom))
+        return _ex
+
+    if key == "line_distance":
+        line = spec.get("line_geometry")
+        mode = spec.get("mode", "element")
+        if _is_empty_geom(line):
+            raise ValueError("Linea di riferimento assente o vuota.")
+
+        def _ex(f):
+            geom = f.geometry()
+            if _is_empty_geom(geom):
+                return None
+            if mode == "centroid":
+                return geom.centroid().distance(line)
+            return geom.distance(line)
+        return _ex
+
+    raise ValueError(f"Criterio multi-livello sconosciuto: '{key}'.")
+
+
+def _multi_level(features, spec, layer):
+    """Calcola, per un singolo livello, le chiavi di ordinamento e i valori grezzi.
+
+    Args:
+        features (list[QgsFeature]): feature in ordine originale.
+        spec (dict): descrittore del criterio. Chiavi riconosciute:
+            ``key`` (obbligatoria), ``ascending``, ``nulls_last``,
+            ``natural_sort``, e parametri specifici del criterio
+            (``field``, ``expression``, ``ref_point``, ``line_geometry``, ``mode``).
+        layer (QgsVectorLayer | None): necessario per i criteri a espressione.
+
+    Returns:
+        tuple[list, bool, list]: (chiavi allineate a ``features``, reverse, valori grezzi).
+    """
+    key = spec["key"]
+    ascending = spec.get("ascending", True)
+    nulls_last = spec.get("nulls_last", True)
+    natural = spec.get("natural_sort", False)
+    null_priority = 1 if nulls_last else -1
+    n = len(features)
+    raw = [None] * n
+    keys = [None] * n
+
+    if key in ("attribute", "expression"):
+        expr = None
+        ctx = None
+        if key == "expression":
+            expr = QgsExpression(spec["expression"])
+            if expr.hasParserError():
+                raise ValueError(
+                    f"Espressione non valida: {expr.parserErrorString()}"
+                )
+            ctx = QgsExpressionContext()
+            ctx.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(layer))
+        field = spec.get("field")
+
+        for i, f in enumerate(features):
+            if key == "attribute":
+                val = f[field]
+            else:
+                ctx.setFeature(f)
+                val = expr.evaluate(ctx)
+                if expr.hasEvalError():
+                    val = None
+            is_null = val is None or val == NULL
+            raw[i] = None if is_null else val
+            if is_null:
+                keys[i] = (null_priority, "")
+            elif natural:
+                keys[i] = (0, _natural_key(val))
+            else:
+                try:
+                    keys[i] = (0, _normalize_val(val))
+                except TypeError:
+                    keys[i] = (0, str(val))
+    else:
+        extract = _numeric_extractor(key, spec)
+        for i, f in enumerate(features):
+            v = extract(f)
+            raw[i] = v
+            keys[i] = (null_priority, 0.0) if v is None else (0, v)
+
+    return keys, (not ascending), raw
+
+
+def sort_multi(features, criteria, layer=None, progress_callback=None):
+    """Ordina le feature per più criteri in ordine di priorità (sort gerarchico).
+
+    ``criteria[0]`` è il criterio primario; i successivi spezzano i pareggi.
+    Ogni livello ha la propria direzione (``ascending``) e gestione dei NULL,
+    coerente con le funzioni di ordinamento a singolo criterio.
+
+    Tecnica: ordinamenti stabili successivi, dal criterio meno significativo al
+    più significativo (Timsort è stabile), così ogni livello può avere direzione
+    indipendente senza costruire una chiave composta a direzione mista.
+
+    Args:
+        features (list[QgsFeature]): feature da ordinare.
+        criteria (list[dict]): descrittori di criterio (vedi :func:`_multi_level`).
+        layer (QgsVectorLayer | None): necessario se un livello usa un'espressione.
+        progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
+
+    Returns:
+        tuple[list[QgsFeature], list]: (feature ordinate, valori del criterio primario
+        nello stesso ordine — utili come campo criterio opzionale).
+    """
+    features = list(features)
+    n = len(features)
+    if not criteria:
+        return features, [None] * n
+
+    levels = [_multi_level(features, spec, layer) for spec in criteria]
+
+    order = list(range(n))
+    for keys, reverse, _raw in reversed(levels):
+        order.sort(key=lambda idx, k=keys: k[idx], reverse=reverse)
+
+    sorted_feats = [features[i] for i in order]
+    primary_raw = levels[0][2]
+    primary_values = [primary_raw[i] for i in order]
+
+    if progress_callback:
+        progress_callback(100)
+
+    return sorted_feats, primary_values
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -664,19 +916,7 @@ def apply_sort_order(
             fid = feat.id()
             layer.changeAttributeValue(fid, sort_idx, i + 1)
             if add_criterion_field and criterion_values and crit_idx != -1:
-                val = criterion_values[i]
-                if crit_field_type == QMetaType.Type.Double:
-                    try:
-                        val = float(val)
-                    except (TypeError, ValueError):
-                        val = NULL
-                elif crit_field_type == QMetaType.Type.Int:
-                    try:
-                        val = int(val)
-                    except (TypeError, ValueError):
-                        val = NULL
-                else:
-                    val = str(val) if val not in (None, NULL) else NULL
+                val = _coerce_value(criterion_values[i], crit_field_type)
                 layer.changeAttributeValue(fid, crit_idx, val)
             if progress_callback and i % 50 == 0:
                 progress_callback(i * 100.0 / total)
@@ -751,20 +991,9 @@ def create_memory_layer(
             new_feat[field.name()] = feat[field.name()]
         new_feat["sort_order"] = i + 1
         if add_criterion_field and criterion_values:
-            val = criterion_values[i]
-            if crit_field_type == QMetaType.Type.Double:
-                try:
-                    val = float(val)
-                except (TypeError, ValueError):
-                    val = NULL
-            elif crit_field_type == QMetaType.Type.Int:
-                try:
-                    val = int(val)
-                except (TypeError, ValueError):
-                    val = NULL
-            else:
-                val = str(val) if val not in (None, NULL) else NULL
-            new_feat[criterion_field_name] = val
+            new_feat[criterion_field_name] = _coerce_value(
+                criterion_values[i], crit_field_type
+            )
         out_features.append(new_feat)
         if progress_callback and i % 50 == 0:
             progress_callback(i * 100.0 / total)
