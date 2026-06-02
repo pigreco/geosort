@@ -3,6 +3,14 @@
   <context>
     <name>GeoSort</name>
     <message>
+      <source> ⚠ CRS geografico: GeoSort applica automaticamente la misura</source>
+      <translation> ⚠ Geographic CRS: GeoSort automatically applies ellipsoidal (geodesic) measurement</translation>
+    </message>
+    <message>
+      <source>(nessuno)</source>
+      <translation>(none)</translation>
+    </message>
+    <message>
       <source>&lt;b&gt;Lessicografico&lt;/b&gt; (default): confronto carattere per carattere.
 </source>
       <translation>&lt;b&gt;Lexicographic&lt;/b&gt; (default): character-by-character comparison.
@@ -47,6 +55,10 @@
       <translation>Area</translation>
     </message>
     <message>
+      <source>Area (poligoni)</source>
+      <translation>Area (polygons)</translation>
+    </message>
+    <message>
       <source>Area Bounding Box</source>
       <translation>Bounding Box Area</translation>
     </message>
@@ -55,8 +67,20 @@
       <translation>Ascending ↑</translation>
     </message>
     <message>
+      <source>Attributo tabellare</source>
+      <translation>Table attribute</translation>
+    </message>
+    <message>
       <source>CRS / Units:</source>
       <translation>CRS / Units:</translation>
+    </message>
+    <message>
+      <source>Centroide – coordinata X</source>
+      <translation>Centroid – X coordinate</translation>
+    </message>
+    <message>
+      <source>Centroide – coordinata Y</source>
+      <translation>Centroid – Y coordinate</translation>
     </message>
     <message>
       <source>Chiudi</source>
@@ -77,6 +101,14 @@
     <message>
       <source>Criterio di ordinamento</source>
       <translation>Sort Criterion</translation>
+    </message>
+    <message>
+      <source>Criterio secondario (pareggi):</source>
+      <translation>Secondary criterion (ties):</translation>
+    </message>
+    <message>
+      <source>Criterio secondario discendente ↓</source>
+      <translation>Secondary criterion descending ↓</translation>
     </message>
     <message>
       <source>Direzione:</source>
@@ -133,6 +165,26 @@
       <translation>Length</translation>
     </message>
     <message>
+      <source>Lunghezza (linee)</source>
+      <translation>Length (lines)</translation>
+    </message>
+    <message>
+      <source>Misura geodetica: automatica (CRS geografico)</source>
+      <translation>Geodesic measurement: automatic (geographic CRS)</translation>
+    </message>
+    <message>
+      <source>Misura geodetica: mai (planare)</source>
+      <translation>Geodesic measurement: never (planar)</translation>
+    </message>
+    <message>
+      <source>Misura geodetica: sempre</source>
+      <translation>Geodesic measurement: always</translation>
+    </message>
+    <message>
+      <source>Misura su CRS geografico:</source>
+      <translation>Geographic CRS measurement:</translation>
+    </message>
+    <message>
       <source>Numero di vertici</source>
       <translation>Number of vertices</translation>
     </message>
@@ -177,6 +229,10 @@
       <translation>Perimeter</translation>
     </message>
     <message>
+      <source>Perimetro (poligoni)</source>
+      <translation>Perimeter (polygons)</translation>
+    </message>
+    <message>
       <source>Proiezione centroide  –  tutte le feature</source>
       <translation>Centroid projection  –  all features</translation>
     </message>
@@ -209,6 +265,16 @@
     <message>
       <source>Solo intersecanti  –  proiezione centroide</source>
       <translation>Intersecting only  –  centroid projection</translation>
+    </message>
+    <message>
+      <source>Spezza i pareggi del criterio primario (es. primario = Regione, secondario = Area). Non disponibile se il criterio primario è basato su linea.</source>
+      <translation>Breaks ties of the primary criterion (e.g. primary = Region, secondary = Area). Not available when the primary criterion is line-based.</translation>
+    </message>
+    <message>
+      <source>Su CRS geografico (gradi, es. EPSG:4326), area/lunghezza/distanze
+</source>
+      <translation>On a geographic CRS (degrees, e.g. EPSG:4326), area/length/distances
+</translation>
     </message>
     <message>
       <source>Valore criterio</source>

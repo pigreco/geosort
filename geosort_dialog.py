@@ -290,6 +290,56 @@ class GeoSortDialog(QDialog):
         ))
         layout.addWidget(self.chk_natural_sort)
 
+        # ── Criterio secondario (tie-break) per l'ordinamento multi-criterio ──
+        sec_row = QHBoxLayout()
+        sec_row.addWidget(QLabel(self.tr("Criterio secondario (pareggi):")))
+        self.combo_secondary = QComboBox()
+        self.combo_secondary.addItem(self.tr("(nessuno)"), None)
+        self.combo_secondary.addItem(self.tr("Attributo tabellare"), "attribute")
+        self.combo_secondary.addItem(self.tr("Centroide – coordinata X"), "centroid_x")
+        self.combo_secondary.addItem(self.tr("Centroide – coordinata Y"), "centroid_y")
+        self.combo_secondary.addItem(self.tr("Area (poligoni)"), "area")
+        self.combo_secondary.addItem(self.tr("Perimetro (poligoni)"), "perimeter")
+        self.combo_secondary.addItem(self.tr("Lunghezza (linee)"), "length")
+        self.combo_secondary.addItem(self.tr("Numero di vertici"), "n_vertices")
+        self.combo_secondary.setToolTip(self.tr(
+            "Spezza i pareggi del criterio primario (es. primario = Regione, secondario = Area). Non disponibile se il criterio primario è basato su linea."
+        ))
+        sec_row.addWidget(self.combo_secondary)
+        self.combo_secondary_field = QgsFieldComboBox()
+        self.combo_secondary_field.setEnabled(False)
+        sec_row.addWidget(self.combo_secondary_field)
+        sec_row.addStretch()
+        layout.addLayout(sec_row)
+
+        self.chk_secondary_desc = QCheckBox(self.tr("Criterio secondario discendente ↓"))
+        layout.addWidget(self.chk_secondary_desc)
+
+        # ── Misura geodetica ─────────────────────────────────────────────────
+        geo_row = QHBoxLayout()
+        geo_row.addWidget(QLabel(self.tr("Misura su CRS geografico:")))
+        self.combo_geodesic = QComboBox()
+        self.combo_geodesic.addItem(
+            self.tr("Misura geodetica: automatica (CRS geografico)"), "auto"
+        )
+        self.combo_geodesic.addItem(
+            self.tr("Misura geodetica: sempre"), "always"
+        )
+        self.combo_geodesic.addItem(
+            self.tr("Misura geodetica: mai (planare)"), "never"
+        )
+        self.combo_geodesic.setCurrentIndex(0)
+        self.combo_geodesic.setToolTip(self.tr(
+            "Su CRS geografico (gradi, es. EPSG:4326), area/lunghezza/distanze\n"
+            "vengono misurate sull'ellissoide (m²/m) invece che in gradi.\n"
+            "• Automatica: geodetica solo se il CRS è geografico (consigliato).\n"
+            "• Sempre: geodetica anche su CRS proiettati.\n"
+            "• Mai (planare): misura nelle unità native del CRS."
+        ))
+        geo_row.addWidget(self.combo_geodesic)
+        geo_row.addStretch()
+        layout.addLayout(geo_row)
+
         return grp
 
     def _build_output_group(self):
@@ -353,6 +403,7 @@ class GeoSortDialog(QDialog):
         for rb in (self.rb_attribute, self.rb_centroid, self.rb_geometry, self.rb_spatial, self.rb_line_distance):
             rb.toggled.connect(self._on_criterion_changed)
         self.combo_centroid.currentIndexChanged.connect(self._on_centroid_mode_changed)
+        self.combo_secondary.currentIndexChanged.connect(self._on_secondary_changed)
 
         self.btn_preview.clicked.connect(self._update_preview)
         self.btn_ok.clicked.connect(self._on_ok)
@@ -374,6 +425,7 @@ class GeoSortDialog(QDialog):
         layer = self.layer_combo.currentLayer()
         if layer:
             self.combo_field.setLayer(layer)
+            self.combo_secondary_field.setLayer(layer)
             crs = layer.crs()
             unit_map = {
                 0: "metri",
@@ -389,8 +441,10 @@ class GeoSortDialog(QDialog):
                 self.lbl_crs.setStyleSheet("color: #e67e22; font-size: 10px; font-weight: bold;")
                 self.lbl_crs.setText(
                     self.lbl_crs.text()
-                    + " ⚠ CRS geografico: i calcoli di area/lunghezza saranno in gradi. "
-                    "Si consiglia la riproiezione in CRS proiettato."
+                    + self.tr(
+                        " ⚠ CRS geografico: GeoSort applica automaticamente la misura"
+                        " ellissoidica (geodetica) per area/lunghezza/distanze (m²/m)."
+                    )
                 )
             else:
                 self.lbl_crs.setStyleSheet("color: gray; font-size: 10px;")
@@ -413,6 +467,16 @@ class GeoSortDialog(QDialog):
         self.combo_line_mode.setEnabled(is_spatial)
         self.combo_ref_layer_dist.setEnabled(is_line_distance)
         self.combo_line_distance_mode.setEnabled(is_line_distance)
+
+        # Il criterio secondario (multi-criterio) non è disponibile per i criteri
+        # basati su linea (posizione/distanza lungo linea).
+        is_line_based = is_spatial or is_line_distance
+        self.combo_secondary.setEnabled(not is_line_based)
+        self.chk_secondary_desc.setEnabled(not is_line_based)
+        if is_line_based:
+            self.combo_secondary_field.setEnabled(False)
+        else:
+            self._on_secondary_changed()
 
         # Se si cambia criterio, resetta l'espressione attiva
         if not is_attr:
@@ -585,6 +649,75 @@ class GeoSortDialog(QDialog):
     # Ordinamento
     # ──────────────────────────────────────────────────────────────────────────
 
+    def _on_secondary_changed(self):
+        """Abilita il selettore di campo solo per il criterio secondario 'Attributo'."""
+        is_attr = self.combo_secondary.currentData() == "attribute"
+        self.combo_secondary_field.setEnabled(is_attr)
+        if is_attr:
+            layer = self.layer_combo.currentLayer()
+            if layer:
+                self.combo_secondary_field.setLayer(layer)
+
+    def _geodesic_mode(self):
+        """Restituisce la modalità geodetica selezionata: 'auto', 'always' o 'never'."""
+        return self.combo_geodesic.currentData()
+
+    def _primary_spec_for_multi(self):
+        """Descrittore del criterio primario per sort_multi.
+
+        Returns:
+            dict | None: ``None`` se il primario è basato su linea (multi non
+            supportato), altrimenti lo spec del criterio.
+
+        Raises:
+            ValueError: se il primario è 'Attributo' senza campo selezionato.
+        """
+        ascending = self.rb_asc.isChecked()
+        nulls_last = self.chk_nulls_last.isChecked()
+        natural = self.chk_natural_sort.isChecked()
+
+        if self.rb_attribute.isChecked():
+            if self._active_expression:
+                return {"key": "expression", "expression": self._active_expression,
+                        "ascending": ascending, "nulls_last": nulls_last,
+                        "natural_sort": natural}
+            field = self.combo_field.currentField()
+            if not field:
+                raise ValueError("Nessun campo selezionato.")
+            return {"key": "attribute", "field": field, "ascending": ascending,
+                    "nulls_last": nulls_last, "natural_sort": natural}
+
+        if self.rb_centroid.isChecked():
+            key = {0: "centroid_x", 1: "centroid_y", 2: "centroid_dist"}[
+                self.combo_centroid.currentIndex()]
+            spec = {"key": key, "ascending": ascending}
+            if key == "centroid_dist":
+                spec["ref_point"] = QgsPointXY(self.spin_ref_x.value(),
+                                               self.spin_ref_y.value())
+            return spec
+
+        if self.rb_geometry.isChecked():
+            crit_map = {0: "area", 1: "perimeter", 2: "length", 3: "n_vertices",
+                        4: "bbox_width", 5: "bbox_height", 6: "bbox_area",
+                        7: "bbox_xmin", 8: "bbox_ymin"}
+            return {"key": crit_map[self.combo_geom.currentIndex()],
+                    "ascending": ascending}
+
+        return None  # criteri basati su linea → multi non supportato
+
+    def _secondary_spec(self, key):
+        """Descrittore del criterio secondario per sort_multi."""
+        spec = {"key": key,
+                "ascending": not self.chk_secondary_desc.isChecked(),
+                "nulls_last": self.chk_nulls_last.isChecked(),
+                "natural_sort": self.chk_natural_sort.isChecked()}
+        if key == "attribute":
+            field = self.combo_secondary_field.currentField()
+            if not field:
+                raise ValueError("Nessun campo selezionato per il criterio secondario.")
+            spec["field"] = field
+        return spec
+
     def _collect_sorted(self, progress_callback=None, features=None):
         """Esegue l'ordinamento e restituisce (sorted_features, values, crit_field_name, excluded).
 
@@ -601,6 +734,10 @@ class GeoSortDialog(QDialog):
             sort_by_geometry_property,
             sort_by_line_position,
             sort_by_line_distance,
+            build_distance_area,
+            resolve_geodesic,
+            should_build_distance_area,
+            geographic_crs_warning,
         )
 
         layer = self.layer_combo.currentLayer()
@@ -612,6 +749,34 @@ class GeoSortDialog(QDialog):
             raise ValueError("Il layer non contiene feature.")
 
         ascending = self.rb_asc.isChecked()
+        geo_mode = self._geodesic_mode()
+        self._last_geodesic_warning = ""
+
+        # ── Multi-criterio: criterio secondario per i pareggi ────────────────
+        sec_key = self.combo_secondary.currentData()
+        if sec_key is not None:
+            primary_spec = self._primary_spec_for_multi()
+            if primary_spec is not None:
+                from .geosort_core import sort_multi
+                secondary_spec = self._secondary_spec(sec_key)
+                # Costruisce distance_area se almeno un criterio può beneficiarne
+                da_multi = None
+                if should_build_distance_area(layer.crs(), geo_mode):
+                    da_multi = build_distance_area(
+                        layer.crs(), QgsProject.instance().transformContext()
+                    )
+                sorted_feats, values = sort_multi(
+                    features, [primary_spec, secondary_spec], layer,
+                    progress_callback=progress_callback,
+                    distance_area=da_multi,
+                )
+                # Avviso geodetico basato sul criterio primario
+                prim_key = primary_spec.get("key", "")
+                self._last_geodesic_warning = geographic_crs_warning(
+                    layer.crs(), prim_key, da_multi is not None
+                )
+                return sorted_feats, values, "sort_value", []
+            # Primario basato su linea: secondario ignorato, prosegue il flusso normale.
 
         # ── Per attributo / espressione ──────────────────────────────────────
         if self.rb_attribute.isChecked():
@@ -653,9 +818,20 @@ class GeoSortDialog(QDialog):
             ref_point = None
             if axis == "dist":
                 ref_point = QgsPointXY(self.spin_ref_x.value(), self.spin_ref_y.value())
+            # Misura geodetica solo per "distanza da punto di riferimento"
+            da_centroid = None
+            if axis == "dist" and resolve_geodesic(layer.crs(), "centroid_dist", geo_mode):
+                da_centroid = build_distance_area(
+                    layer.crs(), QgsProject.instance().transformContext()
+                )
             sorted_feats, values = sort_by_centroid(
                 features, axis, ascending, ref_point,
                 progress_callback=progress_callback,
+                distance_area=da_centroid,
+            )
+            self._last_geodesic_warning = geographic_crs_warning(
+                layer.crs(), "centroid_dist" if axis == "dist" else axis,
+                da_centroid is not None,
             )
             crit_name = {"x": "sort_x", "y": "sort_y", "dist": "sort_dist"}[axis]
             return sorted_feats, values, crit_name, []
@@ -674,9 +850,19 @@ class GeoSortDialog(QDialog):
             }
             idx = self.combo_geom.currentIndex()
             criterion = crit_map[idx]
+            # Misura geodetica per area/perimetro/lunghezza; bbox_* e n_vertices restano planari
+            da_geom = None
+            if resolve_geodesic(layer.crs(), criterion, geo_mode):
+                da_geom = build_distance_area(
+                    layer.crs(), QgsProject.instance().transformContext()
+                )
             sorted_feats, values = sort_by_geometry_property(
                 features, criterion, ascending,
                 progress_callback=progress_callback,
+                distance_area=da_geom,
+            )
+            self._last_geodesic_warning = geographic_crs_warning(
+                layer.crs(), criterion, da_geom is not None
             )
             return sorted_feats, values, crit_name_map[idx], []
 
@@ -706,9 +892,18 @@ class GeoSortDialog(QDialog):
                 raise ValueError("Il layer di riferimento non contiene feature.")
             line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
             mode = self.combo_line_distance_mode.currentData()
+            da_linedist = None
+            if resolve_geodesic(layer.crs(), "line_distance", geo_mode):
+                da_linedist = build_distance_area(
+                    layer.crs(), QgsProject.instance().transformContext()
+                )
             sorted_feats, values = sort_by_line_distance(
                 features, line_geom, ascending, mode=mode,
                 progress_callback=progress_callback,
+                distance_area=da_linedist,
+            )
+            self._last_geodesic_warning = geographic_crs_warning(
+                layer.crs(), "line_distance", da_linedist is not None
             )
             return sorted_feats, values, "sort_dist", []
 
@@ -819,6 +1014,9 @@ class GeoSortDialog(QDialog):
                 progress.setValue(50 + int(pct * 0.5))
                 _check_cancel()
 
+            geo_warn = getattr(self, "_last_geodesic_warning", "")
+            geo_suffix = f"\n\nℹ {geo_warn}" if geo_warn else ""
+
             if self.rb_update.isChecked():
                 progress.setLabelText("Scrittura sul layer...")
                 ok = apply_sort_order(
@@ -833,7 +1031,8 @@ class GeoSortDialog(QDialog):
                         self,
                         "GeoSort",
                         f"Ordinamento applicato con successo.\n"
-                        f"Campo 'sort_order' aggiornato su {n} feature.{excl_msg}",
+                        f"Campo 'sort_order' aggiornato su {n} feature.{excl_msg}"
+                        f"{geo_suffix}",
                     )
                 else:
                     progress.close()
@@ -857,7 +1056,8 @@ class GeoSortDialog(QDialog):
                     self,
                     "GeoSort",
                     f"Nuovo layer 'GeoSort_output' aggiunto al progetto\n"
-                    f"con {n} feature ordinate.{excl_msg}",
+                    f"con {n} feature ordinate.{excl_msg}"
+                    f"{geo_suffix}",
                 )
                 return True
 
