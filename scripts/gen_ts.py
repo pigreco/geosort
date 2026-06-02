@@ -97,6 +97,16 @@ EN = {
     "Spezza i pareggi del criterio primario (es. primario = Regione, secondario = Area). Non disponibile se il criterio primario è basato su linea.":
         "Breaks ties of the primary criterion (e.g. primary = Region, secondary = Area). "
         "Not available when the primary criterion is line-based.",
+    # Misura geodetica (robustezza CRS geografico)
+    "Misura su CRS geografico:": "Geographic CRS measurement:",
+    "Misura geodetica: automatica (CRS geografico)":
+        "Geodesic measurement: automatic (geographic CRS)",
+    "Misura geodetica: sempre": "Geodesic measurement: always",
+    "Misura geodetica: mai (planare)": "Geodesic measurement: never (planar)",
+    "Su CRS geografico (gradi, es. EPSG:4326), area/lunghezza/distanze\n":
+        "On a geographic CRS (degrees, e.g. EPSG:4326), area/length/distances\n",
+    " ⚠ CRS geografico: GeoSort applica automaticamente la misura":
+        " ⚠ Geographic CRS: GeoSort automatically applies ellipsoidal (geodesic) measurement",
 }
 
 # Traduzioni italiane: identità tranne i source in inglese

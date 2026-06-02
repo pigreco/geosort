@@ -2,7 +2,7 @@
 
 🇮🇹 **Italiano** | [🇬🇧 English](README.en.md)
 
-[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/pigreco/geosort/releases)
+[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/pigreco/geosort/releases)
 [![Languages](https://img.shields.io/badge/languages-IT%20%7C%20EN-green.svg)](#lingue--languages)
 [![QGIS](https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg)](#requisiti)
 [![License](https://img.shields.io/badge/license-GPLv2-red.svg)](LICENSE)
@@ -38,6 +38,23 @@ Compatibile con **QGIS 3.16+** (Qt5 / PyQt5) e **QGIS 4.x** (Qt6 / PyQt6).
 
 > **Robustezza:** le feature con geometria NULL/vuota e i layer a geometria mista non
 > causano errori — le feature non ordinabili spazialmente vengono relegate in fondo.
+
+### Misura geodetica (CRS geografici)
+
+Su layer con CRS in gradi (es. EPSG:4326) le misure planari di area e lunghezza sono
+espresse in gradi² — metricamente inutili e potenzialmente fuorvianti alle alte latitudini.
+GeoSort risolve il problema misurando **area, perimetro, lunghezza e distanze
+sull'ellissoide** (misura geodetica, risultati in m² o m).
+
+| Modalità | Comportamento |
+|---|---|
+| **Auto** (default) | Geodetica attivata automaticamente su CRS geografico; planare su CRS proiettato. Un avviso non bloccante segnala l'attivazione. |
+| **Sempre** | Geodetica sempre attiva, indipendentemente dal CRS. |
+| **Mai** | Sempre planare, indipendentemente dal CRS. |
+
+I criteri **bounding box** e **posizione lungo linea** restano sempre planari (il bounding
+box è un concetto nelle coordinate native; la posizione lungo linea è monotona e invariante
+rispetto alla scala).
 
 ### Ordinamento multi-criterio
 
@@ -176,7 +193,7 @@ I test della logica di ordinamento non richiedono QGIS:
 ```bash
 cd geosort
 python -m unittest tests.test_sorting -v
-# 100 test sulla logica core (sort_by_attribute, sort_by_centroid, sort_multi, robustezza geometrie NULL, ecc.)
+# 145 test sulla logica core (sort_by_attribute, sort_by_centroid, sort_multi, robustezza geometrie NULL, misura geodetica, ecc.)
 ```
 
 I test del dialog e dell'algoritmo Processing richiedono QGIS nel PATH:
@@ -190,7 +207,7 @@ Eseguire tutti i test:
 
 ```bash
 python -m unittest discover tests -p "test_*.py" -v
-# Output: 147 tests (100 ok, 47 skipped che richiedono QGIS)
+# Output: 192 tests (145 ok, 47 skipped che richiedono QGIS)
 ```
 
 ---

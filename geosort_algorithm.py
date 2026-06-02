@@ -32,6 +32,10 @@ from qgis.PyQt.QtCore import QMetaType
 from qgis.PyQt.QtGui import QIcon
 
 
+# Mappa indice enum → modalità geodetica (stringa accettata da geosort_core)
+_GEODESIC_MODES = ["auto", "always", "never"]
+
+
 def _spec_from(key, field, expression, ascending, nulls_last, natural_sort):
     """Costruisce un descrittore di criterio per ``geosort_core.sort_multi``.
 
@@ -63,6 +67,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     DIRECTION = "DIRECTION"
     NULLS_LAST = "NULLS_LAST"
     NATURAL_SORT = "NATURAL_SORT"
+    GEODESIC = "GEODESIC"
     REF_LAYER = "REF_LAYER"
     ADD_VALUE_FIELD = "ADD_VALUE_FIELD"
     OUTPUT = "OUTPUT"
@@ -171,6 +176,12 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             "<b>Ordinamento multi-criterio:</b> imposta un <b>criterio secondario</b> "
             "per spezzare i pareggi del criterio primario (es. primario = regione, "
             "secondario = area decrescente). Disponibile per i criteri non basati su linea.\n\n"
+            "<b>Misura geodetica (ellissoidale):</b> quando il CRS del layer è geografico "
+            "(coordinate in gradi, es. EPSG:4326), le misure planari di area, lunghezza, "
+            "perimetro e distanza sarebbero in gradi — metricamente prive di senso. "
+            "Con la modalità <i>Automatica</i> (default) GeoSort usa automaticamente il calcolo "
+            "ellissoidale (QgsDistanceArea) restituendo valori in m² / m. "
+            "Selezionare <i>Mai</i> per forzare la misura planare nelle unità del CRS.\n\n"
             "Compatibile con il Processing Toolbox, il modellatore grafico e PyQGIS headless."
         )
 
@@ -225,6 +236,18 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 self.NATURAL_SORT,
                 "Ordinamento naturale – Natural Sort (solo per criterio attributo/espressione)",
                 defaultValue=False,
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterEnum(
+                self.GEODESIC,
+                "Modalità di misura geodetica (per area/lunghezza/distanza)",
+                options=[
+                    "Automatica – geodetica su CRS geografico (consigliato)",
+                    "Sempre geodetica",
+                    "Mai (misura planare nelle unità del CRS)",
+                ],
+                defaultValue=0,
             )
         )
         param_ref = QgsProcessingParameterMapLayer(
@@ -320,13 +343,17 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     # ──────────────────────────────────────────────────────────────────────────
 
     def _run_multi(self, parameters, context, feedback, layer, features,
-                   primary_key, sec_key, ascending, nulls_last, natural_sort):
+                   primary_key, sec_key, ascending, nulls_last, natural_sort,
+                   geodesic_mode="auto"):
         """Esegue l'ordinamento gerarchico (primario + secondario) via sort_multi.
+
+        Args:
+            geodesic_mode (str): modalità geodetica ("auto" | "always" | "never").
 
         Returns:
             tuple[list, list, list]: (feature ordinate, valori primario, escluse=[]).
         """
-        from .geosort_core import sort_multi
+        from .geosort_core import sort_multi, build_distance_area, should_build_distance_area
 
         primary_field = self.parameterAsString(parameters, self.ATTRIBUTE_FIELD, context)
         primary_expr = self.parameterAsExpression(parameters, "EXPRESSION", context)
@@ -357,10 +384,16 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             sec_key, sec_field, sec_expr, sec_asc, nulls_last, natural_sort
         )
 
+        # Costruisce il misuratore ellissoidale se almeno un criterio richiede geodesica
+        crs = layer.crs()
+        da = None
+        if should_build_distance_area(crs, geodesic_mode):
+            da = build_distance_area(crs, context.transformContext())
+
         feedback.pushInfo("GeoSort: ordinamento multi-criterio (primario + secondario).")
         try:
             sorted_feats, values = sort_multi(
-                features, [primary_spec, secondary_spec], layer
+                features, [primary_spec, secondary_spec], layer, distance_area=da
             )
         except ValueError as exc:
             raise QgsProcessingException(str(exc))
@@ -374,6 +407,9 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             sort_by_line_position,
             sort_by_line_distance,
             _infer_field_type,
+            build_distance_area,
+            resolve_geodesic,
+            geographic_crs_warning,
         )
 
         layer = self.parameterAsVectorLayer(parameters, self.INPUT, context)
@@ -386,6 +422,8 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         nulls_last = self.parameterAsBoolean(parameters, self.NULLS_LAST, context)
         natural_sort = self.parameterAsBoolean(parameters, self.NATURAL_SORT, context)
         add_value = self.parameterAsBoolean(parameters, self.ADD_VALUE_FIELD, context)
+        geodesic_mode = _GEODESIC_MODES[self.parameterAsEnum(parameters, self.GEODESIC, context)]
+        crs = layer.crs()
 
         feedback.setProgressText("Caricamento feature...")
         features = list(layer.getFeatures())
@@ -414,7 +452,13 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             sorted_feats, values, excluded = self._run_multi(
                 parameters, context, feedback, layer, features,
                 criterion, sec_key, ascending, nulls_last, natural_sort,
+                geodesic_mode=geodesic_mode,
             )
+            # Avviso geodetico sul criterio primario (se pertinente)
+            applied = resolve_geodesic(crs, criterion, geodesic_mode)
+            msg = geographic_crs_warning(crs, criterion, applied)
+            if msg:
+                feedback.pushWarning("GeoSort: " + msg)
 
         elif criterion == "attribute":
             field = self.parameterAsString(parameters, self.ATTRIBUTE_FIELD, context)
@@ -434,8 +478,16 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             }
             axis = axis_map[criterion]
             ref_point = QgsPointXY(0, 0) if axis == "dist" else None
+            # Geodesica solo per centroid_dist (distanza euclidea sull'ellissoide)
+            da = None
+            if resolve_geodesic(crs, criterion, geodesic_mode):
+                da = build_distance_area(crs, context.transformContext())
+            msg = geographic_crs_warning(crs, criterion, da is not None)
+            if msg:
+                feedback.pushWarning("GeoSort: " + msg)
             sorted_feats, values = sort_by_centroid(
-                features, axis=axis, ascending=ascending, ref_point=ref_point
+                features, axis=axis, ascending=ascending, ref_point=ref_point,
+                distance_area=da,
             )
             excluded = []
 
@@ -473,8 +525,14 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             dist_mode_keys = ["centroid", "element"]
             dist_mode_idx = self.parameterAsEnum(parameters, "LINE_DISTANCE_MODE", context)
             dist_mode = dist_mode_keys[dist_mode_idx]
+            da = None
+            if resolve_geodesic(crs, criterion, geodesic_mode):
+                da = build_distance_area(crs, context.transformContext())
+            msg = geographic_crs_warning(crs, criterion, da is not None)
+            if msg:
+                feedback.pushWarning("GeoSort: " + msg)
             sorted_feats, values = sort_by_line_distance(
-                features, line_geom, ascending, mode=dist_mode
+                features, line_geom, ascending, mode=dist_mode, distance_area=da
             )
             excluded = []
 
@@ -498,10 +556,16 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             excluded = []
 
         else:
-            # Tutti i criteri geometrici
+            # Tutti i criteri geometrici (area, perimetro, lunghezza, n_vertices, bbox_*)
+            da = None
+            if resolve_geodesic(crs, criterion, geodesic_mode):
+                da = build_distance_area(crs, context.transformContext())
+            msg = geographic_crs_warning(crs, criterion, da is not None)
+            if msg:
+                feedback.pushWarning("GeoSort: " + msg)
             try:
                 sorted_feats, values = sort_by_geometry_property(
-                    features, criterion, ascending
+                    features, criterion, ascending, distance_area=da
                 )
             except ValueError as exc:
                 raise QgsProcessingException(str(exc))

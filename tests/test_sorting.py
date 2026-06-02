@@ -1408,6 +1408,368 @@ class TestSortMulti(unittest.TestCase):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Misura geodetica: mock e funzioni standalone (replica di geosort_core)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Criteri che ammettono misura geodetica (su ellissoide)
+_GEODESIC_CRITERIA = {"area", "perimeter", "length", "centroid_dist", "line_distance"}
+
+
+class MockCrs:
+    """Mock minimale di QgsCoordinateReferenceSystem."""
+    def __init__(self, geographic: bool):
+        self._geographic = geographic
+
+    def isGeographic(self) -> bool:
+        return self._geographic
+
+
+def _resolve_geodesic(crs, criterion: str, mode: str) -> bool:
+    """Replica standalone di geosort_core.resolve_geodesic.
+
+    Decide se usare la misura geodetica (ellissoide) per il criterio dato.
+
+    Args:
+        crs: None oppure oggetto con metodo .isGeographic()
+        criterion: stringa criterio (es. "area", "bbox_area", "attribute", ...)
+        mode: "auto" | "always" | "never"
+    Returns:
+        True se occorre misurare sul l'ellissoide, False altrimenti.
+    """
+    if mode == "never":
+        return False
+    if criterion not in _GEODESIC_CRITERIA:
+        return False
+    if mode == "always":
+        return True
+    # mode == "auto"
+    return bool(crs is not None and crs.isGeographic())
+
+
+def _should_build_distance_area(crs, mode: str) -> bool:
+    """Replica standalone di geosort_core.should_build_distance_area.
+
+    Decide se è necessario istanziare un QgsDistanceArea.
+
+    Args:
+        crs: None oppure oggetto con metodo .isGeographic()
+        mode: "auto" | "always" | "never"
+    Returns:
+        True se occorre costruire il distance_area, False altrimenti.
+    """
+    if mode == "never":
+        return False
+    if mode == "always":
+        return True
+    # mode == "auto"
+    return bool(crs is not None and crs.isGeographic())
+
+
+class MockDistanceArea:
+    """Mock di QgsDistanceArea che restituisce valori sentinel fissi.
+
+    measureArea / measurePerimeter / measureLength restituiscono 999.0
+    measureLine (distanza da punto a punto) restituisce 888.0
+    """
+    AREA_SENTINEL = 999.0
+    PERIMETER_SENTINEL = 999.0
+    LENGTH_SENTINEL = 999.0
+    LINE_SENTINEL = 888.0
+
+    def measureArea(self, geom):
+        return self.AREA_SENTINEL
+
+    def measurePerimeter(self, geom):
+        return self.PERIMETER_SENTINEL
+
+    def measureLength(self, geom):
+        return self.LENGTH_SENTINEL
+
+    def measureLine(self, pt1, pt2):
+        return self.LINE_SENTINEL
+
+
+def _geom_value(geom, criterion: str, distance_area=None):
+    """Replica standalone della parte metrica di geosort_core._geom_value.
+
+    Se distance_area è fornito (geodetico), usa i suoi metodi;
+    altrimenti usa le misure planari del MockGeometry.
+
+    Criteri supportati: "area", "perimeter", "length".
+    """
+    if criterion == "area":
+        if distance_area is not None:
+            return distance_area.measureArea(geom)
+        return geom.area()
+    if criterion == "perimeter":
+        if distance_area is not None:
+            return distance_area.measurePerimeter(geom)
+        return geom._length
+    if criterion == "length":
+        if distance_area is not None:
+            return distance_area.measureLength(geom)
+        return geom._length
+    raise ValueError(f"Criterio non gestito: {criterion!r}")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Test: resolve_geodesic – tabella decisionale
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestResolveGeodesic(unittest.TestCase):
+    """Verifica la tabella decisionale di resolve_geodesic."""
+
+    def _geo(self):
+        return MockCrs(geographic=True)
+
+    def _proj(self):
+        return MockCrs(geographic=False)
+
+    # ── mode="auto" ──────────────────────────────────────────────────────────
+
+    def test_auto_geographic_area_true(self):
+        self.assertTrue(_resolve_geodesic(self._geo(), "area", "auto"))
+
+    def test_auto_geographic_perimeter_true(self):
+        self.assertTrue(_resolve_geodesic(self._geo(), "perimeter", "auto"))
+
+    def test_auto_geographic_length_true(self):
+        self.assertTrue(_resolve_geodesic(self._geo(), "length", "auto"))
+
+    def test_auto_geographic_centroid_dist_true(self):
+        self.assertTrue(_resolve_geodesic(self._geo(), "centroid_dist", "auto"))
+
+    def test_auto_geographic_line_distance_true(self):
+        self.assertTrue(_resolve_geodesic(self._geo(), "line_distance", "auto"))
+
+    def test_auto_projected_area_false(self):
+        self.assertFalse(_resolve_geodesic(self._proj(), "area", "auto"))
+
+    def test_auto_projected_length_false(self):
+        self.assertFalse(_resolve_geodesic(self._proj(), "length", "auto"))
+
+    def test_auto_none_crs_false(self):
+        self.assertFalse(_resolve_geodesic(None, "area", "auto"))
+
+    def test_auto_geographic_bbox_area_false(self):
+        # bbox_area non è in GEODESIC_CRITERIA → sempre planare
+        self.assertFalse(_resolve_geodesic(self._geo(), "bbox_area", "auto"))
+
+    def test_auto_geographic_attribute_false(self):
+        self.assertFalse(_resolve_geodesic(self._geo(), "attribute", "auto"))
+
+    def test_auto_geographic_n_vertices_false(self):
+        self.assertFalse(_resolve_geodesic(self._geo(), "n_vertices", "auto"))
+
+    def test_auto_geographic_expression_false(self):
+        self.assertFalse(_resolve_geodesic(self._geo(), "expression", "auto"))
+
+    # ── mode="always" ────────────────────────────────────────────────────────
+
+    def test_always_projected_length_true(self):
+        self.assertTrue(_resolve_geodesic(self._proj(), "length", "always"))
+
+    def test_always_projected_area_true(self):
+        self.assertTrue(_resolve_geodesic(self._proj(), "area", "always"))
+
+    def test_always_none_crs_area_true(self):
+        self.assertTrue(_resolve_geodesic(None, "area", "always"))
+
+    def test_always_geographic_area_true(self):
+        self.assertTrue(_resolve_geodesic(self._geo(), "area", "always"))
+
+    def test_always_bbox_area_false(self):
+        # bbox_area non è in GEODESIC_CRITERIA → anche con always rimane False
+        self.assertFalse(_resolve_geodesic(self._proj(), "bbox_area", "always"))
+
+    def test_always_attribute_false(self):
+        self.assertFalse(_resolve_geodesic(self._geo(), "attribute", "always"))
+
+    # ── mode="never" ─────────────────────────────────────────────────────────
+
+    def test_never_geographic_area_false(self):
+        self.assertFalse(_resolve_geodesic(self._geo(), "area", "never"))
+
+    def test_never_projected_area_false(self):
+        self.assertFalse(_resolve_geodesic(self._proj(), "area", "never"))
+
+    def test_never_none_crs_false(self):
+        self.assertFalse(_resolve_geodesic(None, "area", "never"))
+
+    def test_never_geographic_length_false(self):
+        self.assertFalse(_resolve_geodesic(self._geo(), "length", "never"))
+
+    # ── casi di confine ───────────────────────────────────────────────────────
+
+    def test_geodesic_criteria_set_complete(self):
+        expected = {"area", "perimeter", "length", "centroid_dist", "line_distance"}
+        self.assertEqual(_GEODESIC_CRITERIA, expected)
+
+    def test_non_geodesic_criteria_are_planare(self):
+        """Tutti i criteri non geodetici restituiscono False con auto+geo."""
+        non_geodesic = ["bbox_width", "bbox_height", "bbox_area", "attribute",
+                        "expression", "n_vertices", "centroid_x", "centroid_y"]
+        crs = self._geo()
+        for c in non_geodesic:
+            self.assertFalse(
+                _resolve_geodesic(crs, c, "auto"),
+                msg=f"Criterio {c!r} dovrebbe essere planare"
+            )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Test: should_build_distance_area – tabella decisionale
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestShouldBuildDistanceArea(unittest.TestCase):
+    """Verifica la tabella decisionale di should_build_distance_area."""
+
+    def _geo(self):
+        return MockCrs(geographic=True)
+
+    def _proj(self):
+        return MockCrs(geographic=False)
+
+    # ── mode="never" ─────────────────────────────────────────────────────────
+
+    def test_never_geographic_false(self):
+        self.assertFalse(_should_build_distance_area(self._geo(), "never"))
+
+    def test_never_projected_false(self):
+        self.assertFalse(_should_build_distance_area(self._proj(), "never"))
+
+    def test_never_none_crs_false(self):
+        self.assertFalse(_should_build_distance_area(None, "never"))
+
+    # ── mode="always" ────────────────────────────────────────────────────────
+
+    def test_always_geographic_true(self):
+        self.assertTrue(_should_build_distance_area(self._geo(), "always"))
+
+    def test_always_projected_true(self):
+        self.assertTrue(_should_build_distance_area(self._proj(), "always"))
+
+    def test_always_none_crs_true(self):
+        self.assertTrue(_should_build_distance_area(None, "always"))
+
+    # ── mode="auto" ──────────────────────────────────────────────────────────
+
+    def test_auto_geographic_true(self):
+        self.assertTrue(_should_build_distance_area(self._geo(), "auto"))
+
+    def test_auto_projected_false(self):
+        self.assertFalse(_should_build_distance_area(self._proj(), "auto"))
+
+    def test_auto_none_crs_false(self):
+        self.assertFalse(_should_build_distance_area(None, "auto"))
+
+    # ── coerenza con resolve_geodesic ─────────────────────────────────────────
+
+    def test_build_needed_iff_any_geodesic_criterion_could_fire(self):
+        """Se build=True almeno un criterio geodetico può essere attivo."""
+        for mode in ("auto", "always", "never"):
+            for crs in (self._geo(), self._proj(), None):
+                build = _should_build_distance_area(crs, mode)
+                # Se build è True, resolve_geodesic deve essere True per almeno
+                # un criterio geodetico
+                any_geodesic = any(
+                    _resolve_geodesic(crs, c, mode) for c in _GEODESIC_CRITERIA
+                )
+                if build:
+                    self.assertTrue(
+                        any_geodesic,
+                        msg=f"build=True ma nessun criterio geodetico attivo (crs={'geo' if crs and crs.isGeographic() else 'proj/None'}, mode={mode!r})"
+                    )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Test: percorso di misura geodetica con MockDistanceArea
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestGeodesicMeasurementPath(unittest.TestCase):
+    """Verifica che con distance_area fornito si prenda il percorso geodetico."""
+
+    def setUp(self):
+        self.da = MockDistanceArea()
+        # Feature poligonale con area planare 100
+        self.poly = MockGeometry("polygon", area=100.0, length=40.0)
+        # Feature lineare con lunghezza planare 50
+        self.line = MockGeometry("line", length=50.0)
+
+    # ── area ──────────────────────────────────────────────────────────────────
+
+    def test_area_with_distance_area_returns_geodesic_sentinel(self):
+        val = _geom_value(self.poly, "area", distance_area=self.da)
+        self.assertEqual(val, MockDistanceArea.AREA_SENTINEL)
+
+    def test_area_without_distance_area_returns_planar(self):
+        val = _geom_value(self.poly, "area", distance_area=None)
+        self.assertEqual(val, 100.0)
+
+    def test_area_geodesic_differs_from_planar(self):
+        geodesic = _geom_value(self.poly, "area", distance_area=self.da)
+        planar = _geom_value(self.poly, "area", distance_area=None)
+        self.assertNotEqual(geodesic, planar)
+
+    # ── perimeter ────────────────────────────────────────────────────────────
+
+    def test_perimeter_with_distance_area_returns_geodesic_sentinel(self):
+        val = _geom_value(self.poly, "perimeter", distance_area=self.da)
+        self.assertEqual(val, MockDistanceArea.PERIMETER_SENTINEL)
+
+    def test_perimeter_without_distance_area_returns_planar(self):
+        val = _geom_value(self.poly, "perimeter", distance_area=None)
+        self.assertEqual(val, 40.0)  # poly._length
+
+    def test_perimeter_geodesic_differs_from_planar(self):
+        geodesic = _geom_value(self.poly, "perimeter", distance_area=self.da)
+        planar = _geom_value(self.poly, "perimeter", distance_area=None)
+        self.assertNotEqual(geodesic, planar)
+
+    # ── length ────────────────────────────────────────────────────────────────
+
+    def test_length_with_distance_area_returns_geodesic_sentinel(self):
+        val = _geom_value(self.line, "length", distance_area=self.da)
+        self.assertEqual(val, MockDistanceArea.LENGTH_SENTINEL)
+
+    def test_length_without_distance_area_returns_planar(self):
+        val = _geom_value(self.line, "length", distance_area=None)
+        self.assertEqual(val, 50.0)
+
+    def test_length_geodesic_differs_from_planar(self):
+        geodesic = _geom_value(self.line, "length", distance_area=self.da)
+        planar = _geom_value(self.line, "length", distance_area=None)
+        self.assertNotEqual(geodesic, planar)
+
+    # ── misura linea (distanza punto-punto) ──────────────────────────────────
+
+    def test_measure_line_sentinel(self):
+        """measureLine restituisce il sentinel geodetico."""
+        pt_a = MockPoint(0.0, 0.0)
+        pt_b = MockPoint(1.0, 1.0)
+        val = self.da.measureLine(pt_a, pt_b)
+        self.assertEqual(val, MockDistanceArea.LINE_SENTINEL)
+
+    # ── ordinamento coerente ──────────────────────────────────────────────────
+
+    def test_geodesic_ordering_preserved_via_sentinel(self):
+        """Con distance_area, tutti i poligoni ricevono lo stesso valore sentinel;
+        la funzione di sort ritorna i valori — il test verifica che il valore
+        geodesico sia quello del mock e non quello planare."""
+        polygons = [
+            MockGeometry("polygon", area=300.0),
+            MockGeometry("polygon", area=100.0),
+            MockGeometry("polygon", area=200.0),
+        ]
+        values_geo = [_geom_value(g, "area", distance_area=self.da) for g in polygons]
+        values_plan = [_geom_value(g, "area", distance_area=None) for g in polygons]
+        # Con mock geodetico, tutti i valori sono il sentinel
+        self.assertTrue(all(v == MockDistanceArea.AREA_SENTINEL for v in values_geo))
+        # Con planare, i valori differiscono
+        self.assertEqual(sorted(values_plan), [100.0, 200.0, 300.0])
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Entry point
 # ──────────────────────────────────────────────────────────────────────────────
 

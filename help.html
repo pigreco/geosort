@@ -103,9 +103,37 @@ Ogni livello ha la propria direzione (ascendente/discendente).</p>
       oppure espressioni di concatenazione). Lascialo disattivato per valori puramente
       numerici o quando l'ordine lessicografico è quello desiderato.</li>
 </ul>
-<div class="warn">
-  <b>CRS geografico</b>: i calcoli di area e lunghezza sono in gradi².
-  Si consiglia la riproiezione in un CRS proiettato prima di applicare il criterio.
+<h3>CRS geografico e misura geodetica</h3>
+<p>
+Con un CRS in gradi (es. EPSG:4326) le misure planari di area e lunghezza sono espresse
+in gradi² o gradi — valori metricamente privi di significato e che possono alterare
+l'ordinamento delle feature in base alla latitudine.
+</p>
+<p>
+GeoSort calcola automaticamente <b>area, perimetro, lunghezza e distanze sul
+l'ellissoide</b> (misura geodetica, in m² o m) quando rileva un CRS geografico.
+Il comportamento è controllato dalla modalità di misura:
+</p>
+<ul>
+  <li><b>Auto</b> (default) – misura geodetica attivata automaticamente se il CRS è
+      in gradi; su CRS proiettati restano le misure planari. Un avviso non bloccante
+      segnala l'attivazione automatica.</li>
+  <li><b>Sempre</b> – misura geodetica sempre abilitata, indipendentemente dal CRS.</li>
+  <li><b>Mai</b> – misura sempre planare, indipendentemente dal CRS.</li>
+</ul>
+<p>Criteri con misura geodetica:</p>
+<ul>
+  <li>Area poligono</li>
+  <li>Perimetro poligono</li>
+  <li>Lunghezza linea</li>
+  <li>Distanza centroide da punto di riferimento</li>
+  <li>Distanza dalla linea di riferimento</li>
+</ul>
+<div class="tip">
+  I criteri <b>bounding box</b> (larghezza, altezza, area, Xmin, Ymin) e
+  <b>posizione lungo linea</b> restano sempre planari: il bounding box è un concetto
+  nelle coordinate native e la posizione lungo linea è monotona e invariante
+  rispetto alla scala.
 </div>
 <div class="tip">
   <b>Geometrie NULL o tipi misti:</b> le feature prive di geometria (o con un tipo non

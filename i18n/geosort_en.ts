@@ -3,6 +3,10 @@
   <context>
     <name>GeoSort</name>
     <message>
+      <source> ⚠ CRS geografico: GeoSort applica automaticamente la misura</source>
+      <translation> ⚠ Geographic CRS: GeoSort automatically applies ellipsoidal (geodesic) measurement</translation>
+    </message>
+    <message>
       <source>(nessuno)</source>
       <translation>(none)</translation>
     </message>
@@ -165,6 +169,22 @@
       <translation>Length (lines)</translation>
     </message>
     <message>
+      <source>Misura geodetica: automatica (CRS geografico)</source>
+      <translation>Geodesic measurement: automatic (geographic CRS)</translation>
+    </message>
+    <message>
+      <source>Misura geodetica: mai (planare)</source>
+      <translation>Geodesic measurement: never (planar)</translation>
+    </message>
+    <message>
+      <source>Misura geodetica: sempre</source>
+      <translation>Geodesic measurement: always</translation>
+    </message>
+    <message>
+      <source>Misura su CRS geografico:</source>
+      <translation>Geographic CRS measurement:</translation>
+    </message>
+    <message>
       <source>Numero di vertici</source>
       <translation>Number of vertices</translation>
     </message>
@@ -249,6 +269,12 @@
     <message>
       <source>Spezza i pareggi del criterio primario (es. primario = Regione, secondario = Area). Non disponibile se il criterio primario è basato su linea.</source>
       <translation>Breaks ties of the primary criterion (e.g. primary = Region, secondary = Area). Not available when the primary criterion is line-based.</translation>
+    </message>
+    <message>
+      <source>Su CRS geografico (gradi, es. EPSG:4326), area/lunghezza/distanze
+</source>
+      <translation>On a geographic CRS (degrees, e.g. EPSG:4326), area/length/distances
+</translation>
     </message>
     <message>
       <source>Valore criterio</source>
