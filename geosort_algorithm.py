@@ -27,7 +27,7 @@ from qgis.core import (
     Qgis,
     NULL,
 )
-from qgis.PyQt.QtCore import QMetaType
+from qgis.PyQt.QtCore import QMetaType, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 
 
@@ -146,11 +146,15 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     # Metadati algoritmo
     # ──────────────────────────────────────────────────────────────────────────
 
+    def tr(self, text):
+        """Traduce una stringa nel contesto 'GeoSort'."""
+        return QCoreApplication.translate("GeoSort", text)
+
     def name(self):
         return "geosort_sort"
 
     def displayName(self):
-        return "Ordina feature (GeoSort)"
+        return self.tr("Ordina feature (GeoSort)")
 
     def group(self):
         return "GeoSort"
@@ -159,7 +163,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         return "geosort"
 
     def shortHelpString(self):
-        return (
+        return self.tr(
             "Ordina le feature di un layer vettoriale per criteri geometrici o attributivi "
             "e aggiunge il campo <b>sort_order</b> (numero progressivo, 1 = prima feature).\n\n"
             "Criteri disponibili: attributo tabellare, coordinate del centroide, "
@@ -201,21 +205,21 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.INPUT,
-                "Layer di input",
+                self.tr("Layer di input"),
                 types=[QgsProcessing.SourceType.TypeVectorAnyGeometry],
             )
         )
         self.addParameter(
             QgsProcessingParameterEnum(
                 self.CRITERION,
-                "Criterio di ordinamento",
-                options=self._CRITERIA_LABELS,
+                self.tr("Criterio di ordinamento"),
+                options=[self.tr(s) for s in self._CRITERIA_LABELS],
                 defaultValue=0,
             )
         )
         param_field = QgsProcessingParameterField(
             self.ATTRIBUTE_FIELD,
-            "Campo attributo (solo per criterio 'Attributo tabellare')",
+            self.tr("Campo attributo (solo per criterio 'Attributo tabellare')"),
             parentLayerParameterName=self.INPUT,
             optional=True,
         )
@@ -223,38 +227,38 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
 
         self.addParameter(
             QgsProcessingParameterBoolean(
-                self.DIRECTION, "Ordine ascendente", defaultValue=True
+                self.DIRECTION, self.tr("Ordine ascendente"), defaultValue=True
             )
         )
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.NULLS_LAST,
-                "Valori NULL in fondo (solo per criterio attributo)",
+                self.tr("Valori NULL in fondo (solo per criterio attributo)"),
                 defaultValue=True,
             )
         )
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.NATURAL_SORT,
-                "Ordinamento naturale – Natural Sort (solo per criterio attributo/espressione)",
+                self.tr("Ordinamento naturale – Natural Sort (solo per criterio attributo/espressione)"),
                 defaultValue=False,
             )
         )
         self.addParameter(
             QgsProcessingParameterEnum(
                 self.GEODESIC,
-                "Modalità di misura geodetica (per area/lunghezza/distanza)",
+                self.tr("Modalità di misura geodetica (per area/lunghezza/distanza)"),
                 options=[
-                    "Automatica – geodetica su CRS geografico (consigliato)",
-                    "Sempre geodetica",
-                    "Mai (misura planare nelle unità del CRS)",
+                    self.tr("Automatica – geodetica su CRS geografico (consigliato)"),
+                    self.tr("Sempre geodetica"),
+                    self.tr("Mai (misura planare nelle unità del CRS)"),
                 ],
                 defaultValue=0,
             )
         )
         param_ref = QgsProcessingParameterFeatureSource(
             self.REF_LAYER,
-            "Layer linea di riferimento (solo per criteri 'Posizione/Distanza dalla linea')",
+            self.tr("Layer linea di riferimento (solo per criteri 'Posizione/Distanza dalla linea')"),
             types=[QgsProcessing.SourceType.TypeVectorLine],
             optional=True,
         )
@@ -263,11 +267,11 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterEnum(
                 "LINE_MODE",
-                "Modalità di calcolo – Posizione lungo linea",
+                self.tr("Modalità di calcolo – Posizione lungo linea"),
                 options=[
-                    "Proiezione centroide  –  tutte le feature",
-                    "Solo intersecanti –  proiezione centroide",
-                    "Solo intersecanti –  primo punto di intersezione",
+                    self.tr("Proiezione centroide  –  tutte le feature"),
+                    self.tr("Solo intersecanti –  proiezione centroide"),
+                    self.tr("Solo intersecanti –  primo punto di intersezione"),
                 ],
                 defaultValue=0,
             )
@@ -276,10 +280,10 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterEnum(
                 "LINE_DISTANCE_MODE",
-                "Modalità di calcolo – Distanza dalla linea",
+                self.tr("Modalità di calcolo – Distanza dalla linea"),
                 options=[
-                    "Distanza dal centroide",
-                    "Distanza dall'elemento",
+                    self.tr("Distanza dal centroide"),
+                    self.tr("Distanza dall'elemento"),
                 ],
                 defaultValue=1,
             )
@@ -288,7 +292,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterExpression(
                 "EXPRESSION",
-                "Espressione QGIS (solo per criterio 'Espressione QGIS')",
+                self.tr("Espressione QGIS (solo per criterio 'Espressione QGIS')"),
                 defaultValue="",
                 parentLayerParameterName=self.INPUT,
                 optional=True,
@@ -299,15 +303,15 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterEnum(
                 self.SECONDARY_CRITERION,
-                "Criterio secondario per i pareggi (opzionale)",
-                options=self._SECONDARY_LABELS,
+                self.tr("Criterio secondario per i pareggi (opzionale)"),
+                options=[self.tr(s) for s in self._SECONDARY_LABELS],
                 defaultValue=0,
             )
         )
         self.addParameter(
             QgsProcessingParameterField(
                 self.SECONDARY_FIELD,
-                "Campo del criterio secondario (solo se 'Attributo tabellare')",
+                self.tr("Campo del criterio secondario (solo se 'Attributo tabellare')"),
                 parentLayerParameterName=self.INPUT,
                 optional=True,
             )
@@ -316,7 +320,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterExpression(
                 self.SECONDARY_EXPRESSION,
-                "Espressione del criterio secondario (solo se 'Espressione QGIS')",
+                self.tr("Espressione del criterio secondario (solo se 'Espressione QGIS')"),
                 defaultValue="",
                 parentLayerParameterName=self.INPUT,
                 optional=True,
@@ -325,7 +329,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.SECONDARY_DIRECTION,
-                "Criterio secondario: ordine ascendente",
+                self.tr("Criterio secondario: ordine ascendente"),
                 defaultValue=True,
             )
         )
@@ -333,12 +337,12 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.ADD_VALUE_FIELD,
-                "Aggiungi campo con il valore del criterio (sort_value)",
+                self.tr("Aggiungi campo con il valore del criterio (sort_value)"),
                 defaultValue=False,
             )
         )
         self.addParameter(
-            QgsProcessingParameterFeatureSink(self.OUTPUT, "Layer ordinato")
+            QgsProcessingParameterFeatureSink(self.OUTPUT, self.tr("Layer ordinato"))
         )
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -365,11 +369,11 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         primary_expr = self.parameterAsExpression(parameters, "EXPRESSION", context)
         if primary_key == "attribute" and not primary_field:
             raise QgsProcessingException(
-                "Specificare un campo attributo per il criterio primario."
+                self.tr("Specificare un campo attributo per il criterio primario.")
             )
         if primary_key == "expression" and not (primary_expr and primary_expr.strip()):
             raise QgsProcessingException(
-                "Specificare un'espressione per il criterio primario."
+                self.tr("Specificare un'espressione per il criterio primario.")
             )
         primary_spec = _spec_from(
             primary_key, primary_field, primary_expr, ascending, nulls_last, natural_sort
@@ -380,11 +384,11 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         sec_asc = self.parameterAsBoolean(parameters, self.SECONDARY_DIRECTION, context)
         if sec_key == "attribute" and not sec_field:
             raise QgsProcessingException(
-                "Specificare un campo per il criterio secondario."
+                self.tr("Specificare un campo per il criterio secondario.")
             )
         if sec_key == "expression" and not (sec_expr and sec_expr.strip()):
             raise QgsProcessingException(
-                "Specificare un'espressione per il criterio secondario."
+                self.tr("Specificare un'espressione per il criterio secondario.")
             )
         secondary_spec = _spec_from(
             sec_key, sec_field, sec_expr, sec_asc, nulls_last, natural_sort
@@ -395,7 +399,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         if should_build_distance_area(crs, geodesic_mode):
             da = build_distance_area(crs, context.transformContext())
 
-        feedback.pushInfo("GeoSort: ordinamento multi-criterio (primario + secondario).")
+        feedback.pushInfo(self.tr("GeoSort: ordinamento multi-criterio (primario + secondario)."))
         try:
             sorted_feats, values = sort_multi(
                 features, [primary_spec, secondary_spec], expr_layer, distance_area=da
@@ -420,7 +424,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
 
         source = self.parameterAsSource(parameters, self.INPUT, context)
         if source is None:
-            raise QgsProcessingException("Layer di input non trovato.")
+            raise QgsProcessingException(self.tr("Layer di input non trovato."))
         # Layer di progetto corrispondente (se esiste): serve solo al contesto
         # delle espressioni; feature, campi e CRS arrivano dalla sorgente.
         expr_layer = self.parameterAsVectorLayer(parameters, self.INPUT, context)
@@ -435,17 +439,17 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         crs = source.sourceCrs()
         source_fields = source.fields()
 
-        feedback.setProgressText("Caricamento feature...")
+        feedback.setProgressText(self.tr("Caricamento feature..."))
         features = list(source.getFeatures())
         if not features:
-            raise QgsProcessingException("Il layer non contiene feature.")
+            raise QgsProcessingException(self.tr("Il layer non contiene feature."))
 
         feedback.setProgress(10)
         if feedback.isCanceled():
             return {}
 
         # ── Ordinamento ──────────────────────────────────────────────────────
-        feedback.setProgressText("Ordinamento in corso...")
+        feedback.setProgressText(self.tr("Ordinamento in corso..."))
         values = []
 
         # Criterio secondario (tie-break) → ordinamento multi-criterio
@@ -453,10 +457,10 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         sec_key = self._SECONDARY_KEYS[sec_idx]
         multi_active = sec_key is not None and criterion in self._MULTI_PRIMARY_KEYS
         if sec_key is not None and not multi_active:
-            feedback.pushWarning(
+            feedback.pushWarning(self.tr(
                 "GeoSort: criterio secondario ignorato perché il criterio primario "
                 "è basato su una linea di riferimento."
-            )
+            ))
 
         if multi_active:
             sorted_feats, values, excluded = self._run_multi(
@@ -474,7 +478,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             field = self.parameterAsString(parameters, self.ATTRIBUTE_FIELD, context)
             if not field:
                 raise QgsProcessingException(
-                    "Specificare un campo attributo per il criterio 'Attributo tabellare'."
+                    self.tr("Specificare un campo attributo per il criterio 'Attributo tabellare'.")
                 )
             sorted_feats = sort_by_attribute(features, field, ascending, nulls_last, natural_sort=natural_sort)
             values = [f[field] for f in sorted_feats]
@@ -505,11 +509,11 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             ref_source = self.parameterAsSource(parameters, self.REF_LAYER, context)
             if ref_source is None:
                 raise QgsProcessingException(
-                    "Specificare un layer di riferimento per il criterio 'Posizione lungo linea'."
+                    self.tr("Specificare un layer di riferimento per il criterio 'Posizione lungo linea'.")
                 )
             ref_feats = list(ref_source.getFeatures())
             if not ref_feats:
-                raise QgsProcessingException("Il layer di riferimento non contiene feature.")
+                raise QgsProcessingException(self.tr("Il layer di riferimento non contiene feature."))
             line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
             line_mode_keys = ["centroid_projection", "intersecting_projection", "intersecting_first_pt"]
             line_mode_idx = self.parameterAsEnum(parameters, "LINE_MODE", context)
@@ -518,19 +522,19 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 features, line_geom, ascending, mode=line_mode
             )
             if excluded:
-                feedback.pushWarning(
-                    f"GeoSort: {len(excluded)} feature escluse perché non intersecano la linea."
-                )
+                feedback.pushWarning(self.tr(
+                    "GeoSort: {n} feature escluse perché non intersecano la linea."
+                ).format(n=len(excluded)))
 
         elif criterion == "line_distance":
             ref_source = self.parameterAsSource(parameters, self.REF_LAYER, context)
             if ref_source is None:
                 raise QgsProcessingException(
-                    "Specificare un layer di riferimento per il criterio 'Distanza dalla linea'."
+                    self.tr("Specificare un layer di riferimento per il criterio 'Distanza dalla linea'.")
                 )
             ref_feats = list(ref_source.getFeatures())
             if not ref_feats:
-                raise QgsProcessingException("Il layer di riferimento non contiene feature.")
+                raise QgsProcessingException(self.tr("Il layer di riferimento non contiene feature."))
             line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
             dist_mode_keys = ["centroid", "element"]
             dist_mode_idx = self.parameterAsEnum(parameters, "LINE_DISTANCE_MODE", context)
@@ -551,7 +555,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             expr_text = self.parameterAsExpression(parameters, "EXPRESSION", context)
             if not expr_text or not expr_text.strip():
                 raise QgsProcessingException(
-                    "Specificare un'espressione per il criterio 'Espressione QGIS'."
+                    self.tr("Specificare un'espressione per il criterio 'Espressione QGIS'.")
                 )
             try:
                 sorted_feats, values, warnings = sort_by_expression(
@@ -586,7 +590,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             return {}
 
         # ── Costruzione layer output ─────────────────────────────────────────
-        feedback.setProgressText("Scrittura output...")
+        feedback.setProgressText(self.tr("Scrittura output..."))
 
         out_fields = QgsFields()
         for field in source_fields:
@@ -606,7 +610,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             crs,
         )
         if sink is None:
-            raise QgsProcessingException("Impossibile creare il layer di output.")
+            raise QgsProcessingException(self.tr("Impossibile creare il layer di output."))
 
         total = len(sorted_feats)
         has_value_field = add_value and values

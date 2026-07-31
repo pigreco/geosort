@@ -28,7 +28,12 @@ from qgis.core import (
     Qgis,
     NULL,
 )
-from qgis.PyQt.QtCore import QMetaType, Qt
+from qgis.PyQt.QtCore import QMetaType, Qt, QCoreApplication
+
+
+def _tr(text):
+    """Traduce una stringa nel contesto 'GeoSort' (QtCore, nessuna dipendenza UI)."""
+    return QCoreApplication.translate("GeoSort", text)
 
 # Compatibilita Qt5/Qt6 per Qt.ISODate
 try:
@@ -173,23 +178,21 @@ def geographic_crs_warning(crs, criterion, applied_geodesic):
     authid = crs.authid() or "CRS geografico"
     ellipsoid = crs.ellipsoidAcronym() or "WGS84"
     if applied_geodesic:
-        return (
-            f"CRS geografico ({authid}): misura ellissoidica (geodetica) applicata "
-            f"automaticamente. I valori del criterio sono in metri/m² "
-            f"sull'ellissoide {ellipsoid}, non in gradi."
-        )
+        return _tr(
+            "CRS geografico ({authid}): misura ellissoidica (geodetica) applicata automaticamente. "
+            "I valori del criterio sono in metri/m² sull'ellissoide {ellipsoid}, non in gradi."
+        ).format(authid=authid, ellipsoid=ellipsoid)
     if criterion in GEODESIC_CRITERIA:
-        return (
-            f"CRS geografico ({authid}): i valori di '{criterion}' sono calcolati in "
-            f"gradi e l'ordinamento può risultare distorto alle diverse latitudini. "
-            f"Attiva la misura geodetica o riproietta in un CRS proiettato (metrico)."
-        )
+        return _tr(
+            "CRS geografico ({authid}): i valori di '{criterion}' sono calcolati in gradi "
+            "e l'ordinamento può risultare distorto alle diverse latitudini. "
+            "Attiva la misura geodetica o riproietta in un CRS proiettato (metrico)."
+        ).format(authid=authid, criterion=criterion)
     # bbox_* : nessun equivalente ellissoidico (concetto in coordinate native).
-    return (
-        f"CRS geografico ({authid}): '{criterion}' è calcolato in gradi (concetto "
-        f"planare in coordinate native). Per misure metriche riproietta in un CRS "
-        f"proiettato."
-    )
+    return _tr(
+        "CRS geografico ({authid}): '{criterion}' è calcolato in gradi (concetto planare "
+        "in coordinate native). Per misure metriche riproietta in un CRS proiettato."
+    ).format(authid=authid, criterion=criterion)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -383,8 +386,8 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
     expr = QgsExpression(expression_str)
     if expr.hasParserError():
         raise ValueError(
-            f"Espressione non valida: {expr.parserErrorString()}\n"
-            f"Espressione: {expression_str!r}"
+            _tr("Espressione non valida: {error}\nEspressione: {expr}")
+            .format(error=expr.parserErrorString(), expr=expression_str)
         )
 
     # Contesto base: variabili di progetto + campi del layer
@@ -525,21 +528,24 @@ def _geom_value(feature, criterion, distance_area=None):
     if criterion == "area":
         if geom_type != QgsWkbTypes.GeometryType.PolygonGeometry:
             raise ValueError(
-                f"Criterio 'area' richiede geometrie poligonali, trovato: {type_name}."
+                _tr("Criterio 'area' richiede geometrie poligonali, trovato: {type}.")
+                .format(type=type_name)
             )
         return distance_area.measureArea(geom) if distance_area else geom.area()
 
     elif criterion == "perimeter":
         if geom_type != QgsWkbTypes.GeometryType.PolygonGeometry:
             raise ValueError(
-                f"Criterio 'perimeter' richiede geometrie poligonali, trovato: {type_name}."
+                _tr("Criterio 'perimeter' richiede geometrie poligonali, trovato: {type}.")
+                .format(type=type_name)
             )
         return distance_area.measurePerimeter(geom) if distance_area else geom.length()
 
     elif criterion == "length":
         if geom_type != QgsWkbTypes.GeometryType.LineGeometry:
             raise ValueError(
-                f"Criterio 'length' richiede geometrie lineari, trovato: {type_name}."
+                _tr("Criterio 'length' richiede geometrie lineari, trovato: {type}.")
+                .format(type=type_name)
             )
         return distance_area.measureLength(geom) if distance_area else geom.length()
 
@@ -563,7 +569,7 @@ def _geom_value(feature, criterion, distance_area=None):
         return geom.boundingBox().yMinimum()
 
     else:
-        raise ValueError(f"Criterio sconosciuto: '{criterion}'.")
+        raise ValueError(_tr("Criterio sconosciuto: '{criterion}'.").format(criterion=criterion))
 
 
 def sort_by_geometry_property(features: List[QgsFeature], criterion: str, ascending: bool = True,
@@ -755,7 +761,7 @@ def sort_by_line_position(features, line_geometry, ascending=True,
         ValueError: se la geometria di riferimento è assente o vuota.
     """
     if _is_empty_geom(line_geometry):
-        raise ValueError("La geometria della linea di riferimento è assente o vuota.")
+        raise ValueError(_tr("La geometria della linea di riferimento è assente o vuota."))
 
     # Motore geometrico preparato sulla linea: i predicati di intersezione
     # ripetuti evitano di riconvertire la linea in GEOS a ogni feature
@@ -810,8 +816,9 @@ def sort_by_line_position(features, line_geometry, ascending=True,
             values.append(dist)
 
         else:
-            raise ValueError(f"Modalità sconosciuta: '{mode}'. "
-                             f"Valori ammessi: {list(LINE_MODES.keys())}")
+            raise ValueError(
+                _tr("Modalità sconosciuta: '{mode}'. Valori ammessi: {valid}")
+                .format(mode=mode, valid=list(LINE_MODES.keys())))
 
         if progress_callback and i % 50 == 0:
             progress_callback(i * 100.0 / total)
@@ -852,10 +859,11 @@ def sort_by_line_distance(features, line_geometry, ascending=True, mode="element
         ValueError: se la modalità non è valida o la linea di riferimento è vuota.
     """
     if mode not in LINE_DISTANCE_MODES:
-        raise ValueError(f"Modalità sconosciuta: '{mode}'. "
-                         f"Valori ammessi: {list(LINE_DISTANCE_MODES.keys())}")
+        raise ValueError(
+            _tr("Modalità sconosciuta: '{mode}'. Valori ammessi: {valid}")
+            .format(mode=mode, valid=list(LINE_DISTANCE_MODES.keys())))
     if _is_empty_geom(line_geometry):
-        raise ValueError("La geometria della linea di riferimento è assente o vuota.")
+        raise ValueError(_tr("La geometria della linea di riferimento è assente o vuota."))
 
     valid = []        # (dist, idx, feat) – idx stabilizza i pari-distanza
     invalid = []
@@ -939,7 +947,7 @@ def _numeric_extractor(key, spec, distance_area=None):
         line = spec.get("line_geometry")
         mode = spec.get("mode", "centroid_projection")
         if _is_empty_geom(line):
-            raise ValueError("Linea di riferimento assente o vuota.")
+            raise ValueError(_tr("Linea di riferimento assente o vuota."))
         line_engine = QgsGeometry.createGeometryEngine(line.constGet())
         line_engine.prepareGeometry()
         _locate = _make_line_locator(line, line_engine)
@@ -965,7 +973,7 @@ def _numeric_extractor(key, spec, distance_area=None):
         line = spec.get("line_geometry")
         mode = spec.get("mode", "element")
         if _is_empty_geom(line):
-            raise ValueError("Linea di riferimento assente o vuota.")
+            raise ValueError(_tr("Linea di riferimento assente o vuota."))
 
         def _ex(f):
             geom = f.geometry()
@@ -977,7 +985,7 @@ def _numeric_extractor(key, spec, distance_area=None):
             return src.distance(line)
         return _ex
 
-    raise ValueError(f"Criterio multi-livello sconosciuto: '{key}'.")
+    raise ValueError(_tr("Criterio multi-livello sconosciuto: '{key}'.").format(key=key))
 
 
 def _multi_level(features, spec, layer, distance_area=None):
@@ -1010,7 +1018,8 @@ def _multi_level(features, spec, layer, distance_area=None):
             expr = QgsExpression(spec["expression"])
             if expr.hasParserError():
                 raise ValueError(
-                    f"Espressione non valida: {expr.parserErrorString()}"
+                    _tr("Espressione non valida: {error}")
+                    .format(error=expr.parserErrorString())
                 )
             ctx = _expression_context(layer)
         field = spec.get("field")
