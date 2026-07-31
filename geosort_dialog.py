@@ -527,9 +527,10 @@ class GeoSortDialog(QDialog):
 
         # Se è solo il nome di un campo esistente, usa la combo (reset a campo semplice)
         layer_fields = [layer.fields().field(i).name() for i in range(layer.fields().count())] if layer else []
-        if expr_text.strip('"') in layer_fields and expr_text == f'"{expr_text.strip(chr(34))}"' or expr_text in layer_fields:
+        unquoted = expr_text.strip('"')
+        if unquoted in layer_fields and expr_text in (unquoted, f'"{unquoted}"'):
             # Espressione = singolo campo → torna alla combo
-            self.combo_field.setField(expr_text.strip('"'))
+            self.combo_field.setField(unquoted)
             self._clear_expression()
             return
 

@@ -282,6 +282,31 @@ def _natural_key(val):
             for chunk in re.split(r"(\d+)", str(val))]
 
 
+def _comparable_key(val):
+    """Chiave di ordinamento sempre confrontabile, anche con tipi eterogenei.
+
+    I numeri (bool inclusi) vengono prima delle stringhe; date/ora sono già
+    normalizzate in ISO-8601 da :func:`_normalize_val` e confrontate come
+    stringhe. Evita il ``TypeError`` di ``sorted()`` quando un campo o
+    un'espressione restituisce tipi misti (es. a volte numeri, a volte testo).
+    """
+    v = _normalize_val(val)
+    if isinstance(v, (bool, int, float)):
+        return (0, float(v), "")
+    return (1, 0.0, str(v))
+
+
+def _null_priority(nulls_last, ascending):
+    """Priorità di ordinamento dei NULL, compensata per la direzione.
+
+    ``sorted(..., reverse=True)`` invertirebbe anche la posizione dei NULL:
+    la compensazione garantisce che ``nulls_last`` valga a prescindere dalla
+    direzione di ordinamento.
+    """
+    priority = 1 if nulls_last else -1
+    return priority if ascending else -priority
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Ordinamento per attributo
 # ──────────────────────────────────────────────────────────────────────────────
@@ -297,13 +322,14 @@ def sort_by_attribute(features: List[QgsFeature], field: str, ascending: bool = 
         features (list[QgsFeature]): feature da ordinare.
         field (str): nome del campo.
         ascending (bool): True = crescente.
-        nulls_last (bool): True = NULL in fondo; False = NULL in cima.
+        nulls_last (bool): True = NULL in fondo; False = NULL in cima
+            (indipendentemente dalla direzione di ordinamento).
         progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
 
     Returns:
         list[QgsFeature]: lista ordinata.
     """
-    null_priority = 1 if nulls_last else -1
+    null_priority = _null_priority(nulls_last, ascending)
     total = len(features)
 
     def key(f):
@@ -313,10 +339,7 @@ def sort_by_attribute(features: List[QgsFeature], field: str, ascending: bool = 
             return (null_priority, [])
         if natural_sort:
             return (0, _natural_key(val))
-        try:
-            return (0, _normalize_val(val))
-        except TypeError:
-            return (0, str(val))
+        return (0, _comparable_key(val))
 
     sorted_feats = sorted(features, key=key, reverse=not ascending)
 
@@ -344,7 +367,8 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
             dell'espressione: CRS, campi, variabili di progetto).
         expression_str (str): testo dell'espressione QGIS.
         ascending (bool): True = crescente.
-        nulls_last (bool): True = NULL/errori in fondo; False = in cima.
+        nulls_last (bool): True = NULL/errori in fondo; False = in cima
+            (indipendentemente dalla direzione di ordinamento).
         progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
 
     Returns:
@@ -367,7 +391,7 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
     context = QgsExpressionContext()
     context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(layer))
 
-    null_priority = 1 if nulls_last else -1
+    null_priority = _null_priority(nulls_last, ascending)
     warnings = []
     pairs = []
     total = len(features)
@@ -395,10 +419,7 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
             return (null_priority, [])
         if natural_sort:
             return (0, _natural_key(val))
-        try:
-            return (0, _normalize_val(val))
-        except TypeError:
-            return (0, str(val))
+        return (0, _comparable_key(val))
 
     pairs.sort(key=sort_key, reverse=not ascending)
     sorted_feats = [p[0] for p in pairs]
@@ -753,8 +774,10 @@ def sort_by_line_position(features, line_geometry, ascending=True,
         if progress_callback and i % 50 == 0:
             progress_callback(i * 100.0 / total)
 
-    # Ordina per distanza mantenendo l'associazione con i valori
-    paired = sorted(zip(values, sorted_feats), reverse=not ascending)
+    # Ordina per distanza mantenendo l'associazione con i valori.
+    # key= evita che i pareggi di distanza confrontino i QgsFeature (TypeError).
+    paired = sorted(zip(values, sorted_feats), key=lambda p: p[0],
+                    reverse=not ascending)
     sorted_feats = [f for _, f in paired]
     values = [v for v, _ in paired]
 
@@ -928,7 +951,7 @@ def _multi_level(features, spec, layer, distance_area=None):
     ascending = spec.get("ascending", True)
     nulls_last = spec.get("nulls_last", True)
     natural = spec.get("natural_sort", False)
-    null_priority = 1 if nulls_last else -1
+    null_priority = _null_priority(nulls_last, ascending)
     n = len(features)
     raw = [None] * n
     keys = [None] * n
@@ -961,10 +984,7 @@ def _multi_level(features, spec, layer, distance_area=None):
             elif natural:
                 keys[i] = (0, _natural_key(val))
             else:
-                try:
-                    keys[i] = (0, _normalize_val(val))
-                except TypeError:
-                    keys[i] = (0, str(val))
+                keys[i] = (0, _comparable_key(val))
     else:
         extract = _numeric_extractor(key, spec, distance_area)
         for i, f in enumerate(features):
