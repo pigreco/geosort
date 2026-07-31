@@ -37,6 +37,7 @@ icon=icon.svg
 experimental=False
 deprecated=False
 server=False
+supportsQt6=True
 changelog=
     1.7.0 Misura geodetica su CRS geografici: area, perimetro, lunghezza e distanze misurati sull'ellissoide (m²/m) con modalità Auto/Sempre/Mai; avviso non bloccante su attivazione automatica; bounding box e posizione lungo linea restano planari
     1.6.0 Ordinamento gerarchico multi-criterio: criterio secondario per spezzare i pareggi del primario (es. regione poi area), nel dialogo e nel Processing; robustezza: feature con geometria NULL/vuota e layer a geometria mista non causano più crash (relegate in fondo); ottimizzazione performance (chiave geometrica calcolata una sola volta per centroide e proprietà geometriche); fix distanza centroide-origine nel Processing; deduplicazione coercizione valori; 100 test sulla logica core

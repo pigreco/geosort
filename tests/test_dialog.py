@@ -119,10 +119,14 @@ class TestGeoSortDialog(unittest.TestCase):
     # ── Punto di riferimento (solo per distanza) ──────────────────────────────
 
     def test_ref_point_group_visible_for_distance(self):
-        """Il gruppo punto di riferimento deve essere visibile solo per 'Distanza'."""
+        """Il gruppo punto di riferimento deve essere visibile solo per 'Distanza'.
+
+        isVisibleTo: isVisible() è sempre False se il dialog non è mai stato
+        mostrato (esecuzione headless).
+        """
         self.dialog.rb_centroid.setChecked(True)
         self.dialog.combo_centroid.setCurrentIndex(2)  # Distanza
-        self.assertTrue(self.dialog.ref_point_group.isVisible())
+        self.assertTrue(self.dialog.ref_point_group.isVisibleTo(self.dialog))
 
     def test_ref_point_group_hidden_for_x(self):
         self.dialog.rb_centroid.setChecked(True)

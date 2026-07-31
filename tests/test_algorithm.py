@@ -28,9 +28,20 @@ class TestGeoSortAlgorithm(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Avvia l'applicazione QGIS."""
+        """Avvia l'applicazione QGIS e registra il provider GeoSort."""
         from qgis.testing import start_app
         cls.qgis_app = start_app()
+
+        # Registra il provider una sola volta: serve al test end-to-end
+        # che invoca l'algoritmo tramite processing.run().
+        from qgis.core import QgsApplication
+        from processing.core.Processing import Processing
+        Processing.initialize()
+        registry = QgsApplication.processingRegistry()
+        if registry.providerById("geosort") is None:
+            from geosort.geosort_provider import GeoSortProvider
+            cls._provider = GeoSortProvider()
+            registry.addProvider(cls._provider)
 
     def setUp(self):
         """Istanzia l'algoritmo e crea layer di test."""
@@ -42,6 +53,9 @@ class TestGeoSortAlgorithm(unittest.TestCase):
         from geosort.geosort_algorithm import GeoSortAlgorithm
 
         self.algo = GeoSortAlgorithm()
+        # In QGIS è il framework Processing a chiamare initAlgorithm alla
+        # registrazione: qui va invocato esplicitamente per creare i parametri.
+        self.algo.initAlgorithm()
 
         # Crea un layer di test semplice (punti)
         fields = QgsFields()
