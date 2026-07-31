@@ -116,6 +116,43 @@ class TestGeoSortDialog(unittest.TestCase):
         self.dialog.rb_geometry.setChecked(True)
         self.assertFalse(self.dialog.combo_ref_layer.isEnabled())
 
+    # ── Solo feature selezionate ──────────────────────────────────────────────
+
+    def test_selected_only_unchecked_by_default(self):
+        """La checkbox 'solo selezionate' deve essere spenta per default."""
+        self.assertFalse(self.dialog.chk_selected_only.isChecked())
+
+    def _memory_layer_with_selection(self):
+        from qgis.core import QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY
+        layer = QgsVectorLayer("Point?crs=EPSG:4326&field=id:integer", "t", "memory")
+        prov = layer.dataProvider()
+        feats = []
+        for i in range(4):
+            f = QgsFeature(layer.fields())
+            f.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(i, 0)))
+            f["id"] = i
+            feats.append(f)
+        prov.addFeatures(feats)
+        return layer
+
+    def test_load_features_all_when_unchecked(self):
+        layer = self._memory_layer_with_selection()
+        self.dialog.chk_selected_only.setChecked(False)
+        self.assertEqual(len(self.dialog._load_features(layer)), 4)
+
+    def test_load_features_selected_only(self):
+        layer = self._memory_layer_with_selection()
+        ids = [f.id() for f in layer.getFeatures()][:2]
+        layer.selectByIds(ids)
+        self.dialog.chk_selected_only.setChecked(True)
+        self.assertEqual(len(self.dialog._load_features(layer)), 2)
+
+    def test_load_features_selected_only_empty_selection_raises(self):
+        layer = self._memory_layer_with_selection()
+        self.dialog.chk_selected_only.setChecked(True)
+        with self.assertRaises(ValueError):
+            self.dialog._load_features(layer)
+
     # ── Punto di riferimento (solo per distanza) ──────────────────────────────
 
     def test_ref_point_group_visible_for_distance(self):

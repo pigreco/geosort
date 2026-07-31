@@ -388,8 +388,7 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
         )
 
     # Contesto base: variabili di progetto + campi del layer
-    context = QgsExpressionContext()
-    context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(layer))
+    context = _expression_context(layer)
 
     null_priority = _null_priority(nulls_last, ascending)
     warnings = []
@@ -429,6 +428,22 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
         progress_callback(100)
 
     return sorted_feats, values, warnings
+
+def _expression_context(layer):
+    """Contesto di valutazione per le espressioni QGIS.
+
+    Con ``layer`` include variabili globali, di progetto e di layer; senza
+    (``None``, es. sorgente Processing non riconducibile a un layer) ricade
+    sul solo scope globale — i riferimenti ai campi si risolvono comunque
+    dalla feature impostata con ``setFeature``.
+    """
+    context = QgsExpressionContext()
+    if layer is not None:
+        context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(layer))
+    else:
+        context.appendScope(QgsExpressionContextUtils.globalScope())
+    return context
+
 
 def _is_empty_geom(geom):
     """True se la geometria è assente, nulla o vuota (feature non ordinabile spazialmente)."""
@@ -997,8 +1012,7 @@ def _multi_level(features, spec, layer, distance_area=None):
                 raise ValueError(
                     f"Espressione non valida: {expr.parserErrorString()}"
                 )
-            ctx = QgsExpressionContext()
-            ctx.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(layer))
+            ctx = _expression_context(layer)
         field = spec.get("field")
 
         for i, f in enumerate(features):

@@ -227,6 +227,28 @@ class TestGeoSortAlgorithm(unittest.TestCase):
         self.assertNotIn("line_position", self.algo._MULTI_PRIMARY_KEYS)
         self.assertNotIn("line_distance", self.algo._MULTI_PRIMARY_KEYS)
 
+    def test_end_to_end_selected_features_only(self):
+        """Con QgsProcessingFeatureSourceDefinition vengono ordinate solo le selezionate."""
+        import processing
+        from qgis.core import QgsProcessingFeatureSourceDefinition
+        selected_ids = [f.id() for f in self.layer.getFeatures()][:2]
+        self.layer.selectByIds(selected_ids)
+        try:
+            result = processing.run("geosort:geosort_sort", {
+                "INPUT": QgsProcessingFeatureSourceDefinition(
+                    self.layer.id(), selectedFeaturesOnly=True
+                ),
+                "CRITERION": 1,             # centroide X
+                "DIRECTION": True,
+                "OUTPUT": "memory:",
+            })
+        finally:
+            self.layer.removeSelection()
+        out = result["OUTPUT"]
+        self.assertEqual(out.featureCount(), 2)
+        orders = sorted(f["sort_order"] for f in out.getFeatures())
+        self.assertEqual(orders, [1, 2])
+
     def test_end_to_end_multi_criteria(self):
         """Esecuzione completa con criterio primario + secondario."""
         import processing

@@ -8,12 +8,11 @@ import os
 
 from qgis.core import (
     QgsProcessingAlgorithm,
-    QgsProcessingParameterVectorLayer,
+    QgsProcessingParameterFeatureSource,
     QgsProcessingParameterEnum,
     QgsProcessingParameterBoolean,
     QgsProcessingParameterField,
     QgsProcessingParameterFeatureSink,
-    QgsProcessingParameterMapLayer,
     QgsProcessingOutputNumber,
     QgsFeatureSink,
     QgsWkbTypes,
@@ -196,8 +195,11 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     # ──────────────────────────────────────────────────────────────────────────
 
     def initAlgorithm(self, config=None):
+        # FeatureSource (non VectorLayer): abilita la spunta "Solo feature
+        # selezionate" nel Processing e l'uso diretto di output intermedi
+        # nel modellatore.
         self.addParameter(
-            QgsProcessingParameterVectorLayer(
+            QgsProcessingParameterFeatureSource(
                 self.INPUT,
                 "Layer di input",
                 types=[QgsProcessing.SourceType.TypeVectorAnyGeometry],
@@ -250,9 +252,10 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 defaultValue=0,
             )
         )
-        param_ref = QgsProcessingParameterMapLayer(
+        param_ref = QgsProcessingParameterFeatureSource(
             self.REF_LAYER,
             "Layer linea di riferimento (solo per criteri 'Posizione/Distanza dalla linea')",
+            types=[QgsProcessing.SourceType.TypeVectorLine],
             optional=True,
         )
         self.addParameter(param_ref)
@@ -342,12 +345,15 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     # Esecuzione
     # ──────────────────────────────────────────────────────────────────────────
 
-    def _run_multi(self, parameters, context, feedback, layer, features,
+    def _run_multi(self, parameters, context, feedback, crs, expr_layer, features,
                    primary_key, sec_key, ascending, nulls_last, natural_sort,
                    geodesic_mode="auto"):
         """Esegue l'ordinamento gerarchico (primario + secondario) via sort_multi.
 
         Args:
+            crs (QgsCoordinateReferenceSystem): CRS della sorgente.
+            expr_layer (QgsVectorLayer | None): layer per il contesto delle
+                espressioni (None se la sorgente non è un layer di progetto).
             geodesic_mode (str): modalità geodetica ("auto" | "always" | "never").
 
         Returns:
@@ -385,7 +391,6 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         )
 
         # Costruisce il misuratore ellissoidale se almeno un criterio richiede geodesica
-        crs = layer.crs()
         da = None
         if should_build_distance_area(crs, geodesic_mode):
             da = build_distance_area(crs, context.transformContext())
@@ -393,7 +398,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         feedback.pushInfo("GeoSort: ordinamento multi-criterio (primario + secondario).")
         try:
             sorted_feats, values = sort_multi(
-                features, [primary_spec, secondary_spec], layer, distance_area=da
+                features, [primary_spec, secondary_spec], expr_layer, distance_area=da
             )
         except ValueError as exc:
             raise QgsProcessingException(str(exc))
@@ -413,9 +418,12 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             geographic_crs_warning,
         )
 
-        layer = self.parameterAsVectorLayer(parameters, self.INPUT, context)
-        if layer is None:
+        source = self.parameterAsSource(parameters, self.INPUT, context)
+        if source is None:
             raise QgsProcessingException("Layer di input non trovato.")
+        # Layer di progetto corrispondente (se esiste): serve solo al contesto
+        # delle espressioni; feature, campi e CRS arrivano dalla sorgente.
+        expr_layer = self.parameterAsVectorLayer(parameters, self.INPUT, context)
 
         crit_idx = self.parameterAsEnum(parameters, self.CRITERION, context)
         criterion = self._CRITERIA_KEYS[crit_idx]
@@ -424,10 +432,11 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         natural_sort = self.parameterAsBoolean(parameters, self.NATURAL_SORT, context)
         add_value = self.parameterAsBoolean(parameters, self.ADD_VALUE_FIELD, context)
         geodesic_mode = _GEODESIC_MODES[self.parameterAsEnum(parameters, self.GEODESIC, context)]
-        crs = layer.crs()
+        crs = source.sourceCrs()
+        source_fields = source.fields()
 
         feedback.setProgressText("Caricamento feature...")
-        features = list(layer.getFeatures())
+        features = list(source.getFeatures())
         if not features:
             raise QgsProcessingException("Il layer non contiene feature.")
 
@@ -451,7 +460,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
 
         if multi_active:
             sorted_feats, values, excluded = self._run_multi(
-                parameters, context, feedback, layer, features,
+                parameters, context, feedback, crs, expr_layer, features,
                 criterion, sec_key, ascending, nulls_last, natural_sort,
                 geodesic_mode=geodesic_mode,
             )
@@ -493,12 +502,12 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             excluded = []
 
         elif criterion == "line_position":
-            ref_layer = self.parameterAsLayer(parameters, self.REF_LAYER, context)
-            if not ref_layer:
+            ref_source = self.parameterAsSource(parameters, self.REF_LAYER, context)
+            if ref_source is None:
                 raise QgsProcessingException(
                     "Specificare un layer di riferimento per il criterio 'Posizione lungo linea'."
                 )
-            ref_feats = list(ref_layer.getFeatures())
+            ref_feats = list(ref_source.getFeatures())
             if not ref_feats:
                 raise QgsProcessingException("Il layer di riferimento non contiene feature.")
             line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
@@ -514,12 +523,12 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 )
 
         elif criterion == "line_distance":
-            ref_layer = self.parameterAsLayer(parameters, self.REF_LAYER, context)
-            if not ref_layer:
+            ref_source = self.parameterAsSource(parameters, self.REF_LAYER, context)
+            if ref_source is None:
                 raise QgsProcessingException(
                     "Specificare un layer di riferimento per il criterio 'Distanza dalla linea'."
                 )
-            ref_feats = list(ref_layer.getFeatures())
+            ref_feats = list(ref_source.getFeatures())
             if not ref_feats:
                 raise QgsProcessingException("Il layer di riferimento non contiene feature.")
             line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
@@ -546,7 +555,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 )
             try:
                 sorted_feats, values, warnings = sort_by_expression(
-                    features, layer, expr_text, ascending, nulls_last,
+                    features, expr_layer, expr_text, ascending, nulls_last,
                     natural_sort=natural_sort,
                 )
             except ValueError as exc:
@@ -580,7 +589,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         feedback.setProgressText("Scrittura output...")
 
         out_fields = QgsFields()
-        for field in layer.fields():
+        for field in source_fields:
             out_fields.append(field)
         out_fields.append(QgsField("sort_order", QMetaType.Type.Int))
         value_field_type = QMetaType.Type.Double
@@ -593,8 +602,8 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             self.OUTPUT,
             context,
             out_fields,
-            layer.wkbType(),
-            layer.crs(),
+            source.wkbType(),
+            crs,
         )
         if sink is None:
             raise QgsProcessingException("Impossibile creare il layer di output.")
