@@ -3,7 +3,7 @@ name=GeoSort
 qgisMinimumVersion=3.16
 qgisMaximumVersion=4.99
 description=Sort vector layer features by geometric and attribute criteria | Ordina le feature di un layer vettoriale per criteri geometrici e attributivi
-version=1.7.0
+version=1.8.0
 author=Salvatore Fiandaca
 email=pigrecoinfinito@gmail.com
 about=GeoSort sorts points, lines and polygons by centroid coordinates, area, length,
@@ -39,6 +39,7 @@ deprecated=False
 server=False
 supportsQt6=True
 changelog=
+    1.8.0 Ordinamento delle sole feature selezionate (dialogo e Processing, con parametri FeatureSource e layer di riferimento limitato alle linee); correzioni: crash sui pareggi di distanza lungo linea, ordinamento di valori a tipo misto (numeri+testo) senza errori, NULL sempre in fondo anche con ordine discendente; performance: motore GEOS preparato per i criteri su linea (fino a 2x su linee complesse) e scritture batch degli attributi; i18n: algoritmo Processing e messaggi del core tradotti, tooltip multilinea ora tradotti in inglese; supportsQt6=True per il repository plugin; CI GitHub Actions (test senza QGIS + QGIS LTR/latest)
     1.7.0 Misura geodetica su CRS geografici: area, perimetro, lunghezza e distanze misurati sull'ellissoide (m²/m) con modalità Auto/Sempre/Mai; avviso non bloccante su attivazione automatica; bounding box e posizione lungo linea restano planari
     1.6.0 Ordinamento gerarchico multi-criterio: criterio secondario per spezzare i pareggi del primario (es. regione poi area), nel dialogo e nel Processing; robustezza: feature con geometria NULL/vuota e layer a geometria mista non causano più crash (relegate in fondo); ottimizzazione performance (chiave geometrica calcolata una sola volta per centroide e proprietà geometriche); fix distanza centroide-origine nel Processing; deduplicazione coercizione valori; 100 test sulla logica core
     1.5.2 Correzioni i18n: traduttore mantenuto come attributo (evita garbage collection dopo installTranslator); voce di menu/toolbar ora tradotta; file .ts IT/EN completi e sincronizzati (incluse stringhe multilinea di tooltip/help); rimossi log di debug; nuovo generatore scripts/gen_ts.py
