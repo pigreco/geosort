@@ -465,6 +465,10 @@ class MockLayer:
     def changeAttributeValue(self, fid, idx, val):
         self._changes[(fid, idx)] = val
 
+    def changeAttributeValues(self, fid, changes):
+        for idx, val in changes.items():
+            self._changes[(fid, idx)] = val
+
     def commitChanges(self):
         self._committed = True
         return True
@@ -494,12 +498,13 @@ def _mock_apply_sort_order(layer, sorted_features, add_criterion_field=False,
                 crit_idx = layer.indexOf(criterion_field_name)
 
         for i, feat in enumerate(sorted_features):
-            layer.changeAttributeValue(feat.id(), sort_idx, i + 1)
+            changes = {sort_idx: i + 1}
             if add_criterion_field and criterion_values and crit_idx != -1:
                 try:
-                    layer.changeAttributeValue(feat.id(), crit_idx, float(criterion_values[i]))
+                    changes[crit_idx] = float(criterion_values[i])
                 except (TypeError, ValueError):
                     pass
+            layer.changeAttributeValues(feat.id(), changes)
 
         layer.commitChanges()
         return True

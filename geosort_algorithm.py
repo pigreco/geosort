@@ -407,6 +407,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             sort_by_line_position,
             sort_by_line_distance,
             _infer_field_type,
+            _coerce_value,
             build_distance_area,
             resolve_geodesic,
             geographic_crs_warning,
@@ -599,29 +600,20 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             raise QgsProcessingException("Impossibile creare il layer di output.")
 
         total = len(sorted_feats)
+        has_value_field = add_value and values
         for i, feat in enumerate(sorted_feats):
             if feedback.isCanceled():
                 break
             new_feat = QgsFeature(out_fields)
             new_feat.setGeometry(feat.geometry())
-            for field in layer.fields():
-                new_feat[field.name()] = feat[field.name()]
-            new_feat["sort_order"] = i + 1
-            if add_value and i < len(values):
-                val = values[i]
-                if value_field_type == QMetaType.Type.Double:
-                    try:
-                        val = float(val)
-                    except (TypeError, ValueError):
-                        val = None
-                elif value_field_type == QMetaType.Type.Int:
-                    try:
-                        val = int(val)
-                    except (TypeError, ValueError):
-                        val = None
-                else:
-                    val = str(val) if val not in (None, NULL) else None
-                new_feat["sort_value"] = val
+            # setAttributes: una sola chiamata invece di un lookup per nome per campo
+            attrs = feat.attributes() + [i + 1]
+            if has_value_field:
+                attrs.append(
+                    _coerce_value(values[i], value_field_type)
+                    if i < len(values) else NULL
+                )
+            new_feat.setAttributes(attrs)
             sink.addFeature(new_feat, QgsFeatureSink.FastInsert)
             if i % 100 == 0:
                 feedback.setProgress(60 + int(40 * i / total))

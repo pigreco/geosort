@@ -689,6 +689,27 @@ def _first_intersection_distance(line_geom, feature_geom):
     return min(distances) if distances else None
 
 
+def _make_line_locator(line_geometry, line_engine):
+    """Funzione ``pt_geom -> float``: distanza curvilinea del punto sulla linea.
+
+    Se il binding lo consente, usa ``QgsGeos.lineLocatePoint`` sul motore
+    preparato (una sola conversione GEOS della linea, riusata per tutte le
+    feature). In caso contrario, o per punti multiparte, ricade sulla coppia
+    ``nearestPoint`` + ``lineLocatePoint`` di :class:`QgsGeometry`.
+    """
+    engine_locate = getattr(line_engine, "lineLocatePoint", None)
+
+    def _locate(pt_geom):
+        if engine_locate is not None and not pt_geom.isMultipart():
+            res = engine_locate(pt_geom.constGet())
+            # Il binding può restituire float oppure (float, msg_errore)
+            return res[0] if isinstance(res, tuple) else res
+        nearest = line_geometry.nearestPoint(pt_geom)
+        return line_geometry.lineLocatePoint(nearest)
+
+    return _locate
+
+
 def sort_by_line_position(features, line_geometry, ascending=True,
                           mode="centroid_projection", progress_callback=None):
     """Ordina le feature in base alla loro posizione lungo una linea di riferimento.
@@ -721,6 +742,13 @@ def sort_by_line_position(features, line_geometry, ascending=True,
     if _is_empty_geom(line_geometry):
         raise ValueError("La geometria della linea di riferimento è assente o vuota.")
 
+    # Motore geometrico preparato sulla linea: i predicati di intersezione
+    # ripetuti evitano di riconvertire la linea in GEOS a ogni feature
+    # (determinante quando la linea di riferimento ha molti vertici).
+    line_engine = QgsGeometry.createGeometryEngine(line_geometry.constGet())
+    line_engine.prepareGeometry()
+    _locate = _make_line_locator(line_geometry, line_engine)
+
     sorted_feats = []
     values = []
     excluded = []
@@ -743,24 +771,23 @@ def sort_by_line_position(features, line_geometry, ascending=True,
 
         if mode == "centroid_projection":
             # Proiezione del centroide: include sempre la feature
-            nearest = line_geometry.nearestPoint(pt_geom)
-            dist = line_geometry.lineLocatePoint(nearest)
             sorted_feats.append(f)
-            values.append(dist)
+            values.append(_locate(pt_geom))
 
         elif mode == "intersecting_projection":
             # Solo feature che intersecano fisicamente la linea
-            if not line_geometry.intersects(geom):
+            if not line_engine.intersects(geom.constGet()):
                 excluded.append(f)
                 continue
-            nearest = line_geometry.nearestPoint(pt_geom)
-            dist = line_geometry.lineLocatePoint(nearest)
             sorted_feats.append(f)
-            values.append(dist)
+            values.append(_locate(pt_geom))
 
         elif mode == "intersecting_first_pt":
-            # Solo feature che intersecano; usa il primo punto di intersezione
-            dist = _first_intersection_distance(line_geometry, geom)
+            # Solo feature che intersecano; usa il primo punto di intersezione.
+            # Il predicato preparato evita l'intersezione GEOS (costosa) per le
+            # feature che non toccano la linea.
+            dist = (_first_intersection_distance(line_geometry, geom)
+                    if line_engine.intersects(geom.constGet()) else None)
             if dist is None:
                 excluded.append(f)
                 continue
@@ -898,20 +925,25 @@ def _numeric_extractor(key, spec, distance_area=None):
         mode = spec.get("mode", "centroid_projection")
         if _is_empty_geom(line):
             raise ValueError("Linea di riferimento assente o vuota.")
+        line_engine = QgsGeometry.createGeometryEngine(line.constGet())
+        line_engine.prepareGeometry()
+        _locate = _make_line_locator(line, line_engine)
 
         def _ex(f):
             geom = f.geometry()
             if _is_empty_geom(geom):
                 return None
             if mode == "intersecting_first_pt":
+                if not line_engine.intersects(geom.constGet()):
+                    return None
                 return _first_intersection_distance(line, geom)
-            if mode == "intersecting_projection" and not line.intersects(geom):
+            if mode == "intersecting_projection" and not line_engine.intersects(geom.constGet()):
                 return None
             gt = QgsWkbTypes.geometryType(geom.wkbType())
             pt_geom = (QgsGeometry(geom)
                        if gt == QgsWkbTypes.GeometryType.PointGeometry
                        else geom.centroid())
-            return line.lineLocatePoint(line.nearestPoint(pt_geom))
+            return _locate(pt_geom)
         return _ex
 
     if key == "line_distance":
@@ -1095,12 +1127,12 @@ def apply_sort_order(
 
         # ── Assegnazione valori ───────────────────────────────────────────────
         total = len(sorted_features)
+        write_crit = add_criterion_field and criterion_values and crit_idx != -1
         for i, feat in enumerate(sorted_features):
-            fid = feat.id()
-            layer.changeAttributeValue(fid, sort_idx, i + 1)
-            if add_criterion_field and criterion_values and crit_idx != -1:
-                val = _coerce_value(criterion_values[i], crit_field_type)
-                layer.changeAttributeValue(fid, crit_idx, val)
+            changes = {sort_idx: i + 1}
+            if write_crit:
+                changes[crit_idx] = _coerce_value(criterion_values[i], crit_field_type)
+            layer.changeAttributeValues(feat.id(), changes)
             if progress_callback and i % 50 == 0:
                 progress_callback(i * 100.0 / total)
 
@@ -1167,16 +1199,15 @@ def create_memory_layer(
 
     total = len(sorted_features)
     out_features = []
+    write_crit = add_criterion_field and criterion_values
     for i, feat in enumerate(sorted_features):
         new_feat = QgsFeature(mem_layer.fields())
         new_feat.setGeometry(feat.geometry())
-        for field in original_fields:
-            new_feat[field.name()] = feat[field.name()]
-        new_feat["sort_order"] = i + 1
-        if add_criterion_field and criterion_values:
-            new_feat[criterion_field_name] = _coerce_value(
-                criterion_values[i], crit_field_type
-            )
+        # setAttributes: una sola chiamata invece di un lookup per nome per campo
+        attrs = feat.attributes() + [i + 1]
+        if write_crit:
+            attrs.append(_coerce_value(criterion_values[i], crit_field_type))
+        new_feat.setAttributes(attrs)
         out_features.append(new_feat)
         if progress_callback and i % 50 == 0:
             progress_callback(i * 100.0 / total)
