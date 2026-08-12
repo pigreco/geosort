@@ -13,6 +13,8 @@ from qgis.core import (
     QgsProcessingParameterBoolean,
     QgsProcessingParameterField,
     QgsProcessingParameterFeatureSink,
+    QgsProcessingParameterExpression,
+    QgsProcessingParameterDefinition,
     QgsProcessingOutputNumber,
     QgsFeatureSink,
     QgsWkbTypes,
@@ -33,6 +35,18 @@ from qgis.PyQt.QtGui import QIcon
 
 # Mappa indice enum → modalità geodetica (stringa accettata da geosort_core)
 _GEODESIC_MODES = ["auto", "always", "never"]
+
+# Compatibilità del flag "Advanced" dei parametri Processing fra QGIS 3.16-3.34
+# (Qt5, ``QgsProcessingParameterDefinition.FlagAdvanced``) e QGIS 3.36+/4.x
+# (``Qgis.ProcessingParameterFlag.Advanced``).
+try:
+    _FLAG_ADVANCED = Qgis.ProcessingParameterFlag.Advanced
+except AttributeError:
+    _FLAG_ADVANCED = QgsProcessingParameterDefinition.FlagAdvanced
+
+
+class _Canceled(Exception):
+    """Segnala che l'utente ha annullato l'esecuzione dal feedback di Processing."""
 
 
 def _spec_from(key, field, expression, ascending, nulls_last, natural_sort):
@@ -237,25 +251,30 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 defaultValue=True,
             )
         )
-        self.addParameter(
-            QgsProcessingParameterBoolean(
-                self.NATURAL_SORT,
-                self.tr("Ordinamento naturale – Natural Sort (solo per criterio attributo/espressione)"),
-                defaultValue=False,
-            )
+        # Natural Sort e misura geodetica sono condizionali (rilevanti solo per
+        # alcuni criteri): marcati "Advanced" per non affollare la finestra
+        # principale del Processing.
+        param_natural_sort = QgsProcessingParameterBoolean(
+            self.NATURAL_SORT,
+            self.tr("Ordinamento naturale – Natural Sort (solo per criterio attributo/espressione)"),
+            defaultValue=False,
         )
-        self.addParameter(
-            QgsProcessingParameterEnum(
-                self.GEODESIC,
-                self.tr("Modalità di misura geodetica (per area/lunghezza/distanza)"),
-                options=[
-                    self.tr("Automatica – geodetica su CRS geografico (consigliato)"),
-                    self.tr("Sempre geodetica"),
-                    self.tr("Mai (misura planare nelle unità del CRS)"),
-                ],
-                defaultValue=0,
-            )
+        param_natural_sort.setFlags(_FLAG_ADVANCED)
+        self.addParameter(param_natural_sort)
+
+        param_geodesic = QgsProcessingParameterEnum(
+            self.GEODESIC,
+            self.tr("Modalità di misura geodetica (per area/lunghezza/distanza)"),
+            options=[
+                self.tr("Automatica – geodetica su CRS geografico (consigliato)"),
+                self.tr("Sempre geodetica"),
+                self.tr("Mai (misura planare nelle unità del CRS)"),
+            ],
+            defaultValue=0,
         )
+        param_geodesic.setFlags(_FLAG_ADVANCED)
+        self.addParameter(param_geodesic)
+
         param_ref = QgsProcessingParameterFeatureSource(
             self.REF_LAYER,
             self.tr("Layer linea di riferimento (solo per criteri 'Posizione/Distanza dalla linea')"),
@@ -263,32 +282,34 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             optional=True,
         )
         self.addParameter(param_ref)
-        # Modalità di calcolo per il criterio "Posizione lungo linea"
-        self.addParameter(
-            QgsProcessingParameterEnum(
-                "LINE_MODE",
-                self.tr("Modalità di calcolo – Posizione lungo linea"),
-                options=[
-                    self.tr("Proiezione centroide  –  tutte le feature"),
-                    self.tr("Solo intersecanti –  proiezione centroide"),
-                    self.tr("Solo intersecanti –  primo punto di intersezione"),
-                ],
-                defaultValue=0,
-            )
+
+        # Modalità di calcolo per il criterio "Posizione lungo linea" (condizionale)
+        param_line_mode = QgsProcessingParameterEnum(
+            "LINE_MODE",
+            self.tr("Modalità di calcolo – Posizione lungo linea"),
+            options=[
+                self.tr("Proiezione centroide  –  tutte le feature"),
+                self.tr("Solo intersecanti –  proiezione centroide"),
+                self.tr("Solo intersecanti –  primo punto di intersezione"),
+            ],
+            defaultValue=0,
         )
-        # Modalità di calcolo per il criterio "Distanza dalla linea"
-        self.addParameter(
-            QgsProcessingParameterEnum(
-                "LINE_DISTANCE_MODE",
-                self.tr("Modalità di calcolo – Distanza dalla linea"),
-                options=[
-                    self.tr("Distanza dal centroide"),
-                    self.tr("Distanza dall'elemento"),
-                ],
-                defaultValue=1,
-            )
+        param_line_mode.setFlags(_FLAG_ADVANCED)
+        self.addParameter(param_line_mode)
+
+        # Modalità di calcolo per il criterio "Distanza dalla linea" (condizionale)
+        param_line_dist_mode = QgsProcessingParameterEnum(
+            "LINE_DISTANCE_MODE",
+            self.tr("Modalità di calcolo – Distanza dalla linea"),
+            options=[
+                self.tr("Distanza dal centroide"),
+                self.tr("Distanza dall'elemento"),
+            ],
+            defaultValue=1,
         )
-        from qgis.core import QgsProcessingParameterExpression
+        param_line_dist_mode.setFlags(_FLAG_ADVANCED)
+        self.addParameter(param_line_dist_mode)
+
         self.addParameter(
             QgsProcessingParameterExpression(
                 "EXPRESSION",
@@ -300,39 +321,42 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         )
 
         # ── Criterio secondario (tie-break) – ordinamento multi-criterio ──
-        self.addParameter(
-            QgsProcessingParameterEnum(
-                self.SECONDARY_CRITERION,
-                self.tr("Criterio secondario per i pareggi (opzionale)"),
-                options=[self.tr(s) for s in self._SECONDARY_LABELS],
-                defaultValue=0,
-            )
+        # Tutti condizionali (rilevanti solo se si imposta un criterio secondario).
+        param_sec_crit = QgsProcessingParameterEnum(
+            self.SECONDARY_CRITERION,
+            self.tr("Criterio secondario per i pareggi (opzionale)"),
+            options=[self.tr(s) for s in self._SECONDARY_LABELS],
+            defaultValue=0,
         )
-        self.addParameter(
-            QgsProcessingParameterField(
-                self.SECONDARY_FIELD,
-                self.tr("Campo del criterio secondario (solo se 'Attributo tabellare')"),
-                parentLayerParameterName=self.INPUT,
-                optional=True,
-            )
+        param_sec_crit.setFlags(_FLAG_ADVANCED)
+        self.addParameter(param_sec_crit)
+
+        param_sec_field = QgsProcessingParameterField(
+            self.SECONDARY_FIELD,
+            self.tr("Campo del criterio secondario (solo se 'Attributo tabellare')"),
+            parentLayerParameterName=self.INPUT,
+            optional=True,
         )
-        from qgis.core import QgsProcessingParameterExpression
-        self.addParameter(
-            QgsProcessingParameterExpression(
-                self.SECONDARY_EXPRESSION,
-                self.tr("Espressione del criterio secondario (solo se 'Espressione QGIS')"),
-                defaultValue="",
-                parentLayerParameterName=self.INPUT,
-                optional=True,
-            )
+        param_sec_field.setFlags(_FLAG_ADVANCED)
+        self.addParameter(param_sec_field)
+
+        param_sec_expr = QgsProcessingParameterExpression(
+            self.SECONDARY_EXPRESSION,
+            self.tr("Espressione del criterio secondario (solo se 'Espressione QGIS')"),
+            defaultValue="",
+            parentLayerParameterName=self.INPUT,
+            optional=True,
         )
-        self.addParameter(
-            QgsProcessingParameterBoolean(
-                self.SECONDARY_DIRECTION,
-                self.tr("Criterio secondario: ordine ascendente"),
-                defaultValue=True,
-            )
+        param_sec_expr.setFlags(_FLAG_ADVANCED)
+        self.addParameter(param_sec_expr)
+
+        param_sec_dir = QgsProcessingParameterBoolean(
+            self.SECONDARY_DIRECTION,
+            self.tr("Criterio secondario: ordine ascendente"),
+            defaultValue=True,
         )
+        param_sec_dir.setFlags(_FLAG_ADVANCED)
+        self.addParameter(param_sec_dir)
 
         self.addParameter(
             QgsProcessingParameterBoolean(
@@ -351,7 +375,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
 
     def _run_multi(self, parameters, context, feedback, crs, expr_layer, features,
                    primary_key, sec_key, ascending, nulls_last, natural_sort,
-                   geodesic_mode="auto"):
+                   geodesic_mode="auto", progress_callback=None):
         """Esegue l'ordinamento gerarchico (primario + secondario) via sort_multi.
 
         Args:
@@ -359,6 +383,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             expr_layer (QgsVectorLayer | None): layer per il contesto delle
                 espressioni (None se la sorgente non è un layer di progetto).
             geodesic_mode (str): modalità geodetica ("auto" | "always" | "never").
+            progress_callback (callable | None): vedi :func:`processAlgorithm`.
 
         Returns:
             tuple[list, list, list]: (feature ordinate, valori primario, escluse=[]).
@@ -402,7 +427,8 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         feedback.pushInfo(self.tr("GeoSort: ordinamento multi-criterio (primario + secondario)."))
         try:
             sorted_feats, values = sort_multi(
-                features, [primary_spec, secondary_spec], expr_layer, distance_area=da
+                features, [primary_spec, secondary_spec], expr_layer, distance_area=da,
+                progress_callback=progress_callback,
             )
         except ValueError as exc:
             raise QgsProcessingException(str(exc))
@@ -452,6 +478,14 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         feedback.setProgressText(self.tr("Ordinamento in corso..."))
         values = []
 
+        # Avanza la progress bar dal 10% al 60% durante l'ordinamento, e
+        # permette di annullare l'esecuzione anche a metà di un criterio
+        # costoso (es. posizione lungo una linea con molte feature).
+        def _progress_cb(p):
+            if feedback.isCanceled():
+                raise _Canceled()
+            feedback.setProgress(10 + int(p * 0.5))
+
         # Criterio secondario (tie-break) → ordinamento multi-criterio
         sec_idx = self.parameterAsEnum(parameters, self.SECONDARY_CRITERION, context)
         sec_key = self._SECONDARY_KEYS[sec_idx]
@@ -462,128 +496,136 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 "è basato su una linea di riferimento."
             ))
 
-        if multi_active:
-            sorted_feats, values, excluded = self._run_multi(
-                parameters, context, feedback, crs, expr_layer, features,
-                criterion, sec_key, ascending, nulls_last, natural_sort,
-                geodesic_mode=geodesic_mode,
-            )
-            # Avviso geodetico sul criterio primario (se pertinente)
-            applied = resolve_geodesic(crs, criterion, geodesic_mode)
-            msg = geographic_crs_warning(crs, criterion, applied)
-            if msg:
-                feedback.pushWarning("GeoSort: " + msg)
-
-        elif criterion == "attribute":
-            field = self.parameterAsString(parameters, self.ATTRIBUTE_FIELD, context)
-            if not field:
-                raise QgsProcessingException(
-                    self.tr("Specificare un campo attributo per il criterio 'Attributo tabellare'.")
+        try:
+            if multi_active:
+                sorted_feats, values, excluded = self._run_multi(
+                    parameters, context, feedback, crs, expr_layer, features,
+                    criterion, sec_key, ascending, nulls_last, natural_sort,
+                    geodesic_mode=geodesic_mode, progress_callback=_progress_cb,
                 )
-            sorted_feats = sort_by_attribute(features, field, ascending, nulls_last, natural_sort=natural_sort)
-            values = [f[field] for f in sorted_feats]
-            excluded = []
+                # Avviso geodetico sul criterio primario (se pertinente)
+                applied = resolve_geodesic(crs, criterion, geodesic_mode)
+                msg = geographic_crs_warning(crs, criterion, applied)
+                if msg:
+                    feedback.pushWarning("GeoSort: " + msg)
 
-        elif criterion in ("centroid_x", "centroid_y", "centroid_dist"):
-            axis_map = {
-                "centroid_x": "x",
-                "centroid_y": "y",
-                "centroid_dist": "dist",
-            }
-            axis = axis_map[criterion]
-            ref_point = QgsPointXY(0, 0) if axis == "dist" else None
-            # Geodesica solo per centroid_dist (distanza euclidea sull'ellissoide)
-            da = None
-            if resolve_geodesic(crs, criterion, geodesic_mode):
-                da = build_distance_area(crs, context.transformContext())
-            msg = geographic_crs_warning(crs, criterion, da is not None)
-            if msg:
-                feedback.pushWarning("GeoSort: " + msg)
-            sorted_feats, values = sort_by_centroid(
-                features, axis=axis, ascending=ascending, ref_point=ref_point,
-                distance_area=da,
-            )
-            excluded = []
+            elif criterion == "attribute":
+                field = self.parameterAsString(parameters, self.ATTRIBUTE_FIELD, context)
+                if not field:
+                    raise QgsProcessingException(
+                        self.tr("Specificare un campo attributo per il criterio 'Attributo tabellare'.")
+                    )
+                sorted_feats = sort_by_attribute(
+                    features, field, ascending, nulls_last, natural_sort=natural_sort,
+                    progress_callback=_progress_cb,
+                )
+                values = [f[field] for f in sorted_feats]
+                excluded = []
 
-        elif criterion == "line_position":
-            ref_source = self.parameterAsSource(parameters, self.REF_LAYER, context)
-            if ref_source is None:
-                raise QgsProcessingException(
-                    self.tr("Specificare un layer di riferimento per il criterio 'Posizione lungo linea'.")
+            elif criterion in ("centroid_x", "centroid_y", "centroid_dist"):
+                axis_map = {
+                    "centroid_x": "x",
+                    "centroid_y": "y",
+                    "centroid_dist": "dist",
+                }
+                axis = axis_map[criterion]
+                ref_point = QgsPointXY(0, 0) if axis == "dist" else None
+                # Geodesica solo per centroid_dist (distanza euclidea sull'ellissoide)
+                da = None
+                if resolve_geodesic(crs, criterion, geodesic_mode):
+                    da = build_distance_area(crs, context.transformContext())
+                msg = geographic_crs_warning(crs, criterion, da is not None)
+                if msg:
+                    feedback.pushWarning("GeoSort: " + msg)
+                sorted_feats, values = sort_by_centroid(
+                    features, axis=axis, ascending=ascending, ref_point=ref_point,
+                    distance_area=da, progress_callback=_progress_cb,
                 )
-            ref_feats = list(ref_source.getFeatures())
-            if not ref_feats:
-                raise QgsProcessingException(self.tr("Il layer di riferimento non contiene feature."))
-            line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
-            line_mode_keys = ["centroid_projection", "intersecting_projection", "intersecting_first_pt"]
-            line_mode_idx = self.parameterAsEnum(parameters, "LINE_MODE", context)
-            line_mode = line_mode_keys[line_mode_idx]
-            sorted_feats, values, excluded = sort_by_line_position(
-                features, line_geom, ascending, mode=line_mode
-            )
-            if excluded:
-                feedback.pushWarning(self.tr(
-                    "GeoSort: {n} feature escluse perché non intersecano la linea."
-                ).format(n=len(excluded)))
+                excluded = []
 
-        elif criterion == "line_distance":
-            ref_source = self.parameterAsSource(parameters, self.REF_LAYER, context)
-            if ref_source is None:
-                raise QgsProcessingException(
-                    self.tr("Specificare un layer di riferimento per il criterio 'Distanza dalla linea'.")
+            elif criterion == "line_position":
+                ref_source = self.parameterAsSource(parameters, self.REF_LAYER, context)
+                if ref_source is None:
+                    raise QgsProcessingException(
+                        self.tr("Specificare un layer di riferimento per il criterio 'Posizione lungo linea'.")
+                    )
+                ref_feats = list(ref_source.getFeatures())
+                if not ref_feats:
+                    raise QgsProcessingException(self.tr("Il layer di riferimento non contiene feature."))
+                line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+                line_mode_keys = ["centroid_projection", "intersecting_projection", "intersecting_first_pt"]
+                line_mode_idx = self.parameterAsEnum(parameters, "LINE_MODE", context)
+                line_mode = line_mode_keys[line_mode_idx]
+                sorted_feats, values, excluded = sort_by_line_position(
+                    features, line_geom, ascending, mode=line_mode, progress_callback=_progress_cb,
                 )
-            ref_feats = list(ref_source.getFeatures())
-            if not ref_feats:
-                raise QgsProcessingException(self.tr("Il layer di riferimento non contiene feature."))
-            line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
-            dist_mode_keys = ["centroid", "element"]
-            dist_mode_idx = self.parameterAsEnum(parameters, "LINE_DISTANCE_MODE", context)
-            dist_mode = dist_mode_keys[dist_mode_idx]
-            da = None
-            if resolve_geodesic(crs, criterion, geodesic_mode):
-                da = build_distance_area(crs, context.transformContext())
-            msg = geographic_crs_warning(crs, criterion, da is not None)
-            if msg:
-                feedback.pushWarning("GeoSort: " + msg)
-            sorted_feats, values = sort_by_line_distance(
-                features, line_geom, ascending, mode=dist_mode, distance_area=da
-            )
-            excluded = []
+                if excluded:
+                    feedback.pushWarning(self.tr(
+                        "GeoSort: {n} feature escluse perché non intersecano la linea."
+                    ).format(n=len(excluded)))
 
-        elif criterion == "expression":
-            from .geosort_core import sort_by_expression
-            expr_text = self.parameterAsExpression(parameters, "EXPRESSION", context)
-            if not expr_text or not expr_text.strip():
-                raise QgsProcessingException(
-                    self.tr("Specificare un'espressione per il criterio 'Espressione QGIS'.")
+            elif criterion == "line_distance":
+                ref_source = self.parameterAsSource(parameters, self.REF_LAYER, context)
+                if ref_source is None:
+                    raise QgsProcessingException(
+                        self.tr("Specificare un layer di riferimento per il criterio 'Distanza dalla linea'.")
+                    )
+                ref_feats = list(ref_source.getFeatures())
+                if not ref_feats:
+                    raise QgsProcessingException(self.tr("Il layer di riferimento non contiene feature."))
+                line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+                dist_mode_keys = ["centroid", "element"]
+                dist_mode_idx = self.parameterAsEnum(parameters, "LINE_DISTANCE_MODE", context)
+                dist_mode = dist_mode_keys[dist_mode_idx]
+                da = None
+                if resolve_geodesic(crs, criterion, geodesic_mode):
+                    da = build_distance_area(crs, context.transformContext())
+                msg = geographic_crs_warning(crs, criterion, da is not None)
+                if msg:
+                    feedback.pushWarning("GeoSort: " + msg)
+                sorted_feats, values = sort_by_line_distance(
+                    features, line_geom, ascending, mode=dist_mode, distance_area=da,
+                    progress_callback=_progress_cb,
                 )
-            try:
-                sorted_feats, values, warnings = sort_by_expression(
-                    features, expr_layer, expr_text, ascending, nulls_last,
-                    natural_sort=natural_sort,
-                )
-            except ValueError as exc:
-                raise QgsProcessingException(str(exc))
-            if warnings:
-                for w in warnings:
-                    feedback.pushWarning(f"GeoSort espressione: {w}")
-            excluded = []
+                excluded = []
 
-        else:
-            # Tutti i criteri geometrici (area, perimetro, lunghezza, n_vertices, bbox_*)
-            da = None
-            if resolve_geodesic(crs, criterion, geodesic_mode):
-                da = build_distance_area(crs, context.transformContext())
-            msg = geographic_crs_warning(crs, criterion, da is not None)
-            if msg:
-                feedback.pushWarning("GeoSort: " + msg)
-            try:
-                sorted_feats, values = sort_by_geometry_property(
-                    features, criterion, ascending, distance_area=da
-                )
-            except ValueError as exc:
-                raise QgsProcessingException(str(exc))
-            excluded = []
+            elif criterion == "expression":
+                from .geosort_core import sort_by_expression
+                expr_text = self.parameterAsExpression(parameters, "EXPRESSION", context)
+                if not expr_text or not expr_text.strip():
+                    raise QgsProcessingException(
+                        self.tr("Specificare un'espressione per il criterio 'Espressione QGIS'.")
+                    )
+                try:
+                    sorted_feats, values, warnings = sort_by_expression(
+                        features, expr_layer, expr_text, ascending, nulls_last,
+                        natural_sort=natural_sort, progress_callback=_progress_cb,
+                    )
+                except ValueError as exc:
+                    raise QgsProcessingException(str(exc))
+                if warnings:
+                    for w in warnings:
+                        feedback.pushWarning(f"GeoSort espressione: {w}")
+                excluded = []
+
+            else:
+                # Tutti i criteri geometrici (area, perimetro, lunghezza, n_vertices, bbox_*)
+                da = None
+                if resolve_geodesic(crs, criterion, geodesic_mode):
+                    da = build_distance_area(crs, context.transformContext())
+                msg = geographic_crs_warning(crs, criterion, da is not None)
+                if msg:
+                    feedback.pushWarning("GeoSort: " + msg)
+                try:
+                    sorted_feats, values = sort_by_geometry_property(
+                        features, criterion, ascending, distance_area=da,
+                        progress_callback=_progress_cb,
+                    )
+                except ValueError as exc:
+                    raise QgsProcessingException(str(exc))
+                excluded = []
+        except _Canceled:
+            return {}
 
         feedback.setProgress(60)
         if feedback.isCanceled():
