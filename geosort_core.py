@@ -1217,7 +1217,9 @@ def apply_sort_order(
         # beginEditCommand/endEditCommand raggruppa tutte le changeAttributeValues
         # in un unico blocco di undo (altrimenti ogni feature sarebbe uno step
         # separato: su layer grandi, migliaia di Ctrl+Z per annullare l'ordinamento).
-        layer.beginEditCommand(_tr("GeoSort"))
+        # "GeoSort" è il nome del plugin (compare nel menu Undo di QGIS): un nome
+        # proprio, identico in ogni lingua, non va tradotto con _tr().
+        layer.beginEditCommand("GeoSort")
         try:
             for i, feat in enumerate(sorted_features):
                 changes = {sort_idx: i + 1}
