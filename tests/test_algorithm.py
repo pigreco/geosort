@@ -22,15 +22,35 @@ def _qgis_available():
         return False
 
 
+def _processing_available():
+    try:
+        import processing  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 @unittest.skipUnless(_qgis_available(), "QGIS non disponibile in questo ambiente di test")
+@unittest.skipUnless(_processing_available(), "Processing module non disponibile in questo ambiente di test")
 class TestGeoSortAlgorithm(unittest.TestCase):
     """Test sul GeoSortAlgorithm (Processing Toolbox)."""
 
     @classmethod
     def setUpClass(cls):
-        """Avvia l'applicazione QGIS."""
+        """Avvia l'applicazione QGIS e registra il provider GeoSort."""
         from qgis.testing import start_app
         cls.qgis_app = start_app()
+
+        # Registra il provider una sola volta: serve al test end-to-end
+        # che invoca l'algoritmo tramite processing.run().
+        from qgis.core import QgsApplication
+        from processing.core.Processing import Processing
+        Processing.initialize()
+        registry = QgsApplication.processingRegistry()
+        if registry.providerById("geosort") is None:
+            from geosort.geosort_provider import GeoSortProvider
+            cls._provider = GeoSortProvider()
+            registry.addProvider(cls._provider)
 
     def setUp(self):
         """Istanzia l'algoritmo e crea layer di test."""
@@ -42,6 +62,9 @@ class TestGeoSortAlgorithm(unittest.TestCase):
         from geosort.geosort_algorithm import GeoSortAlgorithm
 
         self.algo = GeoSortAlgorithm()
+        # In QGIS è il framework Processing a chiamare initAlgorithm alla
+        # registrazione: qui va invocato esplicitamente per creare i parametri.
+        self.algo.initAlgorithm()
 
         # Crea un layer di test semplice (punti)
         fields = QgsFields()
@@ -212,6 +235,28 @@ class TestGeoSortAlgorithm(unittest.TestCase):
         """I criteri basati su linea non sono ammessi come primario in multi-criterio."""
         self.assertNotIn("line_position", self.algo._MULTI_PRIMARY_KEYS)
         self.assertNotIn("line_distance", self.algo._MULTI_PRIMARY_KEYS)
+
+    def test_end_to_end_selected_features_only(self):
+        """Con QgsProcessingFeatureSourceDefinition vengono ordinate solo le selezionate."""
+        import processing
+        from qgis.core import QgsProcessingFeatureSourceDefinition
+        selected_ids = [f.id() for f in self.layer.getFeatures()][:2]
+        self.layer.selectByIds(selected_ids)
+        try:
+            result = processing.run("geosort:geosort_sort", {
+                "INPUT": QgsProcessingFeatureSourceDefinition(
+                    self.layer.id(), selectedFeaturesOnly=True
+                ),
+                "CRITERION": 1,             # centroide X
+                "DIRECTION": True,
+                "OUTPUT": "memory:",
+            })
+        finally:
+            self.layer.removeSelection()
+        out = result["OUTPUT"]
+        self.assertEqual(out.featureCount(), 2)
+        orders = sorted(f["sort_order"] for f in out.getFeatures())
+        self.assertEqual(orders, [1, 2])
 
     def test_end_to_end_multi_criteria(self):
         """Esecuzione completa con criterio primario + secondario."""

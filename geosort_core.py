@@ -28,7 +28,12 @@ from qgis.core import (
     Qgis,
     NULL,
 )
-from qgis.PyQt.QtCore import QMetaType, Qt
+from qgis.PyQt.QtCore import QMetaType, Qt, QCoreApplication
+
+
+def _tr(text):
+    """Traduce una stringa nel contesto 'GeoSort' (QtCore, nessuna dipendenza UI)."""
+    return QCoreApplication.translate("GeoSort", text)
 
 # Compatibilita Qt5/Qt6 per Qt.ISODate
 try:
@@ -173,23 +178,21 @@ def geographic_crs_warning(crs, criterion, applied_geodesic):
     authid = crs.authid() or "CRS geografico"
     ellipsoid = crs.ellipsoidAcronym() or "WGS84"
     if applied_geodesic:
-        return (
-            f"CRS geografico ({authid}): misura ellissoidica (geodetica) applicata "
-            f"automaticamente. I valori del criterio sono in metri/m² "
-            f"sull'ellissoide {ellipsoid}, non in gradi."
-        )
+        return _tr(
+            "CRS geografico ({authid}): misura ellissoidica (geodetica) applicata automaticamente. "
+            "I valori del criterio sono in metri/m² sull'ellissoide {ellipsoid}, non in gradi."
+        ).format(authid=authid, ellipsoid=ellipsoid)
     if criterion in GEODESIC_CRITERIA:
-        return (
-            f"CRS geografico ({authid}): i valori di '{criterion}' sono calcolati in "
-            f"gradi e l'ordinamento può risultare distorto alle diverse latitudini. "
-            f"Attiva la misura geodetica o riproietta in un CRS proiettato (metrico)."
-        )
+        return _tr(
+            "CRS geografico ({authid}): i valori di '{criterion}' sono calcolati in gradi "
+            "e l'ordinamento può risultare distorto alle diverse latitudini. "
+            "Attiva la misura geodetica o riproietta in un CRS proiettato (metrico)."
+        ).format(authid=authid, criterion=criterion)
     # bbox_* : nessun equivalente ellissoidico (concetto in coordinate native).
-    return (
-        f"CRS geografico ({authid}): '{criterion}' è calcolato in gradi (concetto "
-        f"planare in coordinate native). Per misure metriche riproietta in un CRS "
-        f"proiettato."
-    )
+    return _tr(
+        "CRS geografico ({authid}): '{criterion}' è calcolato in gradi (concetto planare "
+        "in coordinate native). Per misure metriche riproietta in un CRS proiettato."
+    ).format(authid=authid, criterion=criterion)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -282,6 +285,31 @@ def _natural_key(val):
             for chunk in re.split(r"(\d+)", str(val))]
 
 
+def _comparable_key(val):
+    """Chiave di ordinamento sempre confrontabile, anche con tipi eterogenei.
+
+    I numeri (bool inclusi) vengono prima delle stringhe; date/ora sono già
+    normalizzate in ISO-8601 da :func:`_normalize_val` e confrontate come
+    stringhe. Evita il ``TypeError`` di ``sorted()`` quando un campo o
+    un'espressione restituisce tipi misti (es. a volte numeri, a volte testo).
+    """
+    v = _normalize_val(val)
+    if isinstance(v, (bool, int, float)):
+        return (0, float(v), "")
+    return (1, 0.0, str(v))
+
+
+def _null_priority(nulls_last, ascending):
+    """Priorità di ordinamento dei NULL, compensata per la direzione.
+
+    ``sorted(..., reverse=True)`` invertirebbe anche la posizione dei NULL:
+    la compensazione garantisce che ``nulls_last`` valga a prescindere dalla
+    direzione di ordinamento.
+    """
+    priority = 1 if nulls_last else -1
+    return priority if ascending else -priority
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Ordinamento per attributo
 # ──────────────────────────────────────────────────────────────────────────────
@@ -297,13 +325,14 @@ def sort_by_attribute(features: List[QgsFeature], field: str, ascending: bool = 
         features (list[QgsFeature]): feature da ordinare.
         field (str): nome del campo.
         ascending (bool): True = crescente.
-        nulls_last (bool): True = NULL in fondo; False = NULL in cima.
+        nulls_last (bool): True = NULL in fondo; False = NULL in cima
+            (indipendentemente dalla direzione di ordinamento).
         progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
 
     Returns:
         list[QgsFeature]: lista ordinata.
     """
-    null_priority = 1 if nulls_last else -1
+    null_priority = _null_priority(nulls_last, ascending)
     total = len(features)
 
     def key(f):
@@ -313,10 +342,7 @@ def sort_by_attribute(features: List[QgsFeature], field: str, ascending: bool = 
             return (null_priority, [])
         if natural_sort:
             return (0, _natural_key(val))
-        try:
-            return (0, _normalize_val(val))
-        except TypeError:
-            return (0, str(val))
+        return (0, _comparable_key(val))
 
     sorted_feats = sorted(features, key=key, reverse=not ascending)
 
@@ -344,7 +370,8 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
             dell'espressione: CRS, campi, variabili di progetto).
         expression_str (str): testo dell'espressione QGIS.
         ascending (bool): True = crescente.
-        nulls_last (bool): True = NULL/errori in fondo; False = in cima.
+        nulls_last (bool): True = NULL/errori in fondo; False = in cima
+            (indipendentemente dalla direzione di ordinamento).
         progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
 
     Returns:
@@ -359,15 +386,14 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
     expr = QgsExpression(expression_str)
     if expr.hasParserError():
         raise ValueError(
-            f"Espressione non valida: {expr.parserErrorString()}\n"
-            f"Espressione: {expression_str!r}"
+            _tr("Espressione non valida: {error}\nEspressione: {expr}")
+            .format(error=expr.parserErrorString(), expr=expression_str)
         )
 
     # Contesto base: variabili di progetto + campi del layer
-    context = QgsExpressionContext()
-    context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(layer))
+    context = _expression_context(layer)
 
-    null_priority = 1 if nulls_last else -1
+    null_priority = _null_priority(nulls_last, ascending)
     warnings = []
     pairs = []
     total = len(features)
@@ -395,10 +421,7 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
             return (null_priority, [])
         if natural_sort:
             return (0, _natural_key(val))
-        try:
-            return (0, _normalize_val(val))
-        except TypeError:
-            return (0, str(val))
+        return (0, _comparable_key(val))
 
     pairs.sort(key=sort_key, reverse=not ascending)
     sorted_feats = [p[0] for p in pairs]
@@ -408,6 +431,22 @@ def sort_by_expression(features, layer, expression_str, ascending=True, nulls_la
         progress_callback(100)
 
     return sorted_feats, values, warnings
+
+def _expression_context(layer):
+    """Contesto di valutazione per le espressioni QGIS.
+
+    Con ``layer`` include variabili globali, di progetto e di layer; senza
+    (``None``, es. sorgente Processing non riconducibile a un layer) ricade
+    sul solo scope globale — i riferimenti ai campi si risolvono comunque
+    dalla feature impostata con ``setFeature``.
+    """
+    context = QgsExpressionContext()
+    if layer is not None:
+        context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(layer))
+    else:
+        context.appendScope(QgsExpressionContextUtils.globalScope())
+    return context
+
 
 def _is_empty_geom(geom):
     """True se la geometria è assente, nulla o vuota (feature non ordinabile spazialmente)."""
@@ -489,21 +528,24 @@ def _geom_value(feature, criterion, distance_area=None):
     if criterion == "area":
         if geom_type != QgsWkbTypes.GeometryType.PolygonGeometry:
             raise ValueError(
-                f"Criterio 'area' richiede geometrie poligonali, trovato: {type_name}."
+                _tr("Criterio 'area' richiede geometrie poligonali, trovato: {type}.")
+                .format(type=type_name)
             )
         return distance_area.measureArea(geom) if distance_area else geom.area()
 
     elif criterion == "perimeter":
         if geom_type != QgsWkbTypes.GeometryType.PolygonGeometry:
             raise ValueError(
-                f"Criterio 'perimeter' richiede geometrie poligonali, trovato: {type_name}."
+                _tr("Criterio 'perimeter' richiede geometrie poligonali, trovato: {type}.")
+                .format(type=type_name)
             )
         return distance_area.measurePerimeter(geom) if distance_area else geom.length()
 
     elif criterion == "length":
         if geom_type != QgsWkbTypes.GeometryType.LineGeometry:
             raise ValueError(
-                f"Criterio 'length' richiede geometrie lineari, trovato: {type_name}."
+                _tr("Criterio 'length' richiede geometrie lineari, trovato: {type}.")
+                .format(type=type_name)
             )
         return distance_area.measureLength(geom) if distance_area else geom.length()
 
@@ -527,7 +569,7 @@ def _geom_value(feature, criterion, distance_area=None):
         return geom.boundingBox().yMinimum()
 
     else:
-        raise ValueError(f"Criterio sconosciuto: '{criterion}'.")
+        raise ValueError(_tr("Criterio sconosciuto: '{criterion}'.").format(criterion=criterion))
 
 
 def sort_by_geometry_property(features: List[QgsFeature], criterion: str, ascending: bool = True,
@@ -668,6 +710,27 @@ def _first_intersection_distance(line_geom, feature_geom):
     return min(distances) if distances else None
 
 
+def _make_line_locator(line_geometry, line_engine):
+    """Funzione ``pt_geom -> float``: distanza curvilinea del punto sulla linea.
+
+    Se il binding lo consente, usa ``QgsGeos.lineLocatePoint`` sul motore
+    preparato (una sola conversione GEOS della linea, riusata per tutte le
+    feature). In caso contrario, o per punti multiparte, ricade sulla coppia
+    ``nearestPoint`` + ``lineLocatePoint`` di :class:`QgsGeometry`.
+    """
+    engine_locate = getattr(line_engine, "lineLocatePoint", None)
+
+    def _locate(pt_geom):
+        if engine_locate is not None and not pt_geom.isMultipart():
+            res = engine_locate(pt_geom.constGet())
+            # Il binding può restituire float oppure (float, msg_errore)
+            return res[0] if isinstance(res, tuple) else res
+        nearest = line_geometry.nearestPoint(pt_geom)
+        return line_geometry.lineLocatePoint(nearest)
+
+    return _locate
+
+
 def sort_by_line_position(features, line_geometry, ascending=True,
                           mode="centroid_projection", progress_callback=None):
     """Ordina le feature in base alla loro posizione lungo una linea di riferimento.
@@ -698,7 +761,14 @@ def sort_by_line_position(features, line_geometry, ascending=True,
         ValueError: se la geometria di riferimento è assente o vuota.
     """
     if _is_empty_geom(line_geometry):
-        raise ValueError("La geometria della linea di riferimento è assente o vuota.")
+        raise ValueError(_tr("La geometria della linea di riferimento è assente o vuota."))
+
+    # Motore geometrico preparato sulla linea: i predicati di intersezione
+    # ripetuti evitano di riconvertire la linea in GEOS a ogni feature
+    # (determinante quando la linea di riferimento ha molti vertici).
+    line_engine = QgsGeometry.createGeometryEngine(line_geometry.constGet())
+    line_engine.prepareGeometry()
+    _locate = _make_line_locator(line_geometry, line_engine)
 
     sorted_feats = []
     values = []
@@ -722,24 +792,23 @@ def sort_by_line_position(features, line_geometry, ascending=True,
 
         if mode == "centroid_projection":
             # Proiezione del centroide: include sempre la feature
-            nearest = line_geometry.nearestPoint(pt_geom)
-            dist = line_geometry.lineLocatePoint(nearest)
             sorted_feats.append(f)
-            values.append(dist)
+            values.append(_locate(pt_geom))
 
         elif mode == "intersecting_projection":
             # Solo feature che intersecano fisicamente la linea
-            if not line_geometry.intersects(geom):
+            if not line_engine.intersects(geom.constGet()):
                 excluded.append(f)
                 continue
-            nearest = line_geometry.nearestPoint(pt_geom)
-            dist = line_geometry.lineLocatePoint(nearest)
             sorted_feats.append(f)
-            values.append(dist)
+            values.append(_locate(pt_geom))
 
         elif mode == "intersecting_first_pt":
-            # Solo feature che intersecano; usa il primo punto di intersezione
-            dist = _first_intersection_distance(line_geometry, geom)
+            # Solo feature che intersecano; usa il primo punto di intersezione.
+            # Il predicato preparato evita l'intersezione GEOS (costosa) per le
+            # feature che non toccano la linea.
+            dist = (_first_intersection_distance(line_geometry, geom)
+                    if line_engine.intersects(geom.constGet()) else None)
             if dist is None:
                 excluded.append(f)
                 continue
@@ -747,14 +816,17 @@ def sort_by_line_position(features, line_geometry, ascending=True,
             values.append(dist)
 
         else:
-            raise ValueError(f"Modalità sconosciuta: '{mode}'. "
-                             f"Valori ammessi: {list(LINE_MODES.keys())}")
+            raise ValueError(
+                _tr("Modalità sconosciuta: '{mode}'. Valori ammessi: {valid}")
+                .format(mode=mode, valid=list(LINE_MODES.keys())))
 
         if progress_callback and i % 50 == 0:
             progress_callback(i * 100.0 / total)
 
-    # Ordina per distanza mantenendo l'associazione con i valori
-    paired = sorted(zip(values, sorted_feats), reverse=not ascending)
+    # Ordina per distanza mantenendo l'associazione con i valori.
+    # key= evita che i pareggi di distanza confrontino i QgsFeature (TypeError).
+    paired = sorted(zip(values, sorted_feats), key=lambda p: p[0],
+                    reverse=not ascending)
     sorted_feats = [f for _, f in paired]
     values = [v for v, _ in paired]
 
@@ -787,10 +859,11 @@ def sort_by_line_distance(features, line_geometry, ascending=True, mode="element
         ValueError: se la modalità non è valida o la linea di riferimento è vuota.
     """
     if mode not in LINE_DISTANCE_MODES:
-        raise ValueError(f"Modalità sconosciuta: '{mode}'. "
-                         f"Valori ammessi: {list(LINE_DISTANCE_MODES.keys())}")
+        raise ValueError(
+            _tr("Modalità sconosciuta: '{mode}'. Valori ammessi: {valid}")
+            .format(mode=mode, valid=list(LINE_DISTANCE_MODES.keys())))
     if _is_empty_geom(line_geometry):
-        raise ValueError("La geometria della linea di riferimento è assente o vuota.")
+        raise ValueError(_tr("La geometria della linea di riferimento è assente o vuota."))
 
     valid = []        # (dist, idx, feat) – idx stabilizza i pari-distanza
     invalid = []
@@ -874,28 +947,33 @@ def _numeric_extractor(key, spec, distance_area=None):
         line = spec.get("line_geometry")
         mode = spec.get("mode", "centroid_projection")
         if _is_empty_geom(line):
-            raise ValueError("Linea di riferimento assente o vuota.")
+            raise ValueError(_tr("Linea di riferimento assente o vuota."))
+        line_engine = QgsGeometry.createGeometryEngine(line.constGet())
+        line_engine.prepareGeometry()
+        _locate = _make_line_locator(line, line_engine)
 
         def _ex(f):
             geom = f.geometry()
             if _is_empty_geom(geom):
                 return None
             if mode == "intersecting_first_pt":
+                if not line_engine.intersects(geom.constGet()):
+                    return None
                 return _first_intersection_distance(line, geom)
-            if mode == "intersecting_projection" and not line.intersects(geom):
+            if mode == "intersecting_projection" and not line_engine.intersects(geom.constGet()):
                 return None
             gt = QgsWkbTypes.geometryType(geom.wkbType())
             pt_geom = (QgsGeometry(geom)
                        if gt == QgsWkbTypes.GeometryType.PointGeometry
                        else geom.centroid())
-            return line.lineLocatePoint(line.nearestPoint(pt_geom))
+            return _locate(pt_geom)
         return _ex
 
     if key == "line_distance":
         line = spec.get("line_geometry")
         mode = spec.get("mode", "element")
         if _is_empty_geom(line):
-            raise ValueError("Linea di riferimento assente o vuota.")
+            raise ValueError(_tr("Linea di riferimento assente o vuota."))
 
         def _ex(f):
             geom = f.geometry()
@@ -907,7 +985,7 @@ def _numeric_extractor(key, spec, distance_area=None):
             return src.distance(line)
         return _ex
 
-    raise ValueError(f"Criterio multi-livello sconosciuto: '{key}'.")
+    raise ValueError(_tr("Criterio multi-livello sconosciuto: '{key}'.").format(key=key))
 
 
 def _multi_level(features, spec, layer, distance_area=None):
@@ -928,7 +1006,7 @@ def _multi_level(features, spec, layer, distance_area=None):
     ascending = spec.get("ascending", True)
     nulls_last = spec.get("nulls_last", True)
     natural = spec.get("natural_sort", False)
-    null_priority = 1 if nulls_last else -1
+    null_priority = _null_priority(nulls_last, ascending)
     n = len(features)
     raw = [None] * n
     keys = [None] * n
@@ -940,10 +1018,10 @@ def _multi_level(features, spec, layer, distance_area=None):
             expr = QgsExpression(spec["expression"])
             if expr.hasParserError():
                 raise ValueError(
-                    f"Espressione non valida: {expr.parserErrorString()}"
+                    _tr("Espressione non valida: {error}")
+                    .format(error=expr.parserErrorString())
                 )
-            ctx = QgsExpressionContext()
-            ctx.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(layer))
+            ctx = _expression_context(layer)
         field = spec.get("field")
 
         for i, f in enumerate(features):
@@ -961,10 +1039,7 @@ def _multi_level(features, spec, layer, distance_area=None):
             elif natural:
                 keys[i] = (0, _natural_key(val))
             else:
-                try:
-                    keys[i] = (0, _normalize_val(val))
-                except TypeError:
-                    keys[i] = (0, str(val))
+                keys[i] = (0, _comparable_key(val))
     else:
         extract = _numeric_extractor(key, spec, distance_area)
         for i, f in enumerate(features):
@@ -1075,12 +1150,12 @@ def apply_sort_order(
 
         # ── Assegnazione valori ───────────────────────────────────────────────
         total = len(sorted_features)
+        write_crit = add_criterion_field and criterion_values and crit_idx != -1
         for i, feat in enumerate(sorted_features):
-            fid = feat.id()
-            layer.changeAttributeValue(fid, sort_idx, i + 1)
-            if add_criterion_field and criterion_values and crit_idx != -1:
-                val = _coerce_value(criterion_values[i], crit_field_type)
-                layer.changeAttributeValue(fid, crit_idx, val)
+            changes = {sort_idx: i + 1}
+            if write_crit:
+                changes[crit_idx] = _coerce_value(criterion_values[i], crit_field_type)
+            layer.changeAttributeValues(feat.id(), changes)
             if progress_callback and i % 50 == 0:
                 progress_callback(i * 100.0 / total)
 
@@ -1147,16 +1222,15 @@ def create_memory_layer(
 
     total = len(sorted_features)
     out_features = []
+    write_crit = add_criterion_field and criterion_values
     for i, feat in enumerate(sorted_features):
         new_feat = QgsFeature(mem_layer.fields())
         new_feat.setGeometry(feat.geometry())
-        for field in original_fields:
-            new_feat[field.name()] = feat[field.name()]
-        new_feat["sort_order"] = i + 1
-        if add_criterion_field and criterion_values:
-            new_feat[criterion_field_name] = _coerce_value(
-                criterion_values[i], crit_field_type
-            )
+        # setAttributes: una sola chiamata invece di un lookup per nome per campo
+        attrs = feat.attributes() + [i + 1]
+        if write_crit:
+            attrs.append(_coerce_value(criterion_values[i], crit_field_type))
+        new_feat.setAttributes(attrs)
         out_features.append(new_feat)
         if progress_callback and i % 50 == 0:
             progress_callback(i * 100.0 / total)

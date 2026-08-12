@@ -111,8 +111,25 @@ def _natural_key(val):
             for chunk in re.split(r"(\d+)", str(val))]
 
 
+def _comparable_key(val):
+    """Replica di geosort_core._comparable_key: chiave sempre confrontabile.
+
+    Numeri (bool inclusi) prima delle stringhe; evita TypeError con tipi misti.
+    """
+    v = _normalize_val(val)
+    if isinstance(v, (bool, int, float)):
+        return (0, float(v), "")
+    return (1, 0.0, str(v))
+
+
+def _null_priority(nulls_last, ascending):
+    """Replica di geosort_core._null_priority: priorità NULL compensata per la direzione."""
+    priority = 1 if nulls_last else -1
+    return priority if ascending else -priority
+
+
 def _sort_by_attribute(features, field, ascending=True, nulls_last=True, natural_sort=False, progress_callback=None):
-    null_priority = 1 if nulls_last else -1
+    null_priority = _null_priority(nulls_last, ascending)
 
     def key(f):
         val = f[field]
@@ -120,10 +137,7 @@ def _sort_by_attribute(features, field, ascending=True, nulls_last=True, natural
             return (null_priority, [])
         if natural_sort:
             return (0, _natural_key(val))
-        try:
-            return (0, _normalize_val(val))
-        except TypeError:
-            return (0, str(val))
+        return (0, _comparable_key(val))
 
     result = sorted(features, key=key, reverse=not ascending)
 
@@ -282,6 +296,30 @@ class TestSortByAttribute(unittest.TestCase):
         self.assertEqual(ts[1], datetime(2024, 6, 15, 8, 30))
         self.assertEqual(ts[2], datetime(2024, 6, 15, 12, 0))
 
+    def test_null_last_descending(self):
+        """Bug fix: nulls_last=True deve valere anche con ordine discendente."""
+        result = _sort_by_attribute(self._feats([None, 5, 2]), "val",
+                                    ascending=False, nulls_last=True)
+        self.assertEqual([f["val"] for f in result], [5, 2, None])
+
+    def test_null_first_descending(self):
+        """Bug fix: nulls_last=False deve valere anche con ordine discendente."""
+        result = _sort_by_attribute(self._feats([None, 5, 2]), "val",
+                                    ascending=False, nulls_last=False)
+        self.assertEqual([f["val"] for f in result], [None, 5, 2])
+
+    def test_mixed_types_no_typeerror(self):
+        """Bug fix: valori di tipo misto (numeri e stringhe) non causano TypeError."""
+        result = _sort_by_attribute(self._feats([3, "b", 1, "a"]), "val",
+                                    ascending=True)
+        # I numeri precedono le stringhe, ciascuna classe ordinata al suo interno
+        self.assertEqual([f["val"] for f in result], [1, 3, "a", "b"])
+
+    def test_mixed_types_descending(self):
+        result = _sort_by_attribute(self._feats([3, "b", 1, "a"]), "val",
+                                    ascending=False)
+        self.assertEqual([f["val"] for f in result], ["b", "a", 3, 1])
+
     def test_date_with_nulls(self):
         """Date con NULL: i NULL vanno in fondo (nulls_last=True)."""
         from datetime import date
@@ -427,6 +465,10 @@ class MockLayer:
     def changeAttributeValue(self, fid, idx, val):
         self._changes[(fid, idx)] = val
 
+    def changeAttributeValues(self, fid, changes):
+        for idx, val in changes.items():
+            self._changes[(fid, idx)] = val
+
     def commitChanges(self):
         self._committed = True
         return True
@@ -456,12 +498,13 @@ def _mock_apply_sort_order(layer, sorted_features, add_criterion_field=False,
                 crit_idx = layer.indexOf(criterion_field_name)
 
         for i, feat in enumerate(sorted_features):
-            layer.changeAttributeValue(feat.id(), sort_idx, i + 1)
+            changes = {sort_idx: i + 1}
             if add_criterion_field and criterion_values and crit_idx != -1:
                 try:
-                    layer.changeAttributeValue(feat.id(), crit_idx, float(criterion_values[i]))
+                    changes[crit_idx] = float(criterion_values[i])
                 except (TypeError, ValueError):
                     pass
+            layer.changeAttributeValues(feat.id(), changes)
 
         layer.commitChanges()
         return True
@@ -732,7 +775,9 @@ def _mock_sort_by_line_position(features, ascending=True, mode="centroid_project
             sorted_feats.append(f)
             values.append(dist)
 
-    paired = sorted(zip(values, sorted_feats), reverse=not ascending)
+    # key= evita che i pareggi di distanza confrontino le feature (TypeError).
+    paired = sorted(zip(values, sorted_feats), key=lambda p: p[0],
+                    reverse=not ascending)
     return [f for _, f in paired], [v for v, _ in paired], excluded
 
 
@@ -804,6 +849,28 @@ class TestLineSortModes(unittest.TestCase):
         self.assertEqual(len(excluded), 2)
         self.assertEqual(values, [1, 2])
 
+    # ── pareggi di distanza (bug fix) ─────────────────────────────────────────
+
+    def test_tied_distances_do_not_compare_features(self):
+        """Bug fix: pareggi di distanza non devono confrontare le feature.
+
+        MockFeature (come QgsFeature) non supporta '<': con l'ordinamento
+        delle tuple (valore, feature) i pareggi causavano TypeError.
+        """
+        feats = self._make([(0.0, True), (2.0, True), (0.0, True), (0.0, True)])
+        result, values, excluded = _mock_sort_by_line_position(
+            feats, mode="centroid_projection", ascending=True
+        )
+        self.assertEqual(values, [0.0, 0.0, 0.0, 2.0])
+        self.assertEqual(len(result), 4)
+
+    def test_tied_distances_descending(self):
+        feats = self._make([(1.0, True), (1.0, True), (5.0, True)])
+        result, values, excluded = _mock_sort_by_line_position(
+            feats, mode="centroid_projection", ascending=False
+        )
+        self.assertEqual(values, [5.0, 1.0, 1.0])
+
     # ── modalità sconosciuta ──────────────────────────────────────────────────
 
     def test_unknown_mode_raises(self):
@@ -829,7 +896,7 @@ def _mock_sort_by_expression(features, expr_fn, ascending=True, nulls_last=True,
     il valore di ordinamento (equivalente all'espressione QGIS valutata).
     None = errore di valutazione (→ trattato come NULL).
     """
-    null_priority = 1 if nulls_last else -1
+    null_priority = _null_priority(nulls_last, ascending)
     pairs = []
 
     for feat in features:
@@ -846,10 +913,7 @@ def _mock_sort_by_expression(features, expr_fn, ascending=True, nulls_last=True,
             return (null_priority, [])
         if natural_sort:
             return (0, _natural_key(val))
-        try:
-            return (0, _normalize_val(val))
-        except TypeError:
-            return (0, str(val))
+        return (0, _comparable_key(val))
 
     pairs.sort(key=key, reverse=not ascending)
 
@@ -994,6 +1058,22 @@ class TestSortByExpression(unittest.TestCase):
             feats, expr, ascending=True, natural_sort=True
         )
         self.assertEqual(values, ["11", "1010", "1111"])
+
+    def test_expression_mixed_types_no_typeerror(self):
+        """Bug fix: un'espressione che restituisce tipi misti non causa TypeError."""
+        feats = self._feats([1, "x", 3])
+        result, values, _ = _mock_sort_by_expression(
+            feats, lambda f: f["val"], ascending=True
+        )
+        self.assertEqual(values, [1, 3, "x"])
+
+    def test_expression_null_last_descending(self):
+        """Bug fix: NULL in fondo anche con ordine discendente."""
+        feats = self._feats([None, 5, 2])
+        result, values, _ = _mock_sort_by_expression(
+            feats, lambda f: f["val"], ascending=False, nulls_last=True
+        )
+        self.assertEqual(values, [5, 2, None])
 
     def test_natural_sort_expression_off_is_lexicographic(self):
         feats = [
@@ -1277,7 +1357,7 @@ def _multi_level_keys(features, spec):
     ascending = spec.get("ascending", True)
     nulls_last = spec.get("nulls_last", True)
     natural = spec.get("natural_sort", False)
-    null_priority = 1 if nulls_last else -1
+    null_priority = _null_priority(nulls_last, ascending)
     keys, raw = [], []
     for f in features:
         if key in ("attribute", "expression"):
@@ -1289,10 +1369,7 @@ def _multi_level_keys(features, spec):
             elif natural:
                 keys.append((0, _natural_key(val)))
             else:
-                try:
-                    keys.append((0, _normalize_val(val)))
-                except TypeError:
-                    keys.append((0, str(val)))
+                keys.append((0, _comparable_key(val)))
         else:  # criterio numerico (geometrico): spec["value"](f) -> float|None
             v = spec["value"](f)
             raw.append(v)
@@ -1391,6 +1468,29 @@ class TestSortMulti(unittest.TestCase):
 
     def _num_spec_field(self, field, ascending):
         return {"key": "geom", "ascending": ascending, "value": lambda f, fl=field: f[fl]}
+
+    def test_primary_nulls_last_descending(self):
+        """Bug fix: NULL in fondo anche con criterio primario discendente."""
+        feats = self._feats([("B", 1), (None, 5), ("A", 9)])
+        criteria = [
+            {"key": "attribute", "field": "region", "ascending": False, "nulls_last": True},
+            self._num_spec("area", ascending=True),
+        ]
+        result, _ = _sort_multi(feats, criteria)
+        self.assertEqual([f["region"] for f in result], ["B", "A", None])
+
+    def test_numeric_secondary_null_last_even_when_descending(self):
+        """Bug fix: valori None del secondario numerico in fondo anche discendente."""
+        feats = [
+            MockFeature(0, {"region": "A"}),
+            MockFeature(1, {"region": "A"}),
+        ]
+        criteria = [
+            {"key": "attribute", "field": "region", "ascending": True},
+            {"key": "geom", "ascending": False, "value": lambda f: None if f.id() == 0 else 5.0},
+        ]
+        result, _ = _sort_multi(feats, criteria)
+        self.assertEqual([f.id() for f in result], [1, 0])
 
     def test_numeric_secondary_with_null_geometry(self):
         # Secondario numerico con un None (geom assente) → relegato in fondo nel gruppo

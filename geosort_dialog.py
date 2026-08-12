@@ -39,6 +39,7 @@ from qgis.core import (
     QgsGeometry,
     QgsProject,
     QgsMessageLog,
+    QgsUnitTypes,
     Qgis,
 )
 from qgis.gui import QgsMapLayerComboBox, QgsFieldComboBox, QgsMapToolEmitPoint
@@ -108,6 +109,14 @@ class GeoSortDialog(QDialog):
         self.layer_combo = QgsMapLayerComboBox()
         self.layer_combo.setFilters(QgsMapLayerProxyModel.Filter.VectorLayer)
         layout.addRow(self.tr("Layer:"), self.layer_combo)
+
+        self.chk_selected_only = QCheckBox(self.tr("Ordina solo le feature selezionate"))
+        self.chk_selected_only.setToolTip(self.tr(
+            "Se attivo, l'ordinamento considera solo le feature attualmente\n"
+            "selezionate sul layer. In modalità 'Aggiorna layer corrente' il\n"
+            "campo sort_order viene scritto solo su quelle feature."
+        ))
+        layout.addRow("", self.chk_selected_only)
 
         self.lbl_crs = QLabel("–")
         self.lbl_crs.setStyleSheet("color: gray; font-size: 10px;")
@@ -427,14 +436,9 @@ class GeoSortDialog(QDialog):
             self.combo_field.setLayer(layer)
             self.combo_secondary_field.setLayer(layer)
             crs = layer.crs()
-            unit_map = {
-                0: "metri",
-                1: "piedi",
-                2: "gradi decimali",
-                3: "gradi decimali",
-                7: "chilometri",
-            }
-            unit_str = unit_map.get(int(crs.mapUnits()), "unità sconosciute")
+            # QgsUnitTypes.toString: robusto ai cambi di valore dell'enum tra
+            # versioni QGIS e già tradotto nella lingua dell'interfaccia.
+            unit_str = QgsUnitTypes.toString(crs.mapUnits())
             is_geographic = crs.isGeographic()
             self.lbl_crs.setText(f"{crs.authid()} – unità: {unit_str}")
             if is_geographic:
@@ -527,9 +531,10 @@ class GeoSortDialog(QDialog):
 
         # Se è solo il nome di un campo esistente, usa la combo (reset a campo semplice)
         layer_fields = [layer.fields().field(i).name() for i in range(layer.fields().count())] if layer else []
-        if expr_text.strip('"') in layer_fields and expr_text == f'"{expr_text.strip(chr(34))}"' or expr_text in layer_fields:
+        unquoted = expr_text.strip('"')
+        if unquoted in layer_fields and expr_text in (unquoted, f'"{unquoted}"'):
             # Espressione = singolo campo → torna alla combo
-            self.combo_field.setField(expr_text.strip('"'))
+            self.combo_field.setField(unquoted)
             self._clear_expression()
             return
 
@@ -662,6 +667,22 @@ class GeoSortDialog(QDialog):
         """Restituisce la modalità geodetica selezionata: 'auto', 'always' o 'never'."""
         return self.combo_geodesic.currentData()
 
+    def _load_features(self, layer):
+        """Feature da ordinare: tutte, o solo le selezionate se richiesto.
+
+        Raises:
+            ValueError: checkbox attiva ma nessuna feature selezionata.
+        """
+        if self.chk_selected_only.isChecked():
+            feats = layer.selectedFeatures()
+            if not feats:
+                raise ValueError(self.tr(
+                    "Nessuna feature selezionata sul layer "
+                    "(è attivo 'Ordina solo le feature selezionate')."
+                ))
+            return feats
+        return list(layer.getFeatures())
+
     def _primary_spec_for_multi(self):
         """Descrittore del criterio primario per sort_multi.
 
@@ -744,7 +765,7 @@ class GeoSortDialog(QDialog):
         if not layer:
             raise ValueError("Nessun layer selezionato.")
         if features is None:
-            features = list(layer.getFeatures())
+            features = self._load_features(layer)
         if not features:
             raise ValueError("Il layer non contiene feature.")
 
@@ -959,7 +980,11 @@ class GeoSortDialog(QDialog):
             QMessageBox.warning(self, "GeoSort", "Nessun layer selezionato.")
             return False
 
-        features = list(layer.getFeatures())
+        try:
+            features = self._load_features(layer)
+        except ValueError as exc:
+            QMessageBox.warning(self, "GeoSort", str(exc))
+            return False
         total = len(features)
         if not total:
             QMessageBox.warning(self, "GeoSort", "Il layer non contiene feature.")

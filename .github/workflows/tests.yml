@@ -1,0 +1,43 @@
+name: tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  core:
+    name: Core senza QGIS (mock)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test logica di ordinamento
+        run: python -m unittest tests.test_sorting -v
+      - name: Verifica sincronizzazione file .ts
+        run: |
+          python scripts/gen_ts.py
+          git diff --exit-code i18n/
+
+  qgis:
+    name: QGIS headless (${{ matrix.tag }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tag: [ltr, latest]
+    container:
+      image: qgis/qgis:${{ matrix.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Il pacchetto deve chiamarsi "geosort" ed essere importabile dal
+          # livello superiore (i test importano geosort.geosort_core, ecc.)
+          path: geosort
+      - name: Test algoritmo Processing e dialogo
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python3 -m unittest geosort.tests.test_algorithm geosort.tests.test_dialog -v

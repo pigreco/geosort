@@ -9,12 +9,20 @@ import re
 from xml.sax.saxutils import escape
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODULES = ["geosort_dialog.py", "geosort_algorithm.py", "geosort_core.py"]
+MODULES = ["geosort_dialog.py", "geosort_algorithm.py", "geosort_core.py", "geosort.py"]
 
-# Stringhe tradotte fuori da self.tr() (azione di menu in geosort.py)
+# Stringhe tradotte fuori da un letterale dentro tr() (liste di etichette a
+# livello di classe in geosort_algorithm.py, tradotte con [self.tr(s) for s ...]).
 EXTRA = [
-    "GeoSort – Advanced Geometry Sorting",
-    "Ordina le feature di un layer vettoriale per criteri geometrici e attributivi",
+    "(nessuno)",
+    "Attributo tabellare", "Espressione QGIS",
+    "Centroide – coordinata X", "Centroide – coordinata Y",
+    "Centroide – distanza da origine (0,0)",
+    "Area (poligoni)", "Perimetro (poligoni)", "Lunghezza (linee)",
+    "Numero di vertici", "Larghezza Bounding Box", "Altezza Bounding Box",
+    "Area Bounding Box", "Xmin Bounding Box", "Ymin Bounding Box",
+    "Posizione lungo linea di riferimento",
+    "Distanza dalla linea di riferimento",
 ]
 
 # Traduzioni inglesi (source -> EN). I source sono in lingua mista IT/EN.
@@ -109,6 +117,206 @@ EN = {
         " ⚠ Geographic CRS: GeoSort automatically applies ellipsoidal (geodesic) measurement",
 }
 
+# Stringhe complete (multilinea) e nuove voci: algoritmo Processing, core,
+# opzione "solo selezionate", tooltip estratti per intero.
+EN.update({
+    "Espressione QGIS": "QGIS expression",
+    "Centroide – distanza da origine (0,0)": "Centroid – distance from origin (0,0)",
+    "Posizione lungo linea di riferimento": "Position along reference line",
+    "Distanza dalla linea di riferimento": "Distance from reference line",
+    "Ordina solo le feature selezionate": "Sort only selected features",
+    "Se attivo, l'ordinamento considera solo le feature attualmente\n"
+    "selezionate sul layer. In modalità 'Aggiorna layer corrente' il\n"
+    "campo sort_order viene scritto solo su quelle feature.":
+        "If enabled, sorting only considers the features currently\n"
+        "selected on the layer. In 'Update current layer' mode the\n"
+        "sort_order field is written only for those features.",
+    "Apri il Field Calculator di QGIS\n"
+    "Permette di costruire un'espressione personalizzata come criterio di ordinamento\n"
+    "Es: \"area_kmq\" / \"popolazione\"   oppure   length($geometry)":
+        "Open the QGIS Field Calculator\n"
+        "Lets you build a custom expression as sort criterion\n"
+        "E.g.: \"area_kmq\" / \"popolazione\"   or   length($geometry)",
+    "Distanza dal centroide: distanza dal centro della feature.\n"
+    "Distanza dall'elemento: distanza dal punto più vicino della geometria.":
+        "Distance from centroid: distance from the center of the feature.\n"
+        "Distance from feature: distance from the nearest point of the geometry.",
+    "Proiezione centroide: include tutte le feature, usa il centroide proiettato sulla linea.\n"
+    "Solo intersecanti – centroide: esclude le feature che non intersecano la linea.\n"
+    "Solo intersecanti – primo punto: usa il punto in cui la feature tocca per primo la linea.":
+        "Centroid projection: includes all features, uses the centroid projected onto the line.\n"
+        "Intersecting only – centroid: excludes features that do not intersect the line.\n"
+        "Intersecting only – first point: uses the point where the feature first touches the line.",
+    "<b>Lessicografico</b> (default): confronto carattere per carattere.\n"
+    "Esempio: «1010» precede «11» precede «1111».\n\n"
+    "<b>Natural Sort</b>: le sequenze di cifre sono confrontate come numeri interi.\n"
+    "Esempio: «11» precede «1010» precede «1111».\n\n"
+    "Attivalo con campi alfanumerici (FILE1, FILE2, FILE10)\n"
+    "o espressioni di concatenazione come \"fid\" || \"id_poly\".":
+        "<b>Lexicographic</b> (default): character-by-character comparison.\n"
+        "Example: «1010» before «11» before «1111».\n\n"
+        "<b>Natural Sort</b>: digit sequences are compared as integers.\n"
+        "Example: «11» before «1010» before «1111».\n\n"
+        "Enable it with alphanumeric fields (FILE1, FILE2, FILE10)\n"
+        "or concatenation expressions such as \"fid\" || \"id_poly\".",
+    "Su CRS geografico (gradi, es. EPSG:4326), area/lunghezza/distanze\n"
+    "vengono misurate sull'ellissoide (m²/m) invece che in gradi.\n"
+    "• Automatica: geodetica solo se il CRS è geografico (consigliato).\n"
+    "• Sempre: geodetica anche su CRS proiettati.\n"
+    "• Mai (planare): misura nelle unità native del CRS.":
+        "On a geographic CRS (degrees, e.g. EPSG:4326), area/length/distances\n"
+        "are measured on the ellipsoid (m²/m) instead of degrees.\n"
+        "• Automatic: geodesic only if the CRS is geographic (recommended).\n"
+        "• Always: geodesic even on projected CRS.\n"
+        "• Never (planar): measured in the native CRS units.",
+    " ⚠ CRS geografico: GeoSort applica automaticamente la misura"
+    " ellissoidica (geodetica) per area/lunghezza/distanze (m²/m).":
+        " ⚠ Geographic CRS: GeoSort automatically applies ellipsoidal"
+        " (geodesic) measurement for area/length/distances (m²/m).",
+    "Nessuna feature selezionata sul layer (è attivo 'Ordina solo le feature selezionate').":
+        "No features selected on the layer ('Sort only selected features' is enabled).",
+    # ── Algoritmo Processing ──
+    "Ordina feature (GeoSort)": "Sort features (GeoSort)",
+    "Layer di input": "Input layer",
+    "Campo attributo (solo per criterio 'Attributo tabellare')":
+        "Attribute field (only for 'Table attribute' criterion)",
+    "Ordine ascendente": "Ascending order",
+    "Valori NULL in fondo (solo per criterio attributo)":
+        "NULL values last (attribute criterion only)",
+    "Ordinamento naturale – Natural Sort (solo per criterio attributo/espressione)":
+        "Natural Sort (attribute/expression criterion only)",
+    "Modalità di misura geodetica (per area/lunghezza/distanza)":
+        "Geodesic measurement mode (for area/length/distance)",
+    "Automatica – geodetica su CRS geografico (consigliato)":
+        "Automatic – geodesic on geographic CRS (recommended)",
+    "Sempre geodetica": "Always geodesic",
+    "Mai (misura planare nelle unità del CRS)": "Never (planar measurement in CRS units)",
+    "Layer linea di riferimento (solo per criteri 'Posizione/Distanza dalla linea')":
+        "Reference line layer (only for 'Position along/Distance from line' criteria)",
+    "Modalità di calcolo – Posizione lungo linea": "Calculation mode – Position along line",
+    "Solo intersecanti –  proiezione centroide": "Intersecting only –  centroid projection",
+    "Solo intersecanti –  primo punto di intersezione":
+        "Intersecting only –  first intersection point",
+    "Modalità di calcolo – Distanza dalla linea": "Calculation mode – Distance from line",
+    "Espressione QGIS (solo per criterio 'Espressione QGIS')":
+        "QGIS expression (only for 'QGIS expression' criterion)",
+    "Criterio secondario per i pareggi (opzionale)": "Secondary criterion for ties (optional)",
+    "Campo del criterio secondario (solo se 'Attributo tabellare')":
+        "Secondary criterion field (only if 'Table attribute')",
+    "Espressione del criterio secondario (solo se 'Espressione QGIS')":
+        "Secondary criterion expression (only if 'QGIS expression')",
+    "Criterio secondario: ordine ascendente": "Secondary criterion: ascending order",
+    "Aggiungi campo con il valore del criterio (sort_value)":
+        "Add a field with the criterion value (sort_value)",
+    "Layer ordinato": "Sorted layer",
+    "Specificare un campo attributo per il criterio primario.":
+        "Specify an attribute field for the primary criterion.",
+    "Specificare un'espressione per il criterio primario.":
+        "Specify an expression for the primary criterion.",
+    "Specificare un campo per il criterio secondario.":
+        "Specify a field for the secondary criterion.",
+    "Specificare un'espressione per il criterio secondario.":
+        "Specify an expression for the secondary criterion.",
+    "GeoSort: ordinamento multi-criterio (primario + secondario).":
+        "GeoSort: multi-criteria sorting (primary + secondary).",
+    "Layer di input non trovato.": "Input layer not found.",
+    "Caricamento feature...": "Loading features...",
+    "Il layer non contiene feature.": "The layer contains no features.",
+    "Ordinamento in corso...": "Sorting...",
+    "GeoSort: criterio secondario ignorato perché il criterio primario "
+    "è basato su una linea di riferimento.":
+        "GeoSort: secondary criterion ignored because the primary criterion is line-based.",
+    "Specificare un campo attributo per il criterio 'Attributo tabellare'.":
+        "Specify an attribute field for the 'Table attribute' criterion.",
+    "Specificare un layer di riferimento per il criterio 'Posizione lungo linea'.":
+        "Specify a reference layer for the 'Position along line' criterion.",
+    "Il layer di riferimento non contiene feature.":
+        "The reference layer contains no features.",
+    "GeoSort: {n} feature escluse perché non intersecano la linea.":
+        "GeoSort: {n} features excluded because they do not intersect the line.",
+    "Specificare un layer di riferimento per il criterio 'Distanza dalla linea'.":
+        "Specify a reference layer for the 'Distance from line' criterion.",
+    "Specificare un'espressione per il criterio 'Espressione QGIS'.":
+        "Specify an expression for the 'QGIS expression' criterion.",
+    "Scrittura output...": "Writing output...",
+    "Impossibile creare il layer di output.": "Could not create the output layer.",
+    "Ordina le feature di un layer vettoriale per criteri geometrici o attributivi "
+    "e aggiunge il campo <b>sort_order</b> (numero progressivo, 1 = prima feature).\n\n"
+    "Criteri disponibili: attributo tabellare, coordinate del centroide, "
+    "area, lunghezza, perimetro, numero di vertici, bounding box, "
+    "posizione lungo una linea di riferimento, distanza dalla linea di riferimento, espressione QGIS.\n\n"
+    "<b>Modalità di ordinamento testuale (attributo/espressione):</b>\n"
+    "• <b>Lessicografico</b> (default): confronto carattere per carattere. "
+    "Esempio: «1010» &lt; «11» &lt; «1111».\n"
+    "• <b>Natural Sort</b>: le sequenze di cifre sono confrontate come numeri. "
+    "Esempio: «11» &lt; «1010» &lt; «1111». "
+    "Utile con campi alfanumerici (FILE1, FILE2, FILE10) o espressioni "
+    "di concatenazione come <code>\"fid\" || \"id_poly\"</code>.\n\n"
+    "<b>Ordinamento multi-criterio:</b> imposta un <b>criterio secondario</b> "
+    "per spezzare i pareggi del criterio primario (es. primario = regione, "
+    "secondario = area decrescente). Disponibile per i criteri non basati su linea.\n\n"
+    "<b>Misura geodetica (ellissoidale):</b> quando il CRS del layer è geografico "
+    "(coordinate in gradi, es. EPSG:4326), le misure planari di area, lunghezza, "
+    "perimetro e distanza sarebbero in gradi — metricamente prive di senso. "
+    "Con la modalità <i>Automatica</i> (default) GeoSort usa automaticamente il calcolo "
+    "ellissoidale (QgsDistanceArea) restituendo valori in m² / m. "
+    "Selezionare <i>Mai</i> per forzare la misura planare nelle unità del CRS.\n\n"
+    "Compatibile con il Processing Toolbox, il modellatore grafico e PyQGIS headless.":
+        "Sorts vector layer features by geometric or attribute criteria "
+        "and adds the <b>sort_order</b> field (progressive number, 1 = first feature).\n\n"
+        "Available criteria: table attribute, centroid coordinates, "
+        "area, length, perimeter, number of vertices, bounding box, "
+        "position along a reference line, distance from the reference line, QGIS expression.\n\n"
+        "<b>Text sorting mode (attribute/expression):</b>\n"
+        "• <b>Lexicographic</b> (default): character-by-character comparison. "
+        "Example: «1010» &lt; «11» &lt; «1111».\n"
+        "• <b>Natural Sort</b>: digit sequences are compared as numbers. "
+        "Example: «11» &lt; «1010» &lt; «1111». "
+        "Useful with alphanumeric fields (FILE1, FILE2, FILE10) or concatenation "
+        "expressions such as <code>\"fid\" || \"id_poly\"</code>.\n\n"
+        "<b>Multi-criteria sorting:</b> set a <b>secondary criterion</b> "
+        "to break ties of the primary criterion (e.g. primary = region, "
+        "secondary = descending area). Available for non line-based criteria.\n\n"
+        "<b>Geodesic (ellipsoidal) measurement:</b> when the layer CRS is geographic "
+        "(coordinates in degrees, e.g. EPSG:4326), planar measures of area, length, "
+        "perimeter and distance would be in degrees — metrically meaningless. "
+        "With the <i>Automatic</i> mode (default) GeoSort automatically uses ellipsoidal "
+        "calculation (QgsDistanceArea) returning values in m² / m. "
+        "Select <i>Never</i> to force planar measurement in CRS units.\n\n"
+        "Compatible with the Processing Toolbox, the graphical modeler and headless PyQGIS.",
+    # ── Core (avvisi CRS geografico e messaggi d'errore) ──
+    "CRS geografico ({authid}): misura ellissoidica (geodetica) applicata automaticamente. "
+    "I valori del criterio sono in metri/m² sull'ellissoide {ellipsoid}, non in gradi.":
+        "Geographic CRS ({authid}): ellipsoidal (geodesic) measurement applied automatically. "
+        "Criterion values are in meters/m² on the {ellipsoid} ellipsoid, not in degrees.",
+    "CRS geografico ({authid}): i valori di '{criterion}' sono calcolati in gradi "
+    "e l'ordinamento può risultare distorto alle diverse latitudini. "
+    "Attiva la misura geodetica o riproietta in un CRS proiettato (metrico).":
+        "Geographic CRS ({authid}): '{criterion}' values are computed in degrees "
+        "and sorting may be distorted across latitudes. "
+        "Enable geodesic measurement or reproject to a projected (metric) CRS.",
+    "CRS geografico ({authid}): '{criterion}' è calcolato in gradi (concetto planare "
+    "in coordinate native). Per misure metriche riproietta in un CRS proiettato.":
+        "Geographic CRS ({authid}): '{criterion}' is computed in degrees (a planar concept "
+        "in native coordinates). For metric measures reproject to a projected CRS.",
+    "Espressione non valida: {error}\nEspressione: {expr}":
+        "Invalid expression: {error}\nExpression: {expr}",
+    "Espressione non valida: {error}": "Invalid expression: {error}",
+    "Criterio 'area' richiede geometrie poligonali, trovato: {type}.":
+        "The 'area' criterion requires polygon geometries, found: {type}.",
+    "Criterio 'perimeter' richiede geometrie poligonali, trovato: {type}.":
+        "The 'perimeter' criterion requires polygon geometries, found: {type}.",
+    "Criterio 'length' richiede geometrie lineari, trovato: {type}.":
+        "The 'length' criterion requires line geometries, found: {type}.",
+    "Criterio sconosciuto: '{criterion}'.": "Unknown criterion: '{criterion}'.",
+    "La geometria della linea di riferimento è assente o vuota.":
+        "The reference line geometry is missing or empty.",
+    "Modalità sconosciuta: '{mode}'. Valori ammessi: {valid}":
+        "Unknown mode: '{mode}'. Allowed values: {valid}",
+    "Linea di riferimento assente o vuota.": "Reference line missing or empty.",
+    "Criterio multi-livello sconosciuto: '{key}'.": "Unknown multi-level criterion: '{key}'.",
+})
+
 # Traduzioni italiane: identità tranne i source in inglese
 IT_OVERRIDE = {
     "GeoSort – Advanced Geometry Sorting": "GeoSort – Ordinamento Avanzato delle Geometrie",
@@ -117,7 +325,11 @@ IT_OVERRIDE = {
     "Help": "Aiuto",
 }
 
-TR_RE = re.compile(r'self\.tr\(\s*("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')')
+# Cattura l'INTERA sequenza di letterali adiacenti dentro tr(): le stringhe
+# multilinea concatenate vengono estratte per intero (il sorgente completo è
+# ciò che Qt cerca a runtime), non solo il primo frammento.
+_STR = r'(?:"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')'
+TR_RE = re.compile(r'\b(?:self\.tr|_tr)\(\s*(' + _STR + r'(?:\s*' + _STR + r')*)', re.S)
 
 
 def collect_sources():
@@ -129,7 +341,7 @@ def collect_sources():
     for fname in MODULES:
         text = open(os.path.join(ROOT, fname), encoding="utf-8").read()
         for m in TR_RE.finditer(text):
-            val = eval(m.group(1))
+            val = eval("(" + m.group(1) + ")")
             if val not in seen:
                 seen.add(val)
                 out.append(val)

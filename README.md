@@ -2,10 +2,11 @@
 
 🇮🇹 **Italiano** | [🇬🇧 English](README.en.md)
 
-[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/pigreco/geosort/releases)
+[![Version](https://img.shields.io/badge/version-1.8.0-blue.svg)](https://github.com/pigreco/geosort/releases)
 [![Languages](https://img.shields.io/badge/languages-IT%20%7C%20EN-green.svg)](#lingue--languages)
 [![QGIS](https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg)](#requisiti)
 [![License](https://img.shields.io/badge/license-GPLv2-red.svg)](LICENSE)
+[![Tests](https://github.com/pigreco/geosort/actions/workflows/tests.yml/badge.svg)](https://github.com/pigreco/geosort/actions/workflows/tests.yml)
 
 ---
 
@@ -38,6 +39,11 @@ Compatibile con **QGIS 3.16+** (Qt5 / PyQt5) e **QGIS 4.x** (Qt6 / PyQt6).
 
 > **Robustezza:** le feature con geometria NULL/vuota e i layer a geometria mista non
 > causano errori — le feature non ordinabili spazialmente vengono relegate in fondo.
+
+> **Solo feature selezionate:** l'ordinamento può essere limitato alle feature
+> selezionate, sia nel dialogo (checkbox *Ordina solo le feature selezionate*) sia
+> nel Processing (spunta nativa di QGIS sul layer di input). In modalità *Aggiorna
+> layer corrente* il campo `sort_order` viene scritto solo su quelle feature.
 
 ### Misura geodetica (CRS geografici)
 
@@ -130,6 +136,17 @@ output_layer = result['OUTPUT']
 > Il criterio secondario è ignorato se il criterio primario è basato su una linea
 > (`line_position` / `line_distance`).
 
+Per ordinare solo le feature selezionate da PyQGIS:
+
+```python
+from qgis.core import QgsProcessingFeatureSourceDefinition
+result = processing.run("geosort:geosort_sort", {
+    'INPUT': QgsProcessingFeatureSourceDefinition(layer.id(), selectedFeaturesOnly=True),
+    'CRITERION': 1,
+    'OUTPUT': 'memory:'
+})
+```
+
 ---
 
 ## Lingue / Languages
@@ -193,22 +210,26 @@ I test della logica di ordinamento non richiedono QGIS:
 ```bash
 cd geosort
 python -m unittest tests.test_sorting -v
-# 145 test sulla logica core (sort_by_attribute, sort_by_centroid, sort_multi, robustezza geometrie NULL, misura geodetica, ecc.)
+# 155 test sulla logica core (sort_by_attribute, sort_by_centroid, sort_multi, robustezza geometrie NULL, misura geodetica, ecc.)
 ```
 
 I test del dialog e dell'algoritmo Processing richiedono QGIS nel PATH:
 
 ```bash
-python -m unittest tests.test_dialog -v     # Test UI (23 test)
-python -m unittest tests.test_algorithm -v  # Test Processing Toolbox (24 test)
+python -m unittest tests.test_dialog -v     # Test UI (27 test)
+python -m unittest tests.test_algorithm -v  # Test Processing Toolbox (25 test)
 ```
 
 Eseguire tutti i test:
 
 ```bash
 python -m unittest discover tests -p "test_*.py" -v
-# Output: 192 tests (145 ok, 47 skipped che richiedono QGIS)
+# Output: 207 tests (155 ok, 52 skipped che richiedono QGIS)
 ```
+
+Ogni push e pull request esegue automaticamente l'intera suite su GitHub Actions:
+i test core su Python puro e i test QGIS sui container `qgis/qgis:ltr` e
+`qgis/qgis:latest` (quindi anche QGIS 4).
 
 ---
 
