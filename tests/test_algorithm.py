@@ -22,7 +22,16 @@ def _qgis_available():
         return False
 
 
+def _processing_available():
+    try:
+        import processing  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 @unittest.skipUnless(_qgis_available(), "QGIS non disponibile in questo ambiente di test")
+@unittest.skipUnless(_processing_available(), "Processing module non disponibile in questo ambiente di test")
 class TestGeoSortAlgorithm(unittest.TestCase):
     """Test sul GeoSortAlgorithm (Processing Toolbox)."""
 
