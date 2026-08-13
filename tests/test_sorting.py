@@ -250,6 +250,62 @@ def _sort_by_hilbert(features, ascending=True, order=16, progress_callback=None)
     return sorted_feats, values
 
 
+def _sort_by_serpentine(features, band_height=None, ascending=True, progress_callback=None):
+    """Replica di geosort_core.sort_by_serpentine."""
+    pts = []
+    invalid = []
+    heights = []
+    for f in features:
+        geom = f.geometry()
+        if geom is None:
+            invalid.append(f)
+            continue
+        bbox = geom.boundingBox()
+        pt = geom.centroid().asPoint()
+        pts.append((f, pt.x(), pt.y()))
+        heights.append(bbox.height())
+
+    if not pts:
+        if progress_callback:
+            progress_callback(100)
+        return invalid, [None] * len(invalid)
+
+    ys = [p[2] for p in pts]
+    ymin, ymax = min(ys), max(ys)
+    yspan = (ymax - ymin) or 1.0
+
+    if not band_height or band_height <= 0:
+        mean_h = (sum(heights) / len(heights)) if heights else 0.0
+        if mean_h > 0:
+            band_height = mean_h
+        else:
+            band_height = yspan / math.sqrt(len(pts))
+    band_height = band_height or yspan
+
+    raw = []
+    for f, x, y in pts:
+        band = int((y - ymin) / band_height)
+        raw.append((f, band, x))
+
+    distinct_bands = sorted({b for _, b, _ in raw}, reverse=not ascending)
+    rank_of_band = {b: r for r, b in enumerate(distinct_bands)}
+
+    def sort_key(item):
+        _, band, x = item
+        rank = rank_of_band[band]
+        x_key = x if rank % 2 == 0 else -x
+        return (rank, x_key)
+
+    raw.sort(key=sort_key)
+    sorted_feats = [r[0] for r in raw] + invalid
+    values = [r[1] for r in raw] + [None] * len(invalid)
+
+    if progress_callback:
+        progress_callback(100)
+
+    return sorted_feats, values
+
+
 def _check_criterion_compatibility(geom_type, criterion):
     """Replica la validazione di geosort_core._geom_value()."""
     if criterion == "area" and geom_type != "polygon":
@@ -1006,6 +1062,109 @@ class TestSortByHilbert(unittest.TestCase):
 
     def test_empty_features_list(self):
         result, values = _sort_by_hilbert([])
+        self.assertEqual(result, [])
+        self.assertEqual(values, [])
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Test: ordinamento a serpentina (boustrophedon)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestSortBySerpentine(unittest.TestCase):
+
+    def _grid_feats(self, rows):
+        """Costruisce una griglia di punti: ``rows`` è una lista di righe,
+        ogni riga una lista di (fid, x, y)."""
+        feats = []
+        for row in rows:
+            for fid, x, y in row:
+                feats.append(MockFeature(fid, geometry=MockGeometry("point", cx=x, cy=y)))
+        return feats
+
+    def _grid_3x4(self):
+        # 4 colonne (x=0..3) × 3 righe (y=0,1,2); fid = riga*4 + colonna.
+        rows = [
+            [(r * 4 + c, float(c), float(r)) for c in range(4)]
+            for r in range(3)
+        ]
+        return self._grid_feats(rows)
+
+    def test_basic_serpentine_order_ascending(self):
+        # banda 0 (y=0, in basso): X crescente; banda 1 (y=1): X decrescente;
+        # banda 2 (y=2): X crescente di nuovo — esempio del design doc.
+        feats = self._grid_3x4()
+        result, _ = _sort_by_serpentine(feats, band_height=1, ascending=True)
+        ids = [f.id() for f in result]
+        self.assertEqual(ids, [0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11])
+
+    def test_descending_reverses_band_traversal(self):
+        # ascending=False: si parte dalla banda più alta (y=2), ma la prima
+        # banda percorsa resta comunque X crescente (l'alternanza segue il
+        # "rango" di percorrenza, non l'indice di banda grezzo).
+        feats = self._grid_3x4()
+        result, _ = _sort_by_serpentine(feats, band_height=1, ascending=False)
+        ids = [f.id() for f in result]
+        self.assertEqual(ids, [8, 9, 10, 11, 7, 6, 5, 4, 0, 1, 2, 3])
+
+    def test_values_are_raw_band_index(self):
+        feats = self._grid_3x4()
+        _, values = _sort_by_serpentine(feats, band_height=1, ascending=True)
+        self.assertEqual(values, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2])
+
+    def test_returns_all_features(self):
+        feats = self._grid_3x4()
+        result, values = _sort_by_serpentine(feats, band_height=1)
+        self.assertEqual(len(result), 12)
+        self.assertEqual(len(values), 12)
+
+    def test_single_band_falls_back_to_plain_x_order(self):
+        # Un'unica banda (band_height molto grande di quella richiesta
+        # dall'extent): l'alternanza non ha effetto, ordine per sola X.
+        # Anche con ascending=False la prima (unica) banda percorsa resta X
+        # crescente, per costruzione (rank 0 → X crescente sempre).
+        feats = self._grid_feats([[(0, 3.0, 0.0), (1, 1.0, 0.0), (2, 2.0, 0.0)]])
+        result, _ = _sort_by_serpentine(feats, band_height=100, ascending=False)
+        self.assertEqual([f.id() for f in result], [1, 2, 0])
+
+    def test_auto_band_height_from_mean_bbox_height(self):
+        # band_height=None → media delle altezze bbox delle feature (qui 2.0
+        # per tutte): deve raggruppare correttamente righe spaziate di 2 in Y.
+        feats = [
+            MockFeature(0, geometry=MockGeometry("polygon", cx=0.0, cy=0.0, bbox_height=2.0)),
+            MockFeature(1, geometry=MockGeometry("polygon", cx=1.0, cy=0.0, bbox_height=2.0)),
+            MockFeature(2, geometry=MockGeometry("polygon", cx=0.0, cy=2.0, bbox_height=2.0)),
+            MockFeature(3, geometry=MockGeometry("polygon", cx=1.0, cy=2.0, bbox_height=2.0)),
+        ]
+        result, values = _sort_by_serpentine(feats, band_height=None, ascending=True)
+        self.assertEqual([f.id() for f in result], [0, 1, 3, 2])
+        self.assertEqual(values, [0, 0, 1, 1])
+
+    def test_auto_band_height_fallback_when_features_have_no_height(self):
+        # Layer di soli punti (bbox height sempre 0): la media collassa a 0,
+        # deve ricadere sul fallback yspan/sqrt(n) senza sollevare eccezioni.
+        feats = self._grid_feats([[(i, 0.0, float(i)) for i in range(4)]])
+        result, values = _sort_by_serpentine(feats, band_height=None)
+        self.assertEqual(len(result), 4)
+        self.assertEqual(len(values), 4)
+
+    def test_null_geometry_relegated_last(self):
+        feats = [
+            MockFeature(0, geometry=MockGeometry("point", cx=0.0, cy=0.0)),
+            MockFeature(1, geometry=None),
+            MockFeature(2, geometry=MockGeometry("point", cx=1.0, cy=0.0)),
+        ]
+        result, values = _sort_by_serpentine(feats, band_height=1)
+        self.assertEqual(result[-1].id(), 1)
+        self.assertIsNone(values[-1])
+
+    def test_progress_callback_reaches_100(self):
+        feats = self._grid_3x4()
+        called = []
+        _sort_by_serpentine(feats, band_height=1, progress_callback=lambda pct: called.append(pct))
+        self.assertEqual(called[-1], 100)
+
+    def test_empty_features_list(self):
+        result, values = _sort_by_serpentine([], band_height=1)
         self.assertEqual(result, [])
         self.assertEqual(values, [])
 

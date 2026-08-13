@@ -79,6 +79,17 @@ iniziale e passo sono personalizzabili, vedi <a href="#numerazione">Numerazione<
       griglia — non serve quasi mai cambiarlo. Non disponibile come criterio
       primario per l'ordinamento multi-criterio (richiede l'extent calcolato
       su tutte le feature).</li>
+  <li><b>Serpentina (bande orizzontali)</b> – ordina le feature a bande
+      orizzontali per Y, con X alternato crescente/decrescente da una banda
+      alla successiva (boustrophedon): l'ordine classico per numerare le
+      tavole di una serie cartografica a taglio regolare o un percorso di
+      volo fotogrammetrico, senza il salto lungo da fine banda a inizio banda
+      successiva tipico di un ordinamento a righe semplice. Il parametro
+      <i>altezza banda</i> (Processing: <code>BAND_HEIGHT</code>) imposta
+      l'altezza di ciascuna banda nelle unità del CRS del layer — 0/vuoto =
+      automatica, dall'altezza media delle bounding box delle feature. Non
+      disponibile come criterio primario per l'ordinamento multi-criterio
+      (richiede le bande calcolate su tutte le feature).</li>
 </ul>
 
 <h3>Ordinamento multi-criterio (gerarchico)</h3>
@@ -94,7 +105,8 @@ Ogni livello ha la propria direzione (ascendente/discendente).</p>
       Processing (parametri <code>SECONDARY_CRITERION</code>, <code>SECONDARY_FIELD</code>,
       <code>SECONDARY_EXPRESSION</code>, <code>SECONDARY_DIRECTION</code>).</li>
   <li>Il criterio secondario è <b>ignorato</b> quando il criterio primario è basato su una
-      linea di riferimento (<i>posizione/distanza lungo linea</i>) o è la <i>curva di Hilbert</i>.</li>
+      linea di riferimento (<i>posizione/distanza lungo linea</i>), è la <i>curva di Hilbert</i>
+      o la <i>serpentina</i>.</li>
 </ul>
 
 <h3>Output</h3>

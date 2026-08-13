@@ -615,6 +615,102 @@ def sort_by_hilbert(features, ascending=True, order=16, progress_callback=None):
     return sorted_feats, values
 
 
+def sort_by_serpentine(features, band_height=None, ascending=True, progress_callback=None):
+    """Ordina le feature "a serpentina" (boustrophedon): bande orizzontali per Y,
+    con X alternato crescente/decrescente da una banda alla successiva.
+
+    È il classico ordine di numerazione delle tavole in una serie cartografica
+    a taglio regolare (griglie di quadranti, indici IGM/CTR, percorsi di volo
+    fotogrammetrico "a serpentina"): a differenza di un ordinamento a righe
+    semplice (prima per Y poi per X), evita il salto lungo da fine riga a
+    inizio riga successiva, perché l'ultima feature di una banda è già vicina
+    alla prima della banda seguente.
+
+    Le feature sono raggruppate in bande orizzontali di altezza ``band_height``
+    a partire dalla Y minima del centroide (``pointOnSurface`` per le geometrie
+    multiparte). Le bande vengono poi percorse in ordine (dal basso se
+    ``ascending``, dall'alto altrimenti); l'indice di percorrenza (non l'indice
+    di banda "grezzo", per restare continuo anche se qualche banda risulta
+    vuota) determina il verso di lettura della X: pari → crescente, dispari →
+    decrescente.
+
+    Args:
+        features (list[QgsFeature]): feature da ordinare.
+        band_height (float | None): altezza di ciascuna banda, nelle unità del
+            CRS del layer. Se ``None`` o ``<= 0``, calcolata automaticamente
+            come altezza media delle bounding box delle feature; se questa è a
+            sua volta 0 (es. layer di soli punti), si usa in fallback
+            ``altezza_extent / sqrt(n_feature)``.
+        ascending (bool): True = prima banda in basso (Y minima), si sale;
+            False = prima banda in alto (Y massima), si scende.
+        progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
+
+    Returns:
+        tuple[list[QgsFeature], list[int]]: (feature ordinate, indice di banda
+        "grezzo" di ciascuna feature, utile come colonna di verifica). Le
+        feature prive di geometria sono relegate in fondo con valore ``None``.
+    """
+    pts = []
+    invalid = []
+    heights = []
+    for f in features:
+        geom = f.geometry()
+        if _is_empty_geom(geom):
+            invalid.append(f)
+            continue
+        bbox = geom.boundingBox()
+        pt = (geom.pointOnSurface() if geom.isMultipart() else geom.centroid()).asPoint()
+        pts.append((f, pt.x(), pt.y()))
+        heights.append(bbox.height())
+
+    if not pts:
+        if progress_callback:
+            progress_callback(100)
+        return invalid, [None] * len(invalid)
+
+    ys = [p[2] for p in pts]
+    ymin, ymax = min(ys), max(ys)
+    yspan = (ymax - ymin) or 1.0
+
+    if not band_height or band_height <= 0:
+        mean_h = (sum(heights) / len(heights)) if heights else 0.0
+        if mean_h > 0:
+            band_height = mean_h
+        else:
+            # Fallback per geometrie senza altezza (es. soli punti): stima una
+            # banda "ragionevole" dall'estensione complessiva e dal numero di
+            # feature, invece di lasciare tutto in un'unica banda degenere.
+            band_height = yspan / math.sqrt(len(pts))
+    band_height = band_height or yspan  # ultima difesa, evita divisione per 0
+
+    raw = []
+    for f, x, y in pts:
+        band = int((y - ymin) / band_height)
+        raw.append((f, band, x))
+
+    # L'ordine di percorrenza delle bande dipende da ascending; l'alternanza
+    # X crescente/decrescente segue il "rango" di percorrenza (non l'indice di
+    # banda grezzo), così il percorso resta continuo anche se qualche banda
+    # intermedia risulta vuota (nessuna feature con quel band index).
+    distinct_bands = sorted({b for _, b, _ in raw}, reverse=not ascending)
+    rank_of_band = {b: r for r, b in enumerate(distinct_bands)}
+
+    def sort_key(item):
+        _, band, x = item
+        rank = rank_of_band[band]
+        x_key = x if rank % 2 == 0 else -x
+        return (rank, x_key)
+
+    raw.sort(key=sort_key)
+    sorted_feats = [r[0] for r in raw] + invalid
+    values = [r[1] for r in raw] + [None] * len(invalid)
+
+    if progress_callback:
+        progress_callback(100)
+
+    return sorted_feats, values
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Ordinamento per proprietà geometrica
 # ──────────────────────────────────────────────────────────────────────────────

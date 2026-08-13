@@ -118,6 +118,26 @@ class TestGeoSortDialog(unittest.TestCase):
         self.dialog.rb_hilbert.setChecked(True)
         self.assertFalse(self.dialog.combo_secondary.isEnabled())
 
+    def test_serpentine_criterion_disables_field_combo(self):
+        """Con criterio 'Serpentina', la combo dei campi deve essere disabilitata."""
+        self.dialog.rb_serpentine.setChecked(True)
+        self.assertFalse(self.dialog.combo_field.isEnabled())
+
+    def test_serpentine_criterion_disables_secondary_criterion(self):
+        """Il criterio secondario (multi-criterio) non è disponibile con la serpentina."""
+        self.dialog.rb_serpentine.setChecked(True)
+        self.assertFalse(self.dialog.combo_secondary.isEnabled())
+
+    def test_serpentine_criterion_enables_band_height_spinbox(self):
+        """Con criterio 'Serpentina', il campo altezza banda deve essere abilitato."""
+        self.dialog.rb_serpentine.setChecked(True)
+        self.assertTrue(self.dialog.spin_band_height.isEnabled())
+
+    def test_other_criterion_disables_band_height_spinbox(self):
+        """Con un criterio diverso da 'Serpentina', il campo altezza banda è disabilitato."""
+        self.dialog.rb_attribute.setChecked(True)
+        self.assertFalse(self.dialog.spin_band_height.isEnabled())
+
     # ── Selettore layer di riferimento ────────────────────────────────────────
 
     def test_ref_layer_enabled_for_spatial(self):
@@ -227,6 +247,7 @@ class TestGeoSortDialog(unittest.TestCase):
             (self.dialog.rb_geometry,  "geometry"),
             (self.dialog.rb_spatial,   "spatial"),
             (self.dialog.rb_hilbert,   "hilbert"),
+            (self.dialog.rb_serpentine, "serpentine"),
         ]:
             rb.setChecked(True)
             self.assertEqual(self.dialog.get_criterion(), expected)

@@ -98,6 +98,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     REF_LAYER = "REF_LAYER"
     REF_POINT = "REF_POINT"
     HILBERT_ORDER = "HILBERT_ORDER"
+    BAND_HEIGHT = "BAND_HEIGHT"
     ADD_VALUE_FIELD = "ADD_VALUE_FIELD"
     START = "START"
     STEP = "STEP"
@@ -123,6 +124,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         "line_distance",
         "hilbert",
         "expression",
+        "serpentine",
     ]
 
     # ── Criterio secondario (tie-break) per l'ordinamento multi-criterio ──
@@ -132,9 +134,9 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     SECONDARY_DIRECTION = "SECONDARY_DIRECTION"
 
     # Criteri ammessi come primario in modalità multi-criterio (no linea: niente
-    # geometria di riferimento esterna né semantica di esclusione; niente Hilbert:
-    # richiede l'extent calcolato su tutte le feature, non un valore per-feature
-    # indipendente come richiesto da _numeric_extractor).
+    # geometria di riferimento esterna né semantica di esclusione; niente Hilbert
+    # né serpentina: richiedono l'extent/le bande calcolate su tutte le feature,
+    # non un valore per-feature indipendente come richiesto da _numeric_extractor).
     _MULTI_PRIMARY_KEYS = frozenset({
         "attribute", "expression",
         "centroid_x", "centroid_y", "centroid_dist",
@@ -177,6 +179,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         "Distanza dalla linea di riferimento",
         "Curva di Hilbert (ordinamento spaziale)",
         "Espressione QGIS",
+        "Serpentina (bande orizzontali)",
     ]
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -206,7 +209,8 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             "Criteri disponibili: attributo tabellare, coordinate del centroide, "
             "area, lunghezza, perimetro, numero di vertici, bounding box, "
             "posizione lungo una linea di riferimento, distanza dalla linea di riferimento, "
-            "curva di Hilbert (ordinamento spaziale), espressione QGIS.\n\n"
+            "curva di Hilbert (ordinamento spaziale), espressione QGIS, serpentina "
+            "(bande orizzontali).\n\n"
             "<b>Modalità di ordinamento testuale (attributo/espressione):</b>\n"
             "• <b>Lessicografico</b> (default): confronto carattere per carattere. "
             "Esempio: «1010» &lt; «11» &lt; «1111».\n"
@@ -230,6 +234,14 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             "più veloci). Il parametro avanzato <code>HILBERT_ORDER</code> regola la "
             "risoluzione della griglia (default 16, lato 2^16); non è disponibile come "
             "criterio primario in modalità multi-criterio.\n\n"
+            "<b>Serpentina (boustrophedon):</b> ordina le feature a bande orizzontali per Y, "
+            "con X alternato crescente/decrescente da una banda alla successiva — l'ordine "
+            "classico per numerare le tavole di una serie cartografica a taglio regolare "
+            "o un percorso di volo fotogrammetrico, senza il salto lungo da fine banda a "
+            "inizio banda successiva tipico di un ordinamento a righe semplice. Il parametro "
+            "avanzato <code>BAND_HEIGHT</code> imposta l'altezza di banda nelle unità del CRS "
+            "(0/vuoto = automatica, dall'altezza media delle bounding box delle feature); "
+            "non è disponibile come criterio primario in modalità multi-criterio.\n\n"
             "<b>Numerazione personalizzata (parametri avanzati):</b> valore iniziale "
             "(es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo "
             "(default <b>sort_order</b>). Se il campo esiste già nel layer di input, "
@@ -371,6 +383,21 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         )
         param_hilbert_order.setFlags(param_hilbert_order.flags() | _FLAG_ADVANCED)
         self.addParameter(param_hilbert_order)
+
+        # Altezza banda (condizionale, solo per il criterio "Serpentina"). 0/vuoto
+        # → calcolata automaticamente dall'altezza media delle bbox delle feature.
+        param_band_height = QgsProcessingParameterNumber(
+            self.BAND_HEIGHT,
+            self.tr(
+                "Serpentina – altezza banda, unità del CRS (0 = automatica, "
+                "da altezza media delle feature)"
+            ),
+            defaultValue=0.0,
+            minValue=0.0,
+            optional=True,
+        )
+        param_band_height.setFlags(param_band_height.flags() | _FLAG_ADVANCED)
+        self.addParameter(param_band_height)
 
         self.addParameter(
             QgsProcessingParameterExpression(
@@ -587,6 +614,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             sort_by_line_position,
             sort_by_line_distance,
             sort_by_hilbert,
+            sort_by_serpentine,
             _infer_field_type,
             _coerce_value,
             build_distance_area,
@@ -639,7 +667,8 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         if sec_key is not None and not multi_active:
             feedback.pushWarning(self.tr(
                 "GeoSort: criterio secondario ignorato perché il criterio primario "
-                "non supporta l'ordinamento multi-criterio (linea di riferimento o curva di Hilbert)."
+                "non supporta l'ordinamento multi-criterio "
+                "(linea di riferimento, curva di Hilbert o serpentina)."
             ))
 
         try:
@@ -732,6 +761,14 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 hilbert_order = self.parameterAsInt(parameters, self.HILBERT_ORDER, context)
                 sorted_feats, values = sort_by_hilbert(
                     features, ascending, order=hilbert_order, progress_callback=_progress_cb,
+                )
+                excluded = []
+
+            elif criterion == "serpentine":
+                band_height = self.parameterAsDouble(parameters, self.BAND_HEIGHT, context)
+                sorted_feats, values = sort_by_serpentine(
+                    features, band_height=band_height or None, ascending=ascending,
+                    progress_callback=_progress_cb,
                 )
                 excluded = []
 

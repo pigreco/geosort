@@ -2,7 +2,7 @@
 
 [🇮🇹 Italiano](README.md) | 🇬🇧 **English**
 
-[![Version](https://img.shields.io/badge/version-1.10.0-blue.svg)](https://github.com/pigreco/geosort/releases)
+[![Version](https://img.shields.io/badge/version-1.11.0-blue.svg)](https://github.com/pigreco/geosort/releases)
 [![Languages](https://img.shields.io/badge/languages-IT%20%7C%20EN-green.svg)](#languageslingue)
 [![QGIS](https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg)](#requirements)
 [![License](https://img.shields.io/badge/license-GPLv2-red.svg)](LICENSE)
@@ -36,6 +36,7 @@ Compatible with **QGIS 3.16+** (Qt5 / PyQt5) and **QGIS 4.x** (Qt6 / PyQt6).
 | Position along Line | All | Projection of centroid onto a reference line (three modes) |
 | Hilbert Curve | All | Sort along a Hilbert curve computed on centroids normalized over the extent: features near each other in space stay near each other in the order |
 | QGIS Expression | All | Sort by the result of an arbitrary QGIS expression |
+| Serpentine (horizontal bands) | All | Horizontal bands by Y, X alternating ascending/descending band by band (boustrophedon) — the classic order for regular-grid map series and photogrammetric flight paths |
 | **Multi-criteria (hierarchical)** | All | Secondary criterion to break ties of the primary one (e.g. region → area) |
 
 > **Robustness:** features with NULL/empty geometry and mixed-geometry layers no longer
@@ -67,8 +68,8 @@ is a concept in native coordinates; position along line is monotonic and scale-i
 You can set a **secondary criterion** that breaks ties of the primary one. Typical example:
 sort by *region* (ascending) and, within the same region, by *area* (descending). Each level
 has its own direction. Available both in the dialog (**Secondary criterion** dropdown) and in
-Processing (`SECONDARY_*` parameters). Not available when the primary criterion is line-based
-or the Hilbert curve.
+Processing (`SECONDARY_*` parameters). Not available when the primary criterion is line-based,
+the Hilbert curve, or the serpentine.
 
 ### Text Sorting Modes
 

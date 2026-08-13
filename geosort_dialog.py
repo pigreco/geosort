@@ -275,6 +275,30 @@ class GeoSortDialog(QDialog):
         ))
         grid.addWidget(self.rb_hilbert, 8, 0, 1, 3)
 
+        # ── Riga 9: Serpentina (bande orizzontali, boustrophedon) ────────────
+        self.rb_serpentine = QRadioButton(self.tr("A serpentina (bande orizzontali)"))
+        self._crit_bg.addButton(self.rb_serpentine, 6)
+        self.rb_serpentine.setToolTip(self.tr(
+            "Ordina le feature a bande orizzontali per Y, con X alternato\n"
+            "crescente/decrescente da una banda alla successiva (boustrophedon):\n"
+            "l'ordine classico per numerare le tavole di una serie cartografica\n"
+            "a taglio regolare, senza il salto lungo da fine banda a inizio\n"
+            "banda successiva tipico di un ordinamento a righe semplice.\n"
+            "Non disponibile come criterio primario in modalità multi-criterio."
+        ))
+        grid.addWidget(self.rb_serpentine, 9, 0)
+
+        self.spin_band_height = QDoubleSpinBox()
+        self.spin_band_height.setRange(0, 1e9)
+        self.spin_band_height.setDecimals(4)
+        self.spin_band_height.setSpecialValueText(self.tr("Automatica"))
+        self.spin_band_height.setValue(0)
+        self.spin_band_height.setToolTip(self.tr(
+            "Altezza di ciascuna banda orizzontale, nelle unità del CRS del layer.\n"
+            "0 = automatica (altezza media delle bounding box delle feature)."
+        ))
+        grid.addWidget(self.spin_band_height, 9, 1, 1, 2)
+
         outer.addLayout(grid)
 
         return grp
@@ -451,7 +475,7 @@ class GeoSortDialog(QDialog):
     def _connect_signals(self):
         self.layer_combo.layerChanged.connect(self._on_layer_changed)
         for rb in (self.rb_attribute, self.rb_centroid, self.rb_geometry, self.rb_spatial,
-                   self.rb_line_distance, self.rb_hilbert):
+                   self.rb_line_distance, self.rb_hilbert, self.rb_serpentine):
             rb.toggled.connect(self._on_criterion_changed)
         self.combo_centroid.currentIndexChanged.connect(self._on_centroid_mode_changed)
         self.combo_secondary.currentIndexChanged.connect(self._on_secondary_changed)
@@ -503,7 +527,9 @@ class GeoSortDialog(QDialog):
         is_spatial = self.rb_spatial.isChecked()
         is_line_distance = self.rb_line_distance.isChecked()
         is_hilbert = self.rb_hilbert.isChecked()
+        is_serpentine = self.rb_serpentine.isChecked()
 
+        self.spin_band_height.setEnabled(is_serpentine)
         self.combo_field.setEnabled(is_attr)
         self.btn_expression_builder.setEnabled(is_attr)
         self.chk_nulls_last.setEnabled(is_attr)
@@ -516,9 +542,10 @@ class GeoSortDialog(QDialog):
         self.combo_line_distance_mode.setEnabled(is_line_distance)
 
         # Il criterio secondario (multi-criterio) non è disponibile per i criteri
-        # basati su linea (posizione/distanza lungo linea) né per la curva di
-        # Hilbert (richiede l'extent calcolato su tutte le feature).
-        is_multi_unsupported = is_spatial or is_line_distance or is_hilbert
+        # basati su linea (posizione/distanza lungo linea), per la curva di
+        # Hilbert né per la serpentina (richiedono l'extent/le bande calcolate
+        # su tutte le feature).
+        is_multi_unsupported = is_spatial or is_line_distance or is_hilbert or is_serpentine
         self.combo_secondary.setEnabled(not is_multi_unsupported)
         self.chk_secondary_desc.setEnabled(not is_multi_unsupported)
         if is_multi_unsupported:
@@ -768,7 +795,7 @@ class GeoSortDialog(QDialog):
             return {"key": crit_map[self.combo_geom.currentIndex()],
                     "ascending": ascending}
 
-        return None  # criteri basati su linea o curva di Hilbert → multi non supportato
+        return None  # criteri basati su linea, curva di Hilbert o serpentina → multi non supportato
 
     def _secondary_spec(self, key):
         """Descrittore del criterio secondario per sort_multi."""
@@ -800,6 +827,7 @@ class GeoSortDialog(QDialog):
             sort_by_line_position,
             sort_by_line_distance,
             sort_by_hilbert,
+            sort_by_serpentine,
             build_distance_area,
             resolve_geodesic,
             should_build_distance_area,
@@ -979,6 +1007,15 @@ class GeoSortDialog(QDialog):
                 features, ascending, progress_callback=progress_callback,
             )
             return sorted_feats, values, "sort_hilbert", []
+
+        # ── A serpentina (bande orizzontali) ──────────────────────────────────
+        if self.rb_serpentine.isChecked():
+            band_height = self.spin_band_height.value() or None
+            sorted_feats, values = sort_by_serpentine(
+                features, band_height=band_height, ascending=ascending,
+                progress_callback=progress_callback,
+            )
+            return sorted_feats, values, "sort_band", []
 
         raise ValueError("Nessun criterio selezionato.")
 
@@ -1225,6 +1262,8 @@ class GeoSortDialog(QDialog):
             return "spatial"
         if self.rb_hilbert.isChecked():
             return "hilbert"
+        if self.rb_serpentine.isChecked():
+            return "serpentine"
         return None
 
     def get_active_expression(self):
