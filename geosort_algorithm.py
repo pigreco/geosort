@@ -98,7 +98,8 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     REF_LAYER = "REF_LAYER"
     REF_POINT = "REF_POINT"
     HILBERT_ORDER = "HILBERT_ORDER"
-    BAND_HEIGHT = "BAND_HEIGHT"
+    BAND_SIZE = "BAND_SIZE"
+    BAND_AXIS = "BAND_AXIS"
     ADD_VALUE_FIELD = "ADD_VALUE_FIELD"
     START = "START"
     STEP = "STEP"
@@ -234,13 +235,16 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             "più veloci). Il parametro avanzato <code>HILBERT_ORDER</code> regola la "
             "risoluzione della griglia (default 16, lato 2^16); non è disponibile come "
             "criterio primario in modalità multi-criterio.\n\n"
-            "<b>Serpentina (boustrophedon):</b> ordina le feature a bande orizzontali per Y, "
-            "con X alternato crescente/decrescente da una banda alla successiva — l'ordine "
-            "classico per numerare le tavole di una serie cartografica a taglio regolare "
-            "o un percorso di volo fotogrammetrico, senza il salto lungo da fine banda a "
-            "inizio banda successiva tipico di un ordinamento a righe semplice. Il parametro "
-            "avanzato <code>BAND_HEIGHT</code> imposta l'altezza di banda nelle unità del CRS "
-            "(0/vuoto = automatica, dall'altezza media delle bounding box delle feature); "
+            "<b>Serpentina (boustrophedon):</b> ordina le feature a bande, con l'asse "
+            "trasversale alternato crescente/decrescente da una banda alla successiva — "
+            "l'ordine classico per numerare le tavole di una serie cartografica a taglio "
+            "regolare o un percorso di volo fotogrammetrico, senza il salto lungo da fine "
+            "banda a inizio banda successiva tipico di un ordinamento a righe semplice. "
+            "Il parametro <code>BAND_AXIS</code> sceglie l'orientamento: bande orizzontali "
+            "(per Y, X alternato — default) o verticali (per X, Y alternato). Il parametro "
+            "avanzato <code>BAND_SIZE</code> imposta la dimensione di banda nelle unità del "
+            "CRS — altezza per bande orizzontali, larghezza per verticali (0/vuoto = "
+            "automatica, dalla dimensione media delle bounding box delle feature); "
             "non è disponibile come criterio primario in modalità multi-criterio.\n\n"
             "<b>Numerazione personalizzata (parametri avanzati):</b> valore iniziale "
             "(es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo "
@@ -384,20 +388,34 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         param_hilbert_order.setFlags(param_hilbert_order.flags() | _FLAG_ADVANCED)
         self.addParameter(param_hilbert_order)
 
-        # Altezza banda (condizionale, solo per il criterio "Serpentina"). 0/vuoto
-        # → calcolata automaticamente dall'altezza media delle bbox delle feature.
-        param_band_height = QgsProcessingParameterNumber(
-            self.BAND_HEIGHT,
+        # Orientamento bande (condizionale, solo per il criterio "Serpentina").
+        param_band_axis = QgsProcessingParameterEnum(
+            self.BAND_AXIS,
+            self.tr("Serpentina – orientamento bande"),
+            options=[
+                self.tr("Orizzontali (bande per Y, X alternato)"),
+                self.tr("Verticali (bande per X, Y alternato)"),
+            ],
+            defaultValue=0,
+        )
+        param_band_axis.setFlags(param_band_axis.flags() | _FLAG_ADVANCED)
+        self.addParameter(param_band_axis)
+
+        # Dimensione banda (condizionale, solo per il criterio "Serpentina"). 0/vuoto
+        # → calcolata automaticamente dalla dimensione media delle bbox delle feature
+        # (altezza per bande orizzontali, larghezza per verticali).
+        param_band_size = QgsProcessingParameterNumber(
+            self.BAND_SIZE,
             self.tr(
-                "Serpentina – altezza banda, unità del CRS (0 = automatica, "
-                "da altezza media delle feature)"
+                "Serpentina – dimensione banda, unità del CRS (0 = automatica, "
+                "da altezza/larghezza media delle feature)"
             ),
             defaultValue=0.0,
             minValue=0.0,
             optional=True,
         )
-        param_band_height.setFlags(param_band_height.flags() | _FLAG_ADVANCED)
-        self.addParameter(param_band_height)
+        param_band_size.setFlags(param_band_size.flags() | _FLAG_ADVANCED)
+        self.addParameter(param_band_size)
 
         self.addParameter(
             QgsProcessingParameterExpression(
@@ -765,10 +783,12 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 excluded = []
 
             elif criterion == "serpentine":
-                band_height = self.parameterAsDouble(parameters, self.BAND_HEIGHT, context)
+                band_size = self.parameterAsDouble(parameters, self.BAND_SIZE, context)
+                axis_keys = ["horizontal", "vertical"]
+                band_axis = axis_keys[self.parameterAsEnum(parameters, self.BAND_AXIS, context)]
                 sorted_feats, values = sort_by_serpentine(
-                    features, band_height=band_height or None, ascending=ascending,
-                    progress_callback=_progress_cb,
+                    features, band_size=band_size or None, ascending=ascending,
+                    axis=band_axis, progress_callback=_progress_cb,
                 )
                 excluded = []
 

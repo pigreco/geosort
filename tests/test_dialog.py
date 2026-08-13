@@ -128,15 +128,29 @@ class TestGeoSortDialog(unittest.TestCase):
         self.dialog.rb_serpentine.setChecked(True)
         self.assertFalse(self.dialog.combo_secondary.isEnabled())
 
-    def test_serpentine_criterion_enables_band_height_spinbox(self):
-        """Con criterio 'Serpentina', il campo altezza banda deve essere abilitato."""
+    def test_serpentine_criterion_enables_band_size_spinbox(self):
+        """Con criterio 'Serpentina', il campo dimensione banda deve essere abilitato."""
         self.dialog.rb_serpentine.setChecked(True)
-        self.assertTrue(self.dialog.spin_band_height.isEnabled())
+        self.assertTrue(self.dialog.spin_band_size.isEnabled())
 
-    def test_other_criterion_disables_band_height_spinbox(self):
-        """Con un criterio diverso da 'Serpentina', il campo altezza banda è disabilitato."""
+    def test_serpentine_criterion_enables_band_axis_combo(self):
+        """Con criterio 'Serpentina', la combo orientamento bande deve essere abilitata."""
+        self.dialog.rb_serpentine.setChecked(True)
+        self.assertTrue(self.dialog.combo_band_axis.isEnabled())
+
+    def test_other_criterion_disables_band_size_spinbox(self):
+        """Con un criterio diverso da 'Serpentina', il campo dimensione banda è disabilitato."""
         self.dialog.rb_attribute.setChecked(True)
-        self.assertFalse(self.dialog.spin_band_height.isEnabled())
+        self.assertFalse(self.dialog.spin_band_size.isEnabled())
+
+    def test_other_criterion_disables_band_axis_combo(self):
+        """Con un criterio diverso da 'Serpentina', la combo orientamento bande è disabilitata."""
+        self.dialog.rb_attribute.setChecked(True)
+        self.assertFalse(self.dialog.combo_band_axis.isEnabled())
+
+    def test_band_axis_default_is_horizontal(self):
+        """Di default l'orientamento bande deve essere 'horizontal'."""
+        self.assertEqual(self.dialog.combo_band_axis.currentData(), "horizontal")
 
     # ── Selettore layer di riferimento ────────────────────────────────────────
 

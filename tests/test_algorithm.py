@@ -242,10 +242,15 @@ class TestGeoSortAlgorithm(unittest.TestCase):
         self.assertEqual(self.algo._CRITERIA_KEYS[-1], "serpentine")
         self.assertEqual(self.algo._CRITERIA_KEYS[17], "serpentine")
 
-    def test_algorithm_has_band_height_parameter(self):
-        """L'algoritmo deve esporre il parametro avanzato BAND_HEIGHT."""
+    def test_algorithm_has_band_size_parameter(self):
+        """L'algoritmo deve esporre il parametro avanzato BAND_SIZE."""
         param_names = [p.name() for p in self.algo.parameterDefinitions()]
-        self.assertIn("BAND_HEIGHT", param_names)
+        self.assertIn("BAND_SIZE", param_names)
+
+    def test_algorithm_has_band_axis_parameter(self):
+        """L'algoritmo deve esporre il parametro avanzato BAND_AXIS."""
+        param_names = [p.name() for p in self.algo.parameterDefinitions()]
+        self.assertIn("BAND_AXIS", param_names)
 
     # ── Criterio secondario (multi-criterio) ──────────────────────────────────
 
@@ -785,9 +790,9 @@ class TestGeoSortAlgorithmAllCriteria(unittest.TestCase):
     # ── serpentine (indice 17) ────────────────────────────────────────────────
 
     def test_serpentine(self):
-        """CRITERION=17: bande orizzontali per Y, X alternato pari/dispari.
+        """CRITERION=17: bande orizzontali (default) per Y, X alternato pari/dispari.
 
-        Griglia 4×2 (x=0..3, y=0,1) con BAND_HEIGHT=1 esplicito: banda 0
+        Griglia 4×2 (x=0..3, y=0,1) con BAND_SIZE=1 esplicito: banda 0
         (y=0, in basso) percorsa a X crescente, banda 1 (y=1) a X
         decrescente — un ordinamento a righe semplice (solo Y poi X)
         produrrebbe invece id 0,1,2,3,4,5,6,7, smascherando un'implementazione
@@ -803,7 +808,7 @@ class TestGeoSortAlgorithmAllCriteria(unittest.TestCase):
             ],
         )
         result = processing.run("geosort:geosort_sort", {
-            "INPUT": layer, "CRITERION": 17, "BAND_HEIGHT": 1,
+            "INPUT": layer, "CRITERION": 17, "BAND_SIZE": 1,
             "DIRECTION": True, "OUTPUT": "memory:",
         })
         self.assertEqual(
@@ -811,8 +816,35 @@ class TestGeoSortAlgorithmAllCriteria(unittest.TestCase):
             {0: 1, 1: 2, 2: 3, 3: 4, 7: 5, 6: 6, 5: 7, 4: 8},
         )
 
-    def test_serpentine_auto_band_height(self):
-        """BAND_HEIGHT non impostato (0/default) non deve far crashare l'algoritmo
+    def test_serpentine_vertical_axis(self):
+        """CRITERION=17 con BAND_AXIS=1: bande verticali per X, Y alternato.
+
+        Stessa griglia 4×2 di test_serpentine, ma percorsa per colonne:
+        colonna x=0 (rank 0, pari) → Y crescente; colonna x=1 (rank 1,
+        dispari) → Y decrescente; e così via.
+        """
+        import processing
+        from qgis.core import QgsGeometry, QgsPointXY
+        layer = self._make_layer(
+            "Point?crs=EPSG:4326&field=id:integer", "serpentine_vertical_layer",
+            [
+                (QgsGeometry.fromPointXY(QgsPointXY(x, y)), [y * 4 + x])
+                for y in range(2) for x in range(4)
+            ],
+        )
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": layer, "CRITERION": 17, "BAND_SIZE": 1, "BAND_AXIS": 1,
+            "DIRECTION": True, "OUTPUT": "memory:",
+        })
+        # colonna x=0: id0(y0),id4(y1) asc → 0,4; colonna x=1: id5(y1),id1(y0) desc;
+        # colonna x=2: id2,id6 asc; colonna x=3: id7,id3 desc.
+        self.assertEqual(
+            self._order_by_id(result["OUTPUT"]),
+            {0: 1, 4: 2, 5: 3, 1: 4, 2: 5, 6: 6, 7: 7, 3: 8},
+        )
+
+    def test_serpentine_auto_band_size(self):
+        """BAND_SIZE non impostato (0/default) non deve far crashare l'algoritmo
         e deve comunque produrre un ordinamento completo (fallback automatico)."""
         import processing
         from qgis.core import QgsGeometry, QgsPointXY
@@ -843,7 +875,7 @@ class TestGeoSortAlgorithmAllCriteria(unittest.TestCase):
             ],
         )
         result = processing.run("geosort:geosort_sort", {
-            "INPUT": layer, "CRITERION": 17, "BAND_HEIGHT": 1, "DIRECTION": True,
+            "INPUT": layer, "CRITERION": 17, "BAND_SIZE": 1, "DIRECTION": True,
             "SECONDARY_CRITERION": 1, "OUTPUT": "memory:",
         })
         # Deve comunque completare (criterio secondario ignorato, non un errore)

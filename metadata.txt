@@ -9,9 +9,10 @@ email=pigrecoinfinito@gmail.com
 about=GeoSort sorts points, lines and polygons by centroid coordinates, area, length,
     vertex count, bounding box, distance from a configurable reference point, position along a line,
     a Hilbert curve (spatial sorting: nearby features stay nearby in the order),
-    a serpentine/boustrophedon ordering for regular grids (horizontal bands by Y,
-    X alternating left-right/right-left band by band — the classic order for map
-    series and survey/flight paths), and custom QGIS expressions. Supports
+    a serpentine/boustrophedon ordering for regular grids — horizontal (by Y, X
+    alternating) or vertical (by X, Y alternating) bands, cross axis alternating
+    band by band, the classic order for map series and survey/flight paths — and
+    custom QGIS expressions. Supports
     hierarchical multi-criteria sorting (a secondary
     criterion breaks ties of the primary one) and both lexicographic and Natural Sort ordering
     for text and expression criteria (e.g. "11" < "1010" < "1111" instead of "1010" < "11" < "1111").
@@ -25,8 +26,9 @@ about=GeoSort sorts points, lines and polygons by centroid coordinates, area, le
     area, lunghezza, numero di vertici, bounding box, distanza da punto di riferimento configurabile,
     posizione lungo una linea, una curva di Hilbert (ordinamento spaziale: le feature vicine
     nello spazio restano vicine nell'ordine), un ordinamento a serpentina/boustrophedon per
-    griglie regolari (bande orizzontali per Y, X alternato crescente/decrescente banda per banda —
-    l'ordine classico per serie cartografiche e percorsi di rilievo/volo) ed espressioni QGIS
+    griglie regolari — bande orizzontali (per Y, X alternato) o verticali (per X, Y alternato),
+    asse trasversale alternato banda per banda, l'ordine classico per serie cartografiche e
+    percorsi di rilievo/volo — ed espressioni QGIS
     personalizzate. Supporta l'ordinamento
     gerarchico multi-criterio (un criterio secondario spezza i pareggi del primario) e
     l'ordinamento lessicografico e Natural Sort per criteri testuali ed espressioni (es. "11" < "1010" < "1111"
@@ -49,7 +51,7 @@ deprecated=False
 server=False
 supportsQt6=True
 changelog=
-    1.11.0 Nuovo criterio di ordinamento "Serpentina (bande orizzontali)" (boustrophedon): raggruppa le feature in bande orizzontali per Y a partire dal centroide, con X alternato crescente/decrescente da una banda alla successiva — l'ordine classico per numerare le tavole di una serie cartografica a taglio regolare o un percorso di volo fotogrammetrico, senza il salto lungo da fine banda a inizio banda successiva di un ordinamento a righe semplice; parametro avanzato BAND_HEIGHT nel Processing (altezza banda nelle unità del CRS, 0/vuoto = automatica dall'altezza media delle bounding box delle feature); disponibile nel dialogo e nel Processing; non disponibile come criterio primario in modalità multi-criterio (richiede le bande calcolate su tutte le feature); 18° criterio di ordinamento, coperto da test end-to-end
+    1.11.0 Nuovo criterio di ordinamento "Serpentina" (boustrophedon): raggruppa le feature in bande a partire dal centroide, con l'asse trasversale alternato crescente/decrescente da una banda alla successiva — l'ordine classico per numerare le tavole di una serie cartografica a taglio regolare o un percorso di volo fotogrammetrico, senza il salto lungo da fine banda a inizio banda successiva di un ordinamento a righe semplice; orientamento configurabile, bande orizzontali (per Y, X alternato — default) o verticali (per X, Y alternato), parametro BAND_AXIS nel Processing; parametro avanzato BAND_SIZE (dimensione banda nelle unità del CRS — altezza per orizzontali, larghezza per verticali; 0/vuoto = automatica dalla dimensione media delle bounding box delle feature); disponibile nel dialogo e nel Processing; non disponibile come criterio primario in modalità multi-criterio (richiede le bande calcolate su tutte le feature); 18° criterio di ordinamento, coperto da test end-to-end
     1.10.0 Nuovo criterio di ordinamento "Curva di Hilbert": ordina le feature lungo una curva di Hilbert calcolata sui centroidi normalizzati sull'extent del layer, così le feature vicine nello spazio restano vicine nell'ordine — utile per atlanti a percorso continuo e per scrivere GeoPackage con feature spazialmente coerenti (letture più veloci); disponibile nel dialogo e nel Processing (parametro avanzato HILBERT_ORDER per la risoluzione della griglia, default 16); non disponibile come criterio primario in modalità multi-criterio (richiede l'extent calcolato su tutte le feature); 17° criterio di ordinamento, coperto da test end-to-end
     1.9.0 Punto di riferimento configurabile per il criterio "Centroide – distanza" anche nel Processing Toolbox (parametro REF_POINT, vuoto = origine 0,0 come prima, parità con il dialogo interattivo); numerazione personalizzata del campo progressivo — valore iniziale, passo e nome campo (default sort_order), disponibile nel dialogo e nel Processing, con riuso del campo se già presente sul layer invece di duplicarlo; fix: nel Processing i parametri opzionali marcati "Avanzate" (campo/espressione del criterio secondario) perdevano il flag opzionale e venivano richiesti come obbligatori; fix: "Posizione lungo linea"/"Distanza dalla linea" ora riproiettano automaticamente il layer di riferimento se ha un CRS diverso dal layer di input (prima le geometrie venivano confrontate senza riproiezione, con risultati silenziosamente sbagliati fino a NaN su CRS molto diversi); test: copertura end-to-end di tutti e 16 i criteri di ordinamento tramite l'algoritmo Processing reale (prima solo 3 erano esercitati end-to-end), più verifica dei valori ordinati per perimetro, lunghezza, numero di vertici e i 5 criteri bounding box
     1.8.1 Performance: undo atomico per l'ordinamento (beginEditCommand/endEditCommand, un solo blocco Ctrl+Z anche su migliaia di feature); riuso del motore GEOS preparato anche per il criterio "primo punto di intersezione" lungo linea, con distanza curvilinea valutata solo sugli estremi di ogni parte invece di tutti i vertici; lookup del campo per indice invece che per nome nell'ordinamento per attributo. Processing: barra di progresso e cancellazione effettive durante la fase di ordinamento (non solo a inizio/fine); parametri condizionali (Natural Sort, misura geodetica, modalità linea, criterio secondario) spostati in "Avanzate" per una finestra più pulita; rimossa import duplicata

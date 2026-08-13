@@ -36,7 +36,7 @@ Compatible with **QGIS 3.16+** (Qt5 / PyQt5) and **QGIS 4.x** (Qt6 / PyQt6).
 | Position along Line | All | Projection of centroid onto a reference line (three modes) |
 | Hilbert Curve | All | Sort along a Hilbert curve computed on centroids normalized over the extent: features near each other in space stay near each other in the order |
 | QGIS Expression | All | Sort by the result of an arbitrary QGIS expression |
-| Serpentine (horizontal bands) | All | Horizontal bands by Y, X alternating ascending/descending band by band (boustrophedon) — the classic order for regular-grid map series and photogrammetric flight paths |
+| Serpentine (boustrophedon) | All | Horizontal bands (by Y, X alternating) or vertical bands (by X, Y alternating), cross axis alternating ascending/descending band by band — the classic order for regular-grid map series and photogrammetric flight paths |
 | **Multi-criteria (hierarchical)** | All | Secondary criterion to break ties of the primary one (e.g. region → area) |
 
 > **Robustness:** features with NULL/empty geometry and mixed-geometry layers no longer

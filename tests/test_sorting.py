@@ -250,11 +250,12 @@ def _sort_by_hilbert(features, ascending=True, order=16, progress_callback=None)
     return sorted_feats, values
 
 
-def _sort_by_serpentine(features, band_height=None, ascending=True, progress_callback=None):
+def _sort_by_serpentine(features, band_size=None, ascending=True, axis="horizontal",
+                        progress_callback=None):
     """Replica di geosort_core.sort_by_serpentine."""
     pts = []
     invalid = []
-    heights = []
+    sizes = []
     for f in features:
         geom = f.geometry()
         if geom is None:
@@ -263,38 +264,44 @@ def _sort_by_serpentine(features, band_height=None, ascending=True, progress_cal
         bbox = geom.boundingBox()
         pt = geom.centroid().asPoint()
         pts.append((f, pt.x(), pt.y()))
-        heights.append(bbox.height())
+        sizes.append(bbox.height() if axis == "horizontal" else bbox.width())
 
     if not pts:
         if progress_callback:
             progress_callback(100)
         return invalid, [None] * len(invalid)
 
-    ys = [p[2] for p in pts]
-    ymin, ymax = min(ys), max(ys)
-    yspan = (ymax - ymin) or 1.0
+    if axis == "horizontal":
+        band_vals = [p[2] for p in pts]
+        cross_vals = [p[1] for p in pts]
+    else:
+        band_vals = [p[1] for p in pts]
+        cross_vals = [p[2] for p in pts]
 
-    if not band_height or band_height <= 0:
-        mean_h = (sum(heights) / len(heights)) if heights else 0.0
-        if mean_h > 0:
-            band_height = mean_h
+    band_min, band_max = min(band_vals), max(band_vals)
+    band_span = (band_max - band_min) or 1.0
+
+    if not band_size or band_size <= 0:
+        mean_size = (sum(sizes) / len(sizes)) if sizes else 0.0
+        if mean_size > 0:
+            band_size = mean_size
         else:
-            band_height = yspan / math.sqrt(len(pts))
-    band_height = band_height or yspan
+            band_size = band_span / math.sqrt(len(pts))
+    band_size = band_size or band_span
 
     raw = []
-    for f, x, y in pts:
-        band = int((y - ymin) / band_height)
-        raw.append((f, band, x))
+    for (f, _x, _y), bval, cval in zip(pts, band_vals, cross_vals):
+        band = int((bval - band_min) / band_size)
+        raw.append((f, band, cval))
 
     distinct_bands = sorted({b for _, b, _ in raw}, reverse=not ascending)
     rank_of_band = {b: r for r, b in enumerate(distinct_bands)}
 
     def sort_key(item):
-        _, band, x = item
+        _, band, cval = item
         rank = rank_of_band[band]
-        x_key = x if rank % 2 == 0 else -x
-        return (rank, x_key)
+        c_key = cval if rank % 2 == 0 else -cval
+        return (rank, c_key)
 
     raw.sort(key=sort_key)
     sorted_feats = [r[0] for r in raw] + invalid
@@ -1093,7 +1100,7 @@ class TestSortBySerpentine(unittest.TestCase):
         # banda 0 (y=0, in basso): X crescente; banda 1 (y=1): X decrescente;
         # banda 2 (y=2): X crescente di nuovo — esempio del design doc.
         feats = self._grid_3x4()
-        result, _ = _sort_by_serpentine(feats, band_height=1, ascending=True)
+        result, _ = _sort_by_serpentine(feats, band_size=1, ascending=True)
         ids = [f.id() for f in result]
         self.assertEqual(ids, [0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11])
 
@@ -1102,32 +1109,32 @@ class TestSortBySerpentine(unittest.TestCase):
         # banda percorsa resta comunque X crescente (l'alternanza segue il
         # "rango" di percorrenza, non l'indice di banda grezzo).
         feats = self._grid_3x4()
-        result, _ = _sort_by_serpentine(feats, band_height=1, ascending=False)
+        result, _ = _sort_by_serpentine(feats, band_size=1, ascending=False)
         ids = [f.id() for f in result]
         self.assertEqual(ids, [8, 9, 10, 11, 7, 6, 5, 4, 0, 1, 2, 3])
 
     def test_values_are_raw_band_index(self):
         feats = self._grid_3x4()
-        _, values = _sort_by_serpentine(feats, band_height=1, ascending=True)
+        _, values = _sort_by_serpentine(feats, band_size=1, ascending=True)
         self.assertEqual(values, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2])
 
     def test_returns_all_features(self):
         feats = self._grid_3x4()
-        result, values = _sort_by_serpentine(feats, band_height=1)
+        result, values = _sort_by_serpentine(feats, band_size=1)
         self.assertEqual(len(result), 12)
         self.assertEqual(len(values), 12)
 
     def test_single_band_falls_back_to_plain_x_order(self):
-        # Un'unica banda (band_height molto grande di quella richiesta
+        # Un'unica banda (band_size molto grande di quella richiesta
         # dall'extent): l'alternanza non ha effetto, ordine per sola X.
         # Anche con ascending=False la prima (unica) banda percorsa resta X
         # crescente, per costruzione (rank 0 → X crescente sempre).
         feats = self._grid_feats([[(0, 3.0, 0.0), (1, 1.0, 0.0), (2, 2.0, 0.0)]])
-        result, _ = _sort_by_serpentine(feats, band_height=100, ascending=False)
+        result, _ = _sort_by_serpentine(feats, band_size=100, ascending=False)
         self.assertEqual([f.id() for f in result], [1, 2, 0])
 
-    def test_auto_band_height_from_mean_bbox_height(self):
-        # band_height=None → media delle altezze bbox delle feature (qui 2.0
+    def test_auto_band_size_from_mean_bbox_height(self):
+        # band_size=None → media delle altezze bbox delle feature (qui 2.0
         # per tutte): deve raggruppare correttamente righe spaziate di 2 in Y.
         feats = [
             MockFeature(0, geometry=MockGeometry("polygon", cx=0.0, cy=0.0, bbox_height=2.0)),
@@ -1135,15 +1142,15 @@ class TestSortBySerpentine(unittest.TestCase):
             MockFeature(2, geometry=MockGeometry("polygon", cx=0.0, cy=2.0, bbox_height=2.0)),
             MockFeature(3, geometry=MockGeometry("polygon", cx=1.0, cy=2.0, bbox_height=2.0)),
         ]
-        result, values = _sort_by_serpentine(feats, band_height=None, ascending=True)
+        result, values = _sort_by_serpentine(feats, band_size=None, ascending=True)
         self.assertEqual([f.id() for f in result], [0, 1, 3, 2])
         self.assertEqual(values, [0, 0, 1, 1])
 
-    def test_auto_band_height_fallback_when_features_have_no_height(self):
+    def test_auto_band_size_fallback_when_features_have_no_height(self):
         # Layer di soli punti (bbox height sempre 0): la media collassa a 0,
         # deve ricadere sul fallback yspan/sqrt(n) senza sollevare eccezioni.
         feats = self._grid_feats([[(i, 0.0, float(i)) for i in range(4)]])
-        result, values = _sort_by_serpentine(feats, band_height=None)
+        result, values = _sort_by_serpentine(feats, band_size=None)
         self.assertEqual(len(result), 4)
         self.assertEqual(len(values), 4)
 
@@ -1153,20 +1160,61 @@ class TestSortBySerpentine(unittest.TestCase):
             MockFeature(1, geometry=None),
             MockFeature(2, geometry=MockGeometry("point", cx=1.0, cy=0.0)),
         ]
-        result, values = _sort_by_serpentine(feats, band_height=1)
+        result, values = _sort_by_serpentine(feats, band_size=1)
         self.assertEqual(result[-1].id(), 1)
         self.assertIsNone(values[-1])
 
     def test_progress_callback_reaches_100(self):
         feats = self._grid_3x4()
         called = []
-        _sort_by_serpentine(feats, band_height=1, progress_callback=lambda pct: called.append(pct))
+        _sort_by_serpentine(feats, band_size=1, progress_callback=lambda pct: called.append(pct))
         self.assertEqual(called[-1], 100)
 
     def test_empty_features_list(self):
-        result, values = _sort_by_serpentine([], band_height=1)
+        result, values = _sort_by_serpentine([], band_size=1)
         self.assertEqual(result, [])
         self.assertEqual(values, [])
+
+    # ── axis="vertical" (bande per X, Y alternato) ─────────────────────────────
+
+    def test_vertical_axis_basic_order(self):
+        # Stessa griglia 4×3 di test_basic_serpentine_order_ascending, ma con
+        # bande verticali: raggruppa per X (4 colonne), alterna Y all'interno
+        # di ciascuna colonna. fid = riga*4 + colonna (riga 0..2, colonna 0..3).
+        feats = self._grid_3x4()
+        result, _ = _sort_by_serpentine(feats, band_size=1, ascending=True, axis="vertical")
+        ids = [f.id() for f in result]
+        # colonna 0 (x=0, rank 0): Y crescente → fid 0,4,8
+        # colonna 1 (x=1, rank 1): Y decrescente → fid 9,5,1
+        # colonna 2 (x=2, rank 2): Y crescente → fid 2,6,10
+        # colonna 3 (x=3, rank 3): Y decrescente → fid 11,7,3
+        self.assertEqual(ids, [0, 4, 8, 9, 5, 1, 2, 6, 10, 11, 7, 3])
+
+    def test_vertical_axis_values_are_raw_band_index(self):
+        feats = self._grid_3x4()
+        _, values = _sort_by_serpentine(feats, band_size=1, ascending=True, axis="vertical")
+        self.assertEqual(values, [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3])
+
+    def test_vertical_axis_uses_bbox_width_for_auto_band_size(self):
+        # Con axis="vertical" la dimensione di banda automatica deve derivare
+        # dalla LARGHEZZA media delle bbox, non dall'altezza (qui larghezza=2,
+        # altezza=99 per tutte: se usasse l'altezza per errore, raggrupperebbe
+        # tutte le feature in un'unica banda).
+        feats = [
+            MockFeature(0, geometry=MockGeometry("polygon", cx=0.0, cy=0.0,
+                                                  bbox_width=2.0, bbox_height=99.0)),
+            MockFeature(1, geometry=MockGeometry("polygon", cx=0.0, cy=1.0,
+                                                  bbox_width=2.0, bbox_height=99.0)),
+            MockFeature(2, geometry=MockGeometry("polygon", cx=2.0, cy=0.0,
+                                                  bbox_width=2.0, bbox_height=99.0)),
+            MockFeature(3, geometry=MockGeometry("polygon", cx=2.0, cy=1.0,
+                                                  bbox_width=2.0, bbox_height=99.0)),
+        ]
+        result, values = _sort_by_serpentine(feats, band_size=None, ascending=True, axis="vertical")
+        # banda 0 (x=0, rank pari): Y crescente → id0, id1.
+        # banda 1 (x=2, rank dispari): Y decrescente → id3 (y=1) prima di id2 (y=0).
+        self.assertEqual([f.id() for f in result], [0, 1, 3, 2])
+        self.assertEqual(values, [0, 0, 1, 1])
 
 
 # ──────────────────────────────────────────────────────────────────────────────

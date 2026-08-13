@@ -275,29 +275,40 @@ class GeoSortDialog(QDialog):
         ))
         grid.addWidget(self.rb_hilbert, 8, 0, 1, 3)
 
-        # ── Riga 9: Serpentina (bande orizzontali, boustrophedon) ────────────
-        self.rb_serpentine = QRadioButton(self.tr("A serpentina (bande orizzontali)"))
+        # ── Riga 9: Serpentina (boustrophedon) + orientamento + dimensione banda ──
+        self.rb_serpentine = QRadioButton(self.tr("A serpentina (boustrophedon)"))
         self._crit_bg.addButton(self.rb_serpentine, 6)
         self.rb_serpentine.setToolTip(self.tr(
-            "Ordina le feature a bande orizzontali per Y, con X alternato\n"
-            "crescente/decrescente da una banda alla successiva (boustrophedon):\n"
-            "l'ordine classico per numerare le tavole di una serie cartografica\n"
-            "a taglio regolare, senza il salto lungo da fine banda a inizio\n"
-            "banda successiva tipico di un ordinamento a righe semplice.\n"
+            "Ordina le feature a bande (orizzontali o verticali), con l'asse\n"
+            "trasversale alternato crescente/decrescente da una banda alla\n"
+            "successiva (boustrophedon): l'ordine classico per numerare le\n"
+            "tavole di una serie cartografica a taglio regolare, senza il\n"
+            "salto lungo da fine banda a inizio banda successiva tipico di\n"
+            "un ordinamento a righe semplice.\n"
             "Non disponibile come criterio primario in modalità multi-criterio."
         ))
         grid.addWidget(self.rb_serpentine, 9, 0)
 
-        self.spin_band_height = QDoubleSpinBox()
-        self.spin_band_height.setRange(0, 1e9)
-        self.spin_band_height.setDecimals(4)
-        self.spin_band_height.setSpecialValueText(self.tr("Automatica"))
-        self.spin_band_height.setValue(0)
-        self.spin_band_height.setToolTip(self.tr(
-            "Altezza di ciascuna banda orizzontale, nelle unità del CRS del layer.\n"
-            "0 = automatica (altezza media delle bounding box delle feature)."
+        self.combo_band_axis = QComboBox()
+        self.combo_band_axis.addItem(self.tr("Orizzontali (bande per Y, X alternato)"), "horizontal")
+        self.combo_band_axis.addItem(self.tr("Verticali (bande per X, Y alternato)"), "vertical")
+        self.combo_band_axis.setToolTip(self.tr(
+            "Orizzontali: raggruppa per Y, alterna il verso di lettura della X.\n"
+            "Verticali: raggruppa per X, alterna il verso di lettura della Y."
         ))
-        grid.addWidget(self.spin_band_height, 9, 1, 1, 2)
+        grid.addWidget(self.combo_band_axis, 9, 1)
+
+        self.spin_band_size = QDoubleSpinBox()
+        self.spin_band_size.setRange(0, 1e9)
+        self.spin_band_size.setDecimals(4)
+        self.spin_band_size.setSpecialValueText(self.tr("Automatica"))
+        self.spin_band_size.setValue(0)
+        self.spin_band_size.setToolTip(self.tr(
+            "Dimensione di ciascuna banda nelle unità del CRS del layer\n"
+            "(altezza se orizzontali, larghezza se verticali).\n"
+            "0 = automatica (dimensione media delle bounding box delle feature)."
+        ))
+        grid.addWidget(self.spin_band_size, 9, 2)
 
         outer.addLayout(grid)
 
@@ -529,7 +540,8 @@ class GeoSortDialog(QDialog):
         is_hilbert = self.rb_hilbert.isChecked()
         is_serpentine = self.rb_serpentine.isChecked()
 
-        self.spin_band_height.setEnabled(is_serpentine)
+        self.combo_band_axis.setEnabled(is_serpentine)
+        self.spin_band_size.setEnabled(is_serpentine)
         self.combo_field.setEnabled(is_attr)
         self.btn_expression_builder.setEnabled(is_attr)
         self.chk_nulls_last.setEnabled(is_attr)
@@ -1008,11 +1020,12 @@ class GeoSortDialog(QDialog):
             )
             return sorted_feats, values, "sort_hilbert", []
 
-        # ── A serpentina (bande orizzontali) ──────────────────────────────────
+        # ── A serpentina (boustrophedon) ────────────────────────────────────────
         if self.rb_serpentine.isChecked():
-            band_height = self.spin_band_height.value() or None
+            band_size = self.spin_band_size.value() or None
+            band_axis = self.combo_band_axis.currentData()
             sorted_feats, values = sort_by_serpentine(
-                features, band_height=band_height, ascending=ascending,
+                features, band_size=band_size, ascending=ascending, axis=band_axis,
                 progress_callback=progress_callback,
             )
             return sorted_feats, values, "sort_band", []

@@ -36,7 +36,7 @@ Compatibile con **QGIS 3.16+** (Qt5 / PyQt5) e **QGIS 4.x** (Qt6 / PyQt6).
 | Posizione lungo linea | Tutti | Proiezione del centroide su una linea di riferimento (tre modalità) |
 | Curva di Hilbert | Tutti | Ordina lungo una curva di Hilbert calcolata sui centroidi normalizzati sull'extent: le feature vicine nello spazio restano vicine nell'ordine |
 | Espressione QGIS | Tutti | Ordina per il risultato di un'espressione QGIS arbitraria |
-| Serpentina (bande orizzontali) | Tutti | Bande orizzontali per Y, X alternato crescente/decrescente da una banda alla successiva (boustrophedon) — l'ordine classico per serie cartografiche a taglio regolare e percorsi di volo fotogrammetrico |
+| Serpentina (boustrophedon) | Tutti | Bande orizzontali (per Y, X alternato) o verticali (per X, Y alternato), asse trasversale alternato crescente/decrescente da una banda alla successiva — l'ordine classico per serie cartografiche a taglio regolare e percorsi di volo fotogrammetrico |
 | **Multi-criterio (gerarchico)** | Tutti | Criterio secondario per spezzare i pareggi del primario (es. regione → area) |
 
 > **Robustezza:** le feature con geometria NULL/vuota e i layer a geometria mista non
