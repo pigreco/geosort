@@ -261,6 +261,10 @@ Espressione: {expr}</translation>
       <translation>GeoSort: il campo '{name}' esiste già, i valori saranno sovrascritti.</translation>
     </message>
     <message>
+      <source>GeoSort: layer di riferimento riproiettato da {ref} a {target} (CRS del layer di input).</source>
+      <translation>GeoSort: layer di riferimento riproiettato da {ref} a {target} (CRS del layer di input).</translation>
+    </message>
+    <message>
       <source>GeoSort: ordinamento multi-criterio (primario + secondario).</source>
       <translation>GeoSort: ordinamento multi-criterio (primario + secondario).</translation>
     </message>
@@ -293,6 +297,10 @@ Sovrascriverlo con il nuovo ordinamento?</translation>
     <message>
       <source>Impossibile creare il layer di output.</source>
       <translation>Impossibile creare il layer di output.</translation>
+    </message>
+    <message>
+      <source>Impossibile riproiettare il layer di riferimento dal CRS {ref} al CRS {target} del layer di input: {error}</source>
+      <translation>Impossibile riproiettare il layer di riferimento dal CRS {ref} al CRS {target} del layer di input: {error}</translation>
     </message>
     <message>
       <source>Incremento fra feature consecutive (es. 10 → 10, 20, 30...).</source>
@@ -433,6 +441,8 @@ Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghe
 
 &lt;b&gt;Punto di riferimento:&lt;/b&gt; per il criterio «Centroide – distanza» è possibile indicare un punto di riferimento (anche col pulsante «... sulla mappa»); se lasciato vuoto si usa l'origine (0,0) come nelle versioni precedenti.
 
+&lt;b&gt;Layer di riferimento (posizione/distanza lungo linea):&lt;/b&gt; se il layer di riferimento ha un CRS diverso da quello del layer di input, viene riproiettato automaticamente prima del calcolo (con un avviso non bloccante).
+
 &lt;b&gt;Numerazione personalizzata (parametri avanzati):&lt;/b&gt; valore iniziale (es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo (default &lt;b&gt;sort_order&lt;/b&gt;). Se il campo esiste già nel layer di input, i suoi valori vengono sovrascritti invece di creare un duplicato.
 
 &lt;b&gt;Misura geodetica (ellissoidale):&lt;/b&gt; quando il CRS del layer è geografico (coordinate in gradi, es. EPSG:4326), le misure planari di area, lunghezza, perimetro e distanza sarebbero in gradi — metricamente prive di senso. Con la modalità &lt;i&gt;Automatica&lt;/i&gt; (default) GeoSort usa automaticamente il calcolo ellissoidale (QgsDistanceArea) restituendo valori in m² / m. Selezionare &lt;i&gt;Mai&lt;/i&gt; per forzare la misura planare nelle unità del CRS.
@@ -449,6 +459,8 @@ Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghe
 &lt;b&gt;Ordinamento multi-criterio:&lt;/b&gt; imposta un &lt;b&gt;criterio secondario&lt;/b&gt; per spezzare i pareggi del criterio primario (es. primario = regione, secondario = area decrescente). Disponibile per i criteri non basati su linea.
 
 &lt;b&gt;Punto di riferimento:&lt;/b&gt; per il criterio «Centroide – distanza» è possibile indicare un punto di riferimento (anche col pulsante «... sulla mappa»); se lasciato vuoto si usa l'origine (0,0) come nelle versioni precedenti.
+
+&lt;b&gt;Layer di riferimento (posizione/distanza lungo linea):&lt;/b&gt; se il layer di riferimento ha un CRS diverso da quello del layer di input, viene riproiettato automaticamente prima del calcolo (con un avviso non bloccante).
 
 &lt;b&gt;Numerazione personalizzata (parametri avanzati):&lt;/b&gt; valore iniziale (es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo (default &lt;b&gt;sort_order&lt;/b&gt;). Se il campo esiste già nel layer di input, i suoi valori vengono sovrascritti invece di creare un duplicato.
 

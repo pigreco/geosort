@@ -243,14 +243,14 @@ Dialog and Processing algorithm tests require QGIS in PATH:
 
 ```bash
 python -m unittest tests.test_dialog -v     # UI tests (29 tests)
-python -m unittest tests.test_algorithm -v  # Processing Toolbox tests, all 16 criteria (45 tests)
+python -m unittest tests.test_algorithm -v  # Processing Toolbox tests, all 16 criteria (46 tests)
 ```
 
 Run all tests:
 
 ```bash
 python -m unittest discover tests -p "test_*.py" -v
-# Output: 247 tests (173 ok, 74 skipped that require QGIS)
+# Output: 248 tests (173 ok, 75 skipped that require QGIS)
 ```
 
 Every push and pull request automatically runs the whole suite on GitHub Actions:

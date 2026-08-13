@@ -11,6 +11,7 @@ Se QGIS non è disponibile nel PATH, i test vengono saltati automaticamente.
 
 import sys
 import os
+import math
 import unittest
 
 
@@ -630,6 +631,46 @@ class TestGeoSortAlgorithmAllCriteria(unittest.TestCase):
         })
         # Distanza crescente: id1 (1) < id0 (3) < id2 (5)
         self.assertEqual(self._order_by_id(result["OUTPUT"]), {1: 1, 0: 2, 2: 3})
+
+    # ── REF_LAYER con CRS diverso dall'input (regressione) ──────────────────
+    # Bug reale trovato ispezionando un GeoPackage catastale empirico con
+    # INPUT e REF_LAYER in due CRS diversi: geosort_algorithm.py univa le
+    # geometrie del REF_LAYER senza mai riproiettarle nel CRS dell'input.
+    # Con CRS numericamente vicini (es. due datum geografici europei) l'errore
+    # è invisibile; con CRS nettamente diversi (gradi vs UTM in metri) il
+    # risultato diventava silenziosamente NaN in sort_value, senza errori
+    # né avvisi.
+
+    def test_ref_layer_reprojected_when_crs_differs(self):
+        """line_distance con REF_LAYER in un CRS diverso dall'INPUT deve dare
+        lo stesso ordine e gli stessi valori (a meno di arrotondamento) di
+        un'esecuzione con CRS già allineati — mai NaN."""
+        import processing
+        ref_line_utm, pts_utm = self._line_ref_and_points()  # entrambi EPSG:32633
+        # Stesso layer di riferimento, riproiettato in un CRS nettamente
+        # diverso (gradi anziché metri UTM): stesse geometrie reali, CRS diverso.
+        ref_line_4326 = processing.run("native:reprojectlayer", {
+            "INPUT": ref_line_utm, "TARGET_CRS": "EPSG:4326", "OUTPUT": "memory:",
+        })["OUTPUT"]
+
+        def _run(ref_layer):
+            result = processing.run("geosort:geosort_sort", {
+                "INPUT": pts_utm, "CRITERION": 14, "REF_LAYER": ref_layer,
+                "ADD_VALUE_FIELD": True, "DIRECTION": True, "OUTPUT": "memory:",
+            })["OUTPUT"]
+            return {f["id"]: (f["sort_order"], f["sort_value"]) for f in result.getFeatures()}
+
+        same_crs = _run(ref_line_utm)
+        mismatched_crs = _run(ref_line_4326)
+
+        for fid in same_crs:
+            order_a, value_a = same_crs[fid]
+            order_b, value_b = mismatched_crs[fid]
+            self.assertEqual(order_a, order_b)
+            # Nessun NaN: prima del fix un CRS nettamente diverso produceva
+            # sort_value = nan su tutte le feature invece di questi valori.
+            self.assertFalse(math.isnan(value_b))
+            self.assertAlmostEqual(value_a, value_b, delta=0.5)  # metri, tolleranza riproiezione
 
     # ── expression (indice 15) ──────────────────────────────────────────────
 

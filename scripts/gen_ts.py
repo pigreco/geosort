@@ -259,6 +259,9 @@ EN.update({
     "<b>Punto di riferimento:</b> per il criterio «Centroide – distanza» è possibile "
     "indicare un punto di riferimento (anche col pulsante «... sulla mappa»); "
     "se lasciato vuoto si usa l'origine (0,0) come nelle versioni precedenti.\n\n"
+    "<b>Layer di riferimento (posizione/distanza lungo linea):</b> se il layer di "
+    "riferimento ha un CRS diverso da quello del layer di input, viene riproiettato "
+    "automaticamente prima del calcolo (con un avviso non bloccante).\n\n"
     "<b>Numerazione personalizzata (parametri avanzati):</b> valore iniziale "
     "(es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo "
     "(default <b>sort_order</b>). Se il campo esiste già nel layer di input, "
@@ -288,6 +291,9 @@ EN.update({
         "<b>Reference point:</b> for the «Centroid – distance» criterion you can "
         "provide a reference point (also via the «... on map» button); "
         "if left empty, the origin (0,0) is used, as in previous versions.\n\n"
+        "<b>Reference layer (position/distance along line):</b> if the reference "
+        "layer has a CRS different from the input layer's, it is automatically "
+        "reprojected before the calculation (with a non-blocking warning).\n\n"
         "<b>Custom numbering (advanced parameters):</b> starting value "
         "(e.g. 0), step (e.g. 10 → 10, 20, 30...) and the name of the progressive "
         "field (default <b>sort_order</b>). If the field already exists in the input "
@@ -323,6 +329,10 @@ EN.update({
         "Increment between consecutive features (e.g. 10 → 10, 20, 30...).",
     "Il campo '{name}' esiste già nel layer.\nSovrascriverlo con il nuovo ordinamento?":
         "The field '{name}' already exists in the layer.\nOverwrite it with the new ordering?",
+    "Impossibile riproiettare il layer di riferimento dal CRS {ref} al CRS {target} del layer di input: {error}":
+        "Could not reproject the reference layer from CRS {ref} to the input layer's CRS {target}: {error}",
+    "GeoSort: layer di riferimento riproiettato da {ref} a {target} (CRS del layer di input).":
+        "GeoSort: reference layer reprojected from {ref} to {target} (input layer's CRS).",
     # ── Core (avvisi CRS geografico e messaggi d'errore) ──
     "CRS geografico ({authid}): misura ellissoidica (geodetica) applicata automaticamente. "
     "I valori del criterio sono in metri/m² sull'ellissoide {ellipsoid}, non in gradi.":

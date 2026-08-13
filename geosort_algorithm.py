@@ -28,6 +28,8 @@ from qgis.core import (
     QgsFields,
     QgsGeometry,
     QgsPointXY,
+    QgsCoordinateTransform,
+    QgsCsException,
     QgsMessageLog,
     Qgis,
     NULL,
@@ -212,6 +214,9 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             "<b>Punto di riferimento:</b> per il criterio «Centroide – distanza» è possibile "
             "indicare un punto di riferimento (anche col pulsante «... sulla mappa»); "
             "se lasciato vuoto si usa l'origine (0,0) come nelle versioni precedenti.\n\n"
+            "<b>Layer di riferimento (posizione/distanza lungo linea):</b> se il layer di "
+            "riferimento ha un CRS diverso da quello del layer di input, viene riproiettato "
+            "automaticamente prima del calcolo (con un avviso non bloccante).\n\n"
             "<b>Numerazione personalizzata (parametri avanzati):</b> valore iniziale "
             "(es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo "
             "(default <b>sort_order</b>). Se il campo esiste già nel layer di input, "
@@ -445,6 +450,48 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             return QgsPointXY(0, 0)
         return self.parameterAsPoint(parameters, self.REF_POINT, context, crs)
 
+    def _ref_line_geom(self, parameters, context, feedback, target_crs, no_layer_message):
+        """Geometria unificata del REF_LAYER (line_position / line_distance),
+        riproiettata nel CRS ``target_crs`` (quello del layer di input) se il
+        layer di riferimento ha un CRS diverso.
+
+        A differenza di REF_POINT — dove ``parameterAsPoint(..., crs)`` riproietta
+        automaticamente — QgsProcessingParameterFeatureSource non offre un
+        equivalente: la trasformazione va applicata esplicitamente, altrimenti
+        geometrie in CRS differenti verrebbero confrontate come se fossero nello
+        stesso sistema di coordinate (risultati silenziosamente sbagliati, fino a
+        NaN se i due CRS divergono molto, es. gradi vs proiezione metrica).
+
+        Args:
+            no_layer_message (str): messaggio d'errore (già tradotto) se
+                REF_LAYER non è impostato — specifico per criterio, per un
+                messaggio d'errore più chiaro.
+        """
+        ref_source = self.parameterAsSource(parameters, self.REF_LAYER, context)
+        if ref_source is None:
+            raise QgsProcessingException(no_layer_message)
+        ref_feats = list(ref_source.getFeatures())
+        if not ref_feats:
+            raise QgsProcessingException(self.tr("Il layer di riferimento non contiene feature."))
+        line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+
+        ref_crs = ref_source.sourceCrs()
+        if ref_crs.isValid() and target_crs.isValid() and ref_crs != target_crs:
+            transform = QgsCoordinateTransform(ref_crs, target_crs, context.transformContext())
+            try:
+                line_geom.transform(transform)
+            except QgsCsException as exc:
+                raise QgsProcessingException(self.tr(
+                    "Impossibile riproiettare il layer di riferimento dal CRS {ref} "
+                    "al CRS {target} del layer di input: {error}"
+                ).format(ref=ref_crs.authid(), target=target_crs.authid(), error=str(exc)))
+            feedback.pushInfo(self.tr(
+                "GeoSort: layer di riferimento riproiettato da {ref} a {target} "
+                "(CRS del layer di input)."
+            ).format(ref=ref_crs.authid(), target=target_crs.authid()))
+
+        return line_geom
+
     def _run_multi(self, parameters, context, feedback, crs, expr_layer, features,
                    primary_key, sec_key, ascending, nulls_last, natural_sort,
                    geodesic_mode="auto", progress_callback=None):
@@ -620,15 +667,10 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 excluded = []
 
             elif criterion == "line_position":
-                ref_source = self.parameterAsSource(parameters, self.REF_LAYER, context)
-                if ref_source is None:
-                    raise QgsProcessingException(
-                        self.tr("Specificare un layer di riferimento per il criterio 'Posizione lungo linea'.")
-                    )
-                ref_feats = list(ref_source.getFeatures())
-                if not ref_feats:
-                    raise QgsProcessingException(self.tr("Il layer di riferimento non contiene feature."))
-                line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+                line_geom = self._ref_line_geom(
+                    parameters, context, feedback, crs,
+                    self.tr("Specificare un layer di riferimento per il criterio 'Posizione lungo linea'."),
+                )
                 line_mode_keys = ["centroid_projection", "intersecting_projection", "intersecting_first_pt"]
                 line_mode_idx = self.parameterAsEnum(parameters, "LINE_MODE", context)
                 line_mode = line_mode_keys[line_mode_idx]
@@ -641,15 +683,10 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                     ).format(n=len(excluded)))
 
             elif criterion == "line_distance":
-                ref_source = self.parameterAsSource(parameters, self.REF_LAYER, context)
-                if ref_source is None:
-                    raise QgsProcessingException(
-                        self.tr("Specificare un layer di riferimento per il criterio 'Distanza dalla linea'.")
-                    )
-                ref_feats = list(ref_source.getFeatures())
-                if not ref_feats:
-                    raise QgsProcessingException(self.tr("Il layer di riferimento non contiene feature."))
-                line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+                line_geom = self._ref_line_geom(
+                    parameters, context, feedback, crs,
+                    self.tr("Specificare un layer di riferimento per il criterio 'Distanza dalla linea'."),
+                )
                 dist_mode_keys = ["centroid", "element"]
                 dist_mode_idx = self.parameterAsEnum(parameters, "LINE_DISTANCE_MODE", context)
                 dist_mode = dist_mode_keys[dist_mode_idx]
