@@ -108,6 +108,16 @@ class TestGeoSortDialog(unittest.TestCase):
         self.dialog.rb_spatial.setChecked(True)
         self.assertFalse(self.dialog.combo_field.isEnabled())
 
+    def test_hilbert_criterion_disables_field_combo(self):
+        """Con criterio 'Curva di Hilbert', la combo dei campi deve essere disabilitata."""
+        self.dialog.rb_hilbert.setChecked(True)
+        self.assertFalse(self.dialog.combo_field.isEnabled())
+
+    def test_hilbert_criterion_disables_secondary_criterion(self):
+        """Il criterio secondario (multi-criterio) non è disponibile con Hilbert."""
+        self.dialog.rb_hilbert.setChecked(True)
+        self.assertFalse(self.dialog.combo_secondary.isEnabled())
+
     # ── Selettore layer di riferimento ────────────────────────────────────────
 
     def test_ref_layer_enabled_for_spatial(self):
@@ -216,6 +226,7 @@ class TestGeoSortDialog(unittest.TestCase):
             (self.dialog.rb_centroid,  "centroid"),
             (self.dialog.rb_geometry,  "geometry"),
             (self.dialog.rb_spatial,   "spatial"),
+            (self.dialog.rb_hilbert,   "hilbert"),
         ]:
             rb.setChecked(True)
             self.assertEqual(self.dialog.get_criterion(), expected)

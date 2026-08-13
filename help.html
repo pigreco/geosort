@@ -69,6 +69,16 @@ iniziale e passo sono personalizzabili, vedi <a href="#numerazione">Numerazione<
       <li>solo intersecanti – via primo punto di contatto</li>
     </ul>
   </li>
+  <li><b>Curva di Hilbert</b> – ordina le feature lungo una curva di Hilbert
+      calcolata sui centroidi, normalizzati sull'extent complessivo del layer:
+      le feature vicine nello spazio diventano vicine nell'ordine. Utile per
+      atlanti «a percorso continuo» (nessun salto tra pagine consecutive) e
+      per scrivere GeoPackage con feature spazialmente coerenti (letture più
+      veloci). Il parametro avanzato <i>ordine della curva</i> (Processing:
+      <code>HILBERT_ORDER</code>, default 16) regola la risoluzione della
+      griglia — non serve quasi mai cambiarlo. Non disponibile come criterio
+      primario per l'ordinamento multi-criterio (richiede l'extent calcolato
+      su tutte le feature).</li>
 </ul>
 
 <h3>Ordinamento multi-criterio (gerarchico)</h3>
@@ -84,7 +94,7 @@ Ogni livello ha la propria direzione (ascendente/discendente).</p>
       Processing (parametri <code>SECONDARY_CRITERION</code>, <code>SECONDARY_FIELD</code>,
       <code>SECONDARY_EXPRESSION</code>, <code>SECONDARY_DIRECTION</code>).</li>
   <li>Il criterio secondario è <b>ignorato</b> quando il criterio primario è basato su una
-      linea di riferimento (<i>posizione/distanza lungo linea</i>).</li>
+      linea di riferimento (<i>posizione/distanza lungo linea</i>) o è la <i>curva di Hilbert</i>.</li>
 </ul>
 
 <h3>Output</h3>

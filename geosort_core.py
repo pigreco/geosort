@@ -509,6 +509,113 @@ def sort_by_centroid(features, axis="x", ascending=True, ref_point=None,
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Ordinamento per curva di Hilbert (ordinamento spaziale)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _hilbert_index(order, x, y):
+    """Indice (distanza) lungo la curva di Hilbert del punto intero ``(x, y)``.
+
+    Implementazione standard ``xy2d`` (curva di Hilbert, algoritmo iterativo):
+    ``x`` e ``y`` devono essere interi in ``[0, 2**order - 1]``. Costo O(order),
+    trascurabile anche per ordini elevati.
+
+    Args:
+        order (int): ordine della curva (lato griglia = ``2**order``).
+        x (int): coordinata X discretizzata.
+        y (int): coordinata Y discretizzata.
+
+    Returns:
+        int: indice lungo la curva (0 .. 2**(2*order) - 1).
+    """
+    n = 1 << order
+    d = 0
+    s = n >> 1
+    while s > 0:
+        rx = 1 if (x & s) > 0 else 0
+        ry = 1 if (y & s) > 0 else 0
+        d += s * s * ((3 * rx) ^ ry)
+        # Ruota/riflette il quadrante corrente (stessa logica della funzione
+        # rot() di riferimento): allinea la sotto-griglia successiva
+        # all'orientamento della curva.
+        if ry == 0:
+            if rx == 1:
+                x = n - 1 - x
+                y = n - 1 - y
+            x, y = y, x
+        s >>= 1
+    return d
+
+
+def sort_by_hilbert(features, ascending=True, order=16, progress_callback=None):
+    """Ordina le feature lungo una curva di Hilbert calcolata sui centroidi.
+
+    Le feature vicine nello spazio diventano vicine nell'ordine di uscita: è il
+    criterio "mancante" nella maggior parte degli strumenti di ordinamento di
+    QGIS, utile per atlanti a percorso continuo (nessun salto tra pagine
+    consecutive) e per scrivere GeoPackage con feature spazialmente coerenti
+    (letture più veloci, perché le feature vicine finiscono vicine anche sul
+    disco).
+
+    Le coordinate del centroide (``pointOnSurface`` per le geometrie
+    multiparte, così il punto rappresentativo resta sempre dentro la
+    geometria) sono normalizzate sul bounding box complessivo delle feature
+    valide e discretizzate su una griglia di lato ``2**order`` prima di
+    calcolare l'indice di Hilbert.
+
+    Args:
+        features (list[QgsFeature]): feature da ordinare.
+        ascending (bool): True = crescente (percorso "in avanti" lungo la curva).
+        order (int): ordine della curva (lato griglia = 2**order, default 16
+            → griglia 65536×65536). Un ordine più alto aumenta la risoluzione
+            spaziale; il costo per feature resta O(order).
+        progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
+
+    Returns:
+        tuple[list[QgsFeature], list[int]]: (feature ordinate, indici di Hilbert).
+        Le feature prive di geometria sono relegate in fondo con valore ``None``.
+    """
+    pts = []
+    invalid = []
+    for f in features:
+        geom = f.geometry()
+        if _is_empty_geom(geom):
+            invalid.append(f)
+            continue
+        pt = (geom.pointOnSurface() if geom.isMultipart() else geom.centroid()).asPoint()
+        pts.append((f, pt.x(), pt.y()))
+
+    if not pts:
+        if progress_callback:
+            progress_callback(100)
+        return invalid, [None] * len(invalid)
+
+    xs = [p[1] for p in pts]
+    ys = [p[2] for p in pts]
+    xmin, xmax = min(xs), max(xs)
+    ymin, ymax = min(ys), max(ys)
+    # Extent degenere (una sola X o Y, es. tutti i punti allineati): evita la
+    # divisione per zero, tutte le feature finiscono sullo stesso bordo della griglia.
+    xspan = (xmax - xmin) or 1.0
+    yspan = (ymax - ymin) or 1.0
+
+    side = (1 << order) - 1
+    valid = []
+    for f, x, y in pts:
+        gx = int((x - xmin) / xspan * side)
+        gy = int((y - ymin) / yspan * side)
+        valid.append((f, _hilbert_index(order, gx, gy)))
+
+    valid.sort(key=lambda p: p[1], reverse=not ascending)
+    sorted_feats = [p[0] for p in valid] + invalid
+    values = [p[1] for p in valid] + [None] * len(invalid)
+
+    if progress_callback:
+        progress_callback(100)
+
+    return sorted_feats, values
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Ordinamento per proprietà geometrica
 # ──────────────────────────────────────────────────────────────────────────────
 

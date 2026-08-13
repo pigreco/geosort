@@ -263,6 +263,18 @@ class GeoSortDialog(QDialog):
         grid.addWidget(self.combo_ref_layer, 7, 1)
         grid.addWidget(self.combo_line_mode, 7, 2)
 
+        # ── Riga 8: Curva di Hilbert (ordinamento spaziale) ──────────────────
+        self.rb_hilbert = QRadioButton(self.tr("Per curva di Hilbert (ordinamento spaziale)"))
+        self._crit_bg.addButton(self.rb_hilbert, 5)
+        self.rb_hilbert.setToolTip(self.tr(
+            "Ordina le feature lungo una curva di Hilbert calcolata sui centroidi:\n"
+            "le feature vicine nello spazio diventano vicine nell'ordine.\n"
+            "Utile per atlanti «a percorso continuo» e per scrivere GeoPackage\n"
+            "con feature spazialmente coerenti (letture più veloci).\n"
+            "Non disponibile come criterio primario per il criterio secondario (pareggi)."
+        ))
+        grid.addWidget(self.rb_hilbert, 8, 0, 1, 3)
+
         outer.addLayout(grid)
 
         return grp
@@ -438,7 +450,8 @@ class GeoSortDialog(QDialog):
 
     def _connect_signals(self):
         self.layer_combo.layerChanged.connect(self._on_layer_changed)
-        for rb in (self.rb_attribute, self.rb_centroid, self.rb_geometry, self.rb_spatial, self.rb_line_distance):
+        for rb in (self.rb_attribute, self.rb_centroid, self.rb_geometry, self.rb_spatial,
+                   self.rb_line_distance, self.rb_hilbert):
             rb.toggled.connect(self._on_criterion_changed)
         self.combo_centroid.currentIndexChanged.connect(self._on_centroid_mode_changed)
         self.combo_secondary.currentIndexChanged.connect(self._on_secondary_changed)
@@ -489,6 +502,7 @@ class GeoSortDialog(QDialog):
         is_geom = self.rb_geometry.isChecked()
         is_spatial = self.rb_spatial.isChecked()
         is_line_distance = self.rb_line_distance.isChecked()
+        is_hilbert = self.rb_hilbert.isChecked()
 
         self.combo_field.setEnabled(is_attr)
         self.btn_expression_builder.setEnabled(is_attr)
@@ -502,11 +516,12 @@ class GeoSortDialog(QDialog):
         self.combo_line_distance_mode.setEnabled(is_line_distance)
 
         # Il criterio secondario (multi-criterio) non è disponibile per i criteri
-        # basati su linea (posizione/distanza lungo linea).
-        is_line_based = is_spatial or is_line_distance
-        self.combo_secondary.setEnabled(not is_line_based)
-        self.chk_secondary_desc.setEnabled(not is_line_based)
-        if is_line_based:
+        # basati su linea (posizione/distanza lungo linea) né per la curva di
+        # Hilbert (richiede l'extent calcolato su tutte le feature).
+        is_multi_unsupported = is_spatial or is_line_distance or is_hilbert
+        self.combo_secondary.setEnabled(not is_multi_unsupported)
+        self.chk_secondary_desc.setEnabled(not is_multi_unsupported)
+        if is_multi_unsupported:
             self.combo_secondary_field.setEnabled(False)
         else:
             self._on_secondary_changed()
@@ -753,7 +768,7 @@ class GeoSortDialog(QDialog):
             return {"key": crit_map[self.combo_geom.currentIndex()],
                     "ascending": ascending}
 
-        return None  # criteri basati su linea → multi non supportato
+        return None  # criteri basati su linea o curva di Hilbert → multi non supportato
 
     def _secondary_spec(self, key):
         """Descrittore del criterio secondario per sort_multi."""
@@ -784,6 +799,7 @@ class GeoSortDialog(QDialog):
             sort_by_geometry_property,
             sort_by_line_position,
             sort_by_line_distance,
+            sort_by_hilbert,
             build_distance_area,
             resolve_geodesic,
             should_build_distance_area,
@@ -956,6 +972,13 @@ class GeoSortDialog(QDialog):
                 layer.crs(), "line_distance", da_linedist is not None
             )
             return sorted_feats, values, "sort_dist", []
+
+        # ── Per curva di Hilbert ─────────────────────────────────────────────
+        if self.rb_hilbert.isChecked():
+            sorted_feats, values = sort_by_hilbert(
+                features, ascending, progress_callback=progress_callback,
+            )
+            return sorted_feats, values, "sort_hilbert", []
 
         raise ValueError("Nessun criterio selezionato.")
 
@@ -1200,6 +1223,8 @@ class GeoSortDialog(QDialog):
             return "geometry"
         if self.rb_spatial.isChecked():
             return "spatial"
+        if self.rb_hilbert.isChecked():
+            return "hilbert"
         return None
 
     def get_active_expression(self):

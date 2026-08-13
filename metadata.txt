@@ -3,11 +3,12 @@ name=GeoSort
 qgisMinimumVersion=3.16
 qgisMaximumVersion=4.99
 description=Sort vector layer features by geometric and attribute criteria | Ordina le feature di un layer vettoriale per criteri geometrici e attributivi
-version=1.9.0
+version=1.10.0
 author=Salvatore Fiandaca
 email=pigrecoinfinito@gmail.com
 about=GeoSort sorts points, lines and polygons by centroid coordinates, area, length,
     vertex count, bounding box, distance from a configurable reference point, position along a line,
+    a Hilbert curve (spatial sorting: nearby features stay nearby in the order),
     and custom QGIS expressions. Supports hierarchical multi-criteria sorting (a secondary
     criterion breaks ties of the primary one) and both lexicographic and Natural Sort ordering
     for text and expression criteria (e.g. "11" < "1010" < "1111" instead of "1010" < "11" < "1111").
@@ -19,7 +20,8 @@ about=GeoSort sorts points, lines and polygons by centroid coordinates, area, le
     ---
     GeoSort permette di ordinare punti, linee e poligoni per coordinate centroide,
     area, lunghezza, numero di vertici, bounding box, distanza da punto di riferimento configurabile,
-    posizione lungo una linea ed espressioni QGIS personalizzate. Supporta l'ordinamento
+    posizione lungo una linea, una curva di Hilbert (ordinamento spaziale: le feature vicine
+    nello spazio restano vicine nell'ordine) ed espressioni QGIS personalizzate. Supporta l'ordinamento
     gerarchico multi-criterio (un criterio secondario spezza i pareggi del primario) e
     l'ordinamento lessicografico e Natural Sort per criteri testuali ed espressioni (es. "11" < "1010" < "1111"
     invece di "1010" < "11" < "1111"). Su CRS geografici (gradi) area, lunghezza, perimetro
@@ -41,6 +43,7 @@ deprecated=False
 server=False
 supportsQt6=True
 changelog=
+    1.10.0 Nuovo criterio di ordinamento "Curva di Hilbert": ordina le feature lungo una curva di Hilbert calcolata sui centroidi normalizzati sull'extent del layer, così le feature vicine nello spazio restano vicine nell'ordine — utile per atlanti a percorso continuo e per scrivere GeoPackage con feature spazialmente coerenti (letture più veloci); disponibile nel dialogo e nel Processing (parametro avanzato HILBERT_ORDER per la risoluzione della griglia, default 16); non disponibile come criterio primario in modalità multi-criterio (richiede l'extent calcolato su tutte le feature); 17° criterio di ordinamento, coperto da test end-to-end
     1.9.0 Punto di riferimento configurabile per il criterio "Centroide – distanza" anche nel Processing Toolbox (parametro REF_POINT, vuoto = origine 0,0 come prima, parità con il dialogo interattivo); numerazione personalizzata del campo progressivo — valore iniziale, passo e nome campo (default sort_order), disponibile nel dialogo e nel Processing, con riuso del campo se già presente sul layer invece di duplicarlo; fix: nel Processing i parametri opzionali marcati "Avanzate" (campo/espressione del criterio secondario) perdevano il flag opzionale e venivano richiesti come obbligatori; fix: "Posizione lungo linea"/"Distanza dalla linea" ora riproiettano automaticamente il layer di riferimento se ha un CRS diverso dal layer di input (prima le geometrie venivano confrontate senza riproiezione, con risultati silenziosamente sbagliati fino a NaN su CRS molto diversi); test: copertura end-to-end di tutti e 16 i criteri di ordinamento tramite l'algoritmo Processing reale (prima solo 3 erano esercitati end-to-end), più verifica dei valori ordinati per perimetro, lunghezza, numero di vertici e i 5 criteri bounding box
     1.8.1 Performance: undo atomico per l'ordinamento (beginEditCommand/endEditCommand, un solo blocco Ctrl+Z anche su migliaia di feature); riuso del motore GEOS preparato anche per il criterio "primo punto di intersezione" lungo linea, con distanza curvilinea valutata solo sugli estremi di ogni parte invece di tutti i vertici; lookup del campo per indice invece che per nome nell'ordinamento per attributo. Processing: barra di progresso e cancellazione effettive durante la fase di ordinamento (non solo a inizio/fine); parametri condizionali (Natural Sort, misura geodetica, modalità linea, criterio secondario) spostati in "Avanzate" per una finestra più pulita; rimossa import duplicata
     1.8.0 Ordinamento delle sole feature selezionate (dialogo e Processing, con parametri FeatureSource e layer di riferimento limitato alle linee); correzioni: crash sui pareggi di distanza lungo linea, ordinamento di valori a tipo misto (numeri+testo) senza errori, NULL sempre in fondo anche con ordine discendente; performance: motore GEOS preparato per i criteri su linea (fino a 2x su linee complesse) e scritture batch degli attributi; i18n: algoritmo Processing e messaggi del core tradotti, tooltip multilinea ora tradotti in inglese; supportsQt6=True per il repository plugin; CI GitHub Actions (test senza QGIS + QGIS LTR/latest)

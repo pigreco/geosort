@@ -34,6 +34,7 @@ Compatibile con **QGIS 3.16+** (Qt5 / PyQt5) e **QGIS 4.x** (Qt6 / PyQt6).
 | Bounding Box | Tutti | Larghezza, altezza, area, Xmin, Ymin del bounding box |
 | Distanza dalla linea | Tutti | Distanza perpendicolare da una linea di riferimento (due modalità: centroide o elemento) |
 | Posizione lungo linea | Tutti | Proiezione del centroide su una linea di riferimento (tre modalità) |
+| Curva di Hilbert | Tutti | Ordina lungo una curva di Hilbert calcolata sui centroidi normalizzati sull'extent: le feature vicine nello spazio restano vicine nell'ordine |
 | Espressione QGIS | Tutti | Ordina per il risultato di un'espressione QGIS arbitraria |
 | **Multi-criterio (gerarchico)** | Tutti | Criterio secondario per spezzare i pareggi del primario (es. regione → area) |
 
@@ -68,7 +69,8 @@ rispetto alla scala).
 Esempio tipico: ordinare per *regione* (crescente) e, a parità di regione, per *area*
 (decrescente). Ogni livello ha la propria direzione. Disponibile sia nel dialogo
 (menu a tendina **Criterio secondario**) sia nel Processing (parametri `SECONDARY_*`).
-Non disponibile quando il criterio primario è basato su una linea di riferimento.
+Non disponibile quando il criterio primario è basato su una linea di riferimento o è la
+curva di Hilbert.
 
 ### Modalità di ordinamento testuale
 
@@ -245,8 +247,8 @@ python -m unittest tests.test_sorting -v
 I test del dialog e dell'algoritmo Processing richiedono QGIS nel PATH:
 
 ```bash
-python -m unittest tests.test_dialog -v     # Test UI (29 test)
-python -m unittest tests.test_algorithm -v  # Test Processing Toolbox, tutti e 16 i criteri (46 test)
+python -m unittest tests.test_dialog -v     # Test UI (32 test)
+python -m unittest tests.test_algorithm -v  # Test Processing Toolbox, tutti e 17 i criteri (52 test)
 ```
 
 Eseguire tutti i test:

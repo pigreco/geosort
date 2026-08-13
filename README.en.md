@@ -34,6 +34,7 @@ Compatible with **QGIS 3.16+** (Qt5 / PyQt5) and **QGIS 4.x** (Qt6 / PyQt6).
 | Bounding Box | All | Width, height, area, Xmin, Ymin of the bounding box |
 | Distance from Line | All | Perpendicular distance from a reference line (two modes: centroid or element) |
 | Position along Line | All | Projection of centroid onto a reference line (three modes) |
+| Hilbert Curve | All | Sort along a Hilbert curve computed on centroids normalized over the extent: features near each other in space stay near each other in the order |
 | QGIS Expression | All | Sort by the result of an arbitrary QGIS expression |
 | **Multi-criteria (hierarchical)** | All | Secondary criterion to break ties of the primary one (e.g. region → area) |
 
@@ -66,7 +67,8 @@ is a concept in native coordinates; position along line is monotonic and scale-i
 You can set a **secondary criterion** that breaks ties of the primary one. Typical example:
 sort by *region* (ascending) and, within the same region, by *area* (descending). Each level
 has its own direction. Available both in the dialog (**Secondary criterion** dropdown) and in
-Processing (`SECONDARY_*` parameters). Not available when the primary criterion is line-based.
+Processing (`SECONDARY_*` parameters). Not available when the primary criterion is line-based
+or the Hilbert curve.
 
 ### Text Sorting Modes
 
@@ -242,8 +244,8 @@ python -m unittest tests.test_sorting -v
 Dialog and Processing algorithm tests require QGIS in PATH:
 
 ```bash
-python -m unittest tests.test_dialog -v     # UI tests (29 tests)
-python -m unittest tests.test_algorithm -v  # Processing Toolbox tests, all 16 criteria (46 tests)
+python -m unittest tests.test_dialog -v     # UI tests (32 tests)
+python -m unittest tests.test_algorithm -v  # Processing Toolbox tests, all 17 criteria (52 tests)
 ```
 
 Run all tests:
