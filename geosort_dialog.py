@@ -271,7 +271,7 @@ class GeoSortDialog(QDialog):
             "le feature vicine nello spazio diventano vicine nell'ordine.\n"
             "Utile per atlanti «a percorso continuo» e per scrivere GeoPackage\n"
             "con feature spazialmente coerenti (letture più veloci).\n"
-            "Non disponibile come criterio primario per il criterio secondario (pareggi)."
+            "Non disponibile come criterio primario in modalità multi-criterio."
         ))
         grid.addWidget(self.rb_hilbert, 8, 0, 1, 3)
 

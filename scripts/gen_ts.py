@@ -23,6 +23,7 @@ EXTRA = [
     "Area Bounding Box", "Xmin Bounding Box", "Ymin Bounding Box",
     "Posizione lungo linea di riferimento",
     "Distanza dalla linea di riferimento",
+    "Curva di Hilbert (ordinamento spaziale)",
 ]
 
 # Traduzioni inglesi (source -> EN). I source sono in lingua mista IT/EN.
@@ -125,6 +126,20 @@ EN.update({
         "Centroid – distance from reference point (default 0,0)",
     "Posizione lungo linea di riferimento": "Position along reference line",
     "Distanza dalla linea di riferimento": "Distance from reference line",
+    "Curva di Hilbert (ordinamento spaziale)": "Hilbert curve (spatial sorting)",
+    "Per curva di Hilbert (ordinamento spaziale)": "By Hilbert curve (spatial sorting)",
+    "Ordina le feature lungo una curva di Hilbert calcolata sui centroidi:\n"
+    "le feature vicine nello spazio diventano vicine nell'ordine.\n"
+    "Utile per atlanti «a percorso continuo» e per scrivere GeoPackage\n"
+    "con feature spazialmente coerenti (letture più veloci).\n"
+    "Non disponibile come criterio primario in modalità multi-criterio.":
+        "Sorts features along a Hilbert curve calculated on the centroids:\n"
+        "features near each other in space become near each other in the order.\n"
+        "Useful for \"continuous path\" atlases and for writing GeoPackage files\n"
+        "with spatially coherent features (faster reads).\n"
+        "Not available as the primary criterion in multi-criteria mode.",
+    "Curva di Hilbert – ordine (risoluzione griglia = 2^ordine)":
+        "Hilbert curve – order (grid resolution = 2^order)",
     "Ordina solo le feature selezionate": "Sort only selected features",
     "Se attivo, l'ordinamento considera solo le feature attualmente\n"
     "selezionate sul layer. In modalità 'Aggiorna layer corrente' il\n"
@@ -225,8 +240,9 @@ EN.update({
     "Il layer non contiene feature.": "The layer contains no features.",
     "Ordinamento in corso...": "Sorting...",
     "GeoSort: criterio secondario ignorato perché il criterio primario "
-    "è basato su una linea di riferimento.":
-        "GeoSort: secondary criterion ignored because the primary criterion is line-based.",
+    "non supporta l'ordinamento multi-criterio (linea di riferimento o curva di Hilbert).":
+        "GeoSort: secondary criterion ignored because the primary criterion does not "
+        "support multi-criteria sorting (line-based or Hilbert curve).",
     "Specificare un campo attributo per il criterio 'Attributo tabellare'.":
         "Specify an attribute field for the 'Table attribute' criterion.",
     "Specificare un layer di riferimento per il criterio 'Posizione lungo linea'.":
@@ -245,7 +261,8 @@ EN.update({
     "e aggiunge il campo <b>sort_order</b> (numero progressivo, 1 = prima feature).\n\n"
     "Criteri disponibili: attributo tabellare, coordinate del centroide, "
     "area, lunghezza, perimetro, numero di vertici, bounding box, "
-    "posizione lungo una linea di riferimento, distanza dalla linea di riferimento, espressione QGIS.\n\n"
+    "posizione lungo una linea di riferimento, distanza dalla linea di riferimento, "
+    "curva di Hilbert (ordinamento spaziale), espressione QGIS.\n\n"
     "<b>Modalità di ordinamento testuale (attributo/espressione):</b>\n"
     "• <b>Lessicografico</b> (default): confronto carattere per carattere. "
     "Esempio: «1010» &lt; «11» &lt; «1111».\n"
@@ -262,6 +279,13 @@ EN.update({
     "<b>Layer di riferimento (posizione/distanza lungo linea):</b> se il layer di "
     "riferimento ha un CRS diverso da quello del layer di input, viene riproiettato "
     "automaticamente prima del calcolo (con un avviso non bloccante).\n\n"
+    "<b>Curva di Hilbert:</b> ordina le feature lungo una curva di Hilbert calcolata "
+    "sui centroidi, normalizzati sull'extent complessivo del layer — le feature "
+    "vicine nello spazio diventano vicine nell'ordine. Utile per atlanti a percorso "
+    "continuo e per scrivere GeoPackage con feature spazialmente coerenti (letture "
+    "più veloci). Il parametro avanzato <code>HILBERT_ORDER</code> regola la "
+    "risoluzione della griglia (default 16, lato 2^16); non è disponibile come "
+    "criterio primario in modalità multi-criterio.\n\n"
     "<b>Numerazione personalizzata (parametri avanzati):</b> valore iniziale "
     "(es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo "
     "(default <b>sort_order</b>). Se il campo esiste già nel layer di input, "
@@ -277,7 +301,8 @@ EN.update({
         "and adds the <b>sort_order</b> field (progressive number, 1 = first feature).\n\n"
         "Available criteria: table attribute, centroid coordinates, "
         "area, length, perimeter, number of vertices, bounding box, "
-        "position along a reference line, distance from the reference line, QGIS expression.\n\n"
+        "position along a reference line, distance from the reference line, "
+        "Hilbert curve (spatial sorting), QGIS expression.\n\n"
         "<b>Text sorting mode (attribute/expression):</b>\n"
         "• <b>Lexicographic</b> (default): character-by-character comparison. "
         "Example: «1010» &lt; «11» &lt; «1111».\n"
@@ -294,6 +319,13 @@ EN.update({
         "<b>Reference layer (position/distance along line):</b> if the reference "
         "layer has a CRS different from the input layer's, it is automatically "
         "reprojected before the calculation (with a non-blocking warning).\n\n"
+        "<b>Hilbert curve:</b> sorts features along a Hilbert curve calculated "
+        "on the centroids, normalized over the layer's overall extent — features "
+        "near each other in space become near each other in the order. Useful for "
+        "continuous-path atlases and for writing GeoPackage files with spatially "
+        "coherent features (faster reads). The advanced <code>HILBERT_ORDER</code> "
+        "parameter controls the grid resolution (default 16, side 2^16); not "
+        "available as the primary criterion in multi-criteria mode.\n\n"
         "<b>Custom numbering (advanced parameters):</b> starting value "
         "(e.g. 0), step (e.g. 10 → 10, 20, 30...) and the name of the progressive "
         "field (default <b>sort_order</b>). If the field already exists in the input "

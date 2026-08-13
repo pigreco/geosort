@@ -193,6 +193,14 @@ E.g.: "area_kmq" / "popolazione"   or   length($geometry)</translation>
       <translation>Secondary criterion: ascending order</translation>
     </message>
     <message>
+      <source>Curva di Hilbert (ordinamento spaziale)</source>
+      <translation>Hilbert curve (spatial sorting)</translation>
+    </message>
+    <message>
+      <source>Curva di Hilbert – ordine (risoluzione griglia = 2^ordine)</source>
+      <translation>Hilbert curve – order (grid resolution = 2^order)</translation>
+    </message>
+    <message>
       <source>Direzione:</source>
       <translation>Direction:</translation>
     </message>
@@ -253,8 +261,8 @@ Expression: {expr}</translation>
       <translation>GeoSort – Advanced Geometry Sorting</translation>
     </message>
     <message>
-      <source>GeoSort: criterio secondario ignorato perché il criterio primario è basato su una linea di riferimento.</source>
-      <translation>GeoSort: secondary criterion ignored because the primary criterion is line-based.</translation>
+      <source>GeoSort: criterio secondario ignorato perché il criterio primario non supporta l'ordinamento multi-criterio (linea di riferimento o curva di Hilbert).</source>
+      <translation>GeoSort: secondary criterion ignored because the primary criterion does not support multi-criteria sorting (line-based or Hilbert curve).</translation>
     </message>
     <message>
       <source>GeoSort: il campo '{name}' esiste già, i valori saranno sovrascritti.</source>
@@ -431,7 +439,7 @@ If it already exists, its values are overwritten.</translation>
     <message>
       <source>Ordina le feature di un layer vettoriale per criteri geometrici o attributivi e aggiunge il campo &lt;b&gt;sort_order&lt;/b&gt; (numero progressivo, 1 = prima feature).
 
-Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghezza, perimetro, numero di vertici, bounding box, posizione lungo una linea di riferimento, distanza dalla linea di riferimento, espressione QGIS.
+Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghezza, perimetro, numero di vertici, bounding box, posizione lungo una linea di riferimento, distanza dalla linea di riferimento, curva di Hilbert (ordinamento spaziale), espressione QGIS.
 
 &lt;b&gt;Modalità di ordinamento testuale (attributo/espressione):&lt;/b&gt;
 • &lt;b&gt;Lessicografico&lt;/b&gt; (default): confronto carattere per carattere. Esempio: «1010» &amp;lt; «11» &amp;lt; «1111».
@@ -443,6 +451,8 @@ Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghe
 
 &lt;b&gt;Layer di riferimento (posizione/distanza lungo linea):&lt;/b&gt; se il layer di riferimento ha un CRS diverso da quello del layer di input, viene riproiettato automaticamente prima del calcolo (con un avviso non bloccante).
 
+&lt;b&gt;Curva di Hilbert:&lt;/b&gt; ordina le feature lungo una curva di Hilbert calcolata sui centroidi, normalizzati sull'extent complessivo del layer — le feature vicine nello spazio diventano vicine nell'ordine. Utile per atlanti a percorso continuo e per scrivere GeoPackage con feature spazialmente coerenti (letture più veloci). Il parametro avanzato &lt;code&gt;HILBERT_ORDER&lt;/code&gt; regola la risoluzione della griglia (default 16, lato 2^16); non è disponibile come criterio primario in modalità multi-criterio.
+
 &lt;b&gt;Numerazione personalizzata (parametri avanzati):&lt;/b&gt; valore iniziale (es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo (default &lt;b&gt;sort_order&lt;/b&gt;). Se il campo esiste già nel layer di input, i suoi valori vengono sovrascritti invece di creare un duplicato.
 
 &lt;b&gt;Misura geodetica (ellissoidale):&lt;/b&gt; quando il CRS del layer è geografico (coordinate in gradi, es. EPSG:4326), le misure planari di area, lunghezza, perimetro e distanza sarebbero in gradi — metricamente prive di senso. Con la modalità &lt;i&gt;Automatica&lt;/i&gt; (default) GeoSort usa automaticamente il calcolo ellissoidale (QgsDistanceArea) restituendo valori in m² / m. Selezionare &lt;i&gt;Mai&lt;/i&gt; per forzare la misura planare nelle unità del CRS.
@@ -450,7 +460,7 @@ Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghe
 Compatibile con il Processing Toolbox, il modellatore grafico e PyQGIS headless.</source>
       <translation>Sorts vector layer features by geometric or attribute criteria and adds the &lt;b&gt;sort_order&lt;/b&gt; field (progressive number, 1 = first feature).
 
-Available criteria: table attribute, centroid coordinates, area, length, perimeter, number of vertices, bounding box, position along a reference line, distance from the reference line, QGIS expression.
+Available criteria: table attribute, centroid coordinates, area, length, perimeter, number of vertices, bounding box, position along a reference line, distance from the reference line, Hilbert curve (spatial sorting), QGIS expression.
 
 &lt;b&gt;Text sorting mode (attribute/expression):&lt;/b&gt;
 • &lt;b&gt;Lexicographic&lt;/b&gt; (default): character-by-character comparison. Example: «1010» &amp;lt; «11» &amp;lt; «1111».
@@ -462,11 +472,25 @@ Available criteria: table attribute, centroid coordinates, area, length, perimet
 
 &lt;b&gt;Reference layer (position/distance along line):&lt;/b&gt; if the reference layer has a CRS different from the input layer's, it is automatically reprojected before the calculation (with a non-blocking warning).
 
+&lt;b&gt;Hilbert curve:&lt;/b&gt; sorts features along a Hilbert curve calculated on the centroids, normalized over the layer's overall extent — features near each other in space become near each other in the order. Useful for continuous-path atlases and for writing GeoPackage files with spatially coherent features (faster reads). The advanced &lt;code&gt;HILBERT_ORDER&lt;/code&gt; parameter controls the grid resolution (default 16, side 2^16); not available as the primary criterion in multi-criteria mode.
+
 &lt;b&gt;Custom numbering (advanced parameters):&lt;/b&gt; starting value (e.g. 0), step (e.g. 10 → 10, 20, 30...) and the name of the progressive field (default &lt;b&gt;sort_order&lt;/b&gt;). If the field already exists in the input layer, its values are overwritten instead of creating a duplicate.
 
 &lt;b&gt;Geodesic (ellipsoidal) measurement:&lt;/b&gt; when the layer CRS is geographic (coordinates in degrees, e.g. EPSG:4326), planar measures of area, length, perimeter and distance would be in degrees — metrically meaningless. With the &lt;i&gt;Automatic&lt;/i&gt; mode (default) GeoSort automatically uses ellipsoidal calculation (QgsDistanceArea) returning values in m² / m. Select &lt;i&gt;Never&lt;/i&gt; to force planar measurement in CRS units.
 
 Compatible with the Processing Toolbox, the graphical modeler and headless PyQGIS.</translation>
+    </message>
+    <message>
+      <source>Ordina le feature lungo una curva di Hilbert calcolata sui centroidi:
+le feature vicine nello spazio diventano vicine nell'ordine.
+Utile per atlanti «a percorso continuo» e per scrivere GeoPackage
+con feature spazialmente coerenti (letture più veloci).
+Non disponibile come criterio primario in modalità multi-criterio.</source>
+      <translation>Sorts features along a Hilbert curve calculated on the centroids:
+features near each other in space become near each other in the order.
+Useful for "continuous path" atlases and for writing GeoPackage files
+with spatially coherent features (faster reads).
+Not available as the primary criterion in multi-criteria mode.</translation>
     </message>
     <message>
       <source>Ordina solo le feature selezionate</source>
@@ -503,6 +527,10 @@ Compatible with the Processing Toolbox, the graphical modeler and headless PyQGI
     <message>
       <source>Per coordinate centroide</source>
       <translation>By centroid coordinates</translation>
+    </message>
+    <message>
+      <source>Per curva di Hilbert (ordinamento spaziale)</source>
+      <translation>By Hilbert curve (spatial sorting)</translation>
     </message>
     <message>
       <source>Per distanza dalla linea</source>
