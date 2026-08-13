@@ -24,6 +24,7 @@ EXTRA = [
     "Posizione lungo linea di riferimento",
     "Distanza dalla linea di riferimento",
     "Curva di Hilbert (ordinamento spaziale)",
+    "Serpentina (boustrophedon)",
 ]
 
 # Traduzioni inglesi (source -> EN). I source sono in lingua mista IT/EN.
@@ -240,9 +241,11 @@ EN.update({
     "Il layer non contiene feature.": "The layer contains no features.",
     "Ordinamento in corso...": "Sorting...",
     "GeoSort: criterio secondario ignorato perché il criterio primario "
-    "non supporta l'ordinamento multi-criterio (linea di riferimento o curva di Hilbert).":
+    "non supporta l'ordinamento multi-criterio "
+    "(linea di riferimento, curva di Hilbert o serpentina).":
         "GeoSort: secondary criterion ignored because the primary criterion does not "
-        "support multi-criteria sorting (line-based or Hilbert curve).",
+        "support multi-criteria sorting "
+        "(line-based, Hilbert curve, or serpentine).",
     "Specificare un campo attributo per il criterio 'Attributo tabellare'.":
         "Specify an attribute field for the 'Table attribute' criterion.",
     "Specificare un layer di riferimento per il criterio 'Posizione lungo linea'.":
@@ -262,7 +265,8 @@ EN.update({
     "Criteri disponibili: attributo tabellare, coordinate del centroide, "
     "area, lunghezza, perimetro, numero di vertici, bounding box, "
     "posizione lungo una linea di riferimento, distanza dalla linea di riferimento, "
-    "curva di Hilbert (ordinamento spaziale), espressione QGIS.\n\n"
+    "curva di Hilbert (ordinamento spaziale), espressione QGIS, serpentina "
+    "(boustrophedon, bande orizzontali o verticali).\n\n"
     "<b>Modalità di ordinamento testuale (attributo/espressione):</b>\n"
     "• <b>Lessicografico</b> (default): confronto carattere per carattere. "
     "Esempio: «1010» &lt; «11» &lt; «1111».\n"
@@ -286,6 +290,17 @@ EN.update({
     "più veloci). Il parametro avanzato <code>HILBERT_ORDER</code> regola la "
     "risoluzione della griglia (default 16, lato 2^16); non è disponibile come "
     "criterio primario in modalità multi-criterio.\n\n"
+    "<b>Serpentina (boustrophedon):</b> ordina le feature a bande, con l'asse "
+    "trasversale alternato crescente/decrescente da una banda alla successiva — "
+    "l'ordine classico per numerare le tavole di una serie cartografica a taglio "
+    "regolare o un percorso di volo fotogrammetrico, senza il salto lungo da fine "
+    "banda a inizio banda successiva tipico di un ordinamento a righe semplice. "
+    "Il parametro <code>BAND_AXIS</code> sceglie l'orientamento: bande orizzontali "
+    "(per Y, X alternato — default) o verticali (per X, Y alternato). Il parametro "
+    "avanzato <code>BAND_SIZE</code> imposta la dimensione di banda nelle unità del "
+    "CRS — altezza per bande orizzontali, larghezza per verticali (0/vuoto = "
+    "automatica, dalla dimensione media delle bounding box delle feature); "
+    "non è disponibile come criterio primario in modalità multi-criterio.\n\n"
     "<b>Numerazione personalizzata (parametri avanzati):</b> valore iniziale "
     "(es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo "
     "(default <b>sort_order</b>). Se il campo esiste già nel layer di input, "
@@ -302,7 +317,8 @@ EN.update({
         "Available criteria: table attribute, centroid coordinates, "
         "area, length, perimeter, number of vertices, bounding box, "
         "position along a reference line, distance from the reference line, "
-        "Hilbert curve (spatial sorting), QGIS expression.\n\n"
+        "Hilbert curve (spatial sorting), QGIS expression, serpentine "
+        "(boustrophedon, horizontal or vertical bands).\n\n"
         "<b>Text sorting mode (attribute/expression):</b>\n"
         "• <b>Lexicographic</b> (default): character-by-character comparison. "
         "Example: «1010» &lt; «11» &lt; «1111».\n"
@@ -326,6 +342,17 @@ EN.update({
         "coherent features (faster reads). The advanced <code>HILBERT_ORDER</code> "
         "parameter controls the grid resolution (default 16, side 2^16); not "
         "available as the primary criterion in multi-criteria mode.\n\n"
+        "<b>Serpentine (boustrophedon):</b> sorts features into bands, with the "
+        "cross axis alternating ascending/descending from one band to the next — "
+        "the classic order for numbering the sheets of a regular-grid map series "
+        "or a photogrammetric flight path, without the long jump from the end of "
+        "a band to the start of the next one typical of a plain row-by-row sort. "
+        "The <code>BAND_AXIS</code> parameter chooses the orientation: horizontal "
+        "bands (by Y, X alternating — default) or vertical bands (by X, Y "
+        "alternating). The advanced <code>BAND_SIZE</code> parameter sets the band "
+        "size in CRS units — height for horizontal bands, width for vertical ones "
+        "(0/empty = automatic, from the average bounding box size of the features); "
+        "not available as the primary criterion in multi-criteria mode.\n\n"
         "<b>Custom numbering (advanced parameters):</b> starting value "
         "(e.g. 0), step (e.g. 10 → 10, 20, 30...) and the name of the progressive "
         "field (default <b>sort_order</b>). If the field already exists in the input "
@@ -396,6 +423,41 @@ EN.update({
         "Unknown mode: '{mode}'. Allowed values: {valid}",
     "Linea di riferimento assente o vuota.": "Reference line missing or empty.",
     "Criterio multi-livello sconosciuto: '{key}'.": "Unknown multi-level criterion: '{key}'.",
+    # ── Serpentina (boustrophedon) ──
+    "Serpentina (boustrophedon)": "Serpentine (boustrophedon)",
+    "A serpentina (boustrophedon)": "Serpentine (boustrophedon)",
+    "Ordina le feature a bande (orizzontali o verticali), con l'asse\n"
+    "trasversale alternato crescente/decrescente da una banda alla\n"
+    "successiva (boustrophedon): l'ordine classico per numerare le\n"
+    "tavole di una serie cartografica a taglio regolare, senza il\n"
+    "salto lungo da fine banda a inizio banda successiva tipico di\n"
+    "un ordinamento a righe semplice.\n"
+    "Non disponibile come criterio primario in modalità multi-criterio.":
+        "Sorts features into bands (horizontal or vertical), with the\n"
+        "cross axis alternating ascending/descending from one band to\n"
+        "the next (boustrophedon): the classic order for numbering the\n"
+        "sheets of a regular-grid map series, without the long jump from\n"
+        "the end of a band to the start of the next one typical of a\n"
+        "plain row-by-row sort.\n"
+        "Not available as the primary criterion in multi-criteria mode.",
+    "Orizzontali (bande per Y, X alternato)": "Horizontal (bands by Y, X alternating)",
+    "Verticali (bande per X, Y alternato)": "Vertical (bands by X, Y alternating)",
+    "Orizzontali: raggruppa per Y, alterna il verso di lettura della X.\n"
+    "Verticali: raggruppa per X, alterna il verso di lettura della Y.":
+        "Horizontal: groups by Y, alternates the X reading direction.\n"
+        "Vertical: groups by X, alternates the Y reading direction.",
+    "Automatica": "Automatic",
+    "Dimensione di ciascuna banda nelle unità del CRS del layer\n"
+    "(altezza se orizzontali, larghezza se verticali).\n"
+    "0 = automatica (dimensione media delle bounding box delle feature).":
+        "Size of each band in the layer's CRS units\n"
+        "(height if horizontal, width if vertical).\n"
+        "0 = automatic (average bounding box size of the features).",
+    "Serpentina – orientamento bande": "Serpentine – band orientation",
+    "Serpentina – dimensione banda, unità del CRS (0 = automatica, "
+    "da altezza/larghezza media delle feature)":
+        "Serpentine – band size, CRS units (0 = automatic, "
+        "from average feature height/width)",
 })
 
 # Traduzioni italiane: identità tranne i source in inglese

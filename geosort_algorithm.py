@@ -180,7 +180,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         "Distanza dalla linea di riferimento",
         "Curva di Hilbert (ordinamento spaziale)",
         "Espressione QGIS",
-        "Serpentina (bande orizzontali)",
+        "Serpentina (boustrophedon)",
     ]
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -211,7 +211,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             "area, lunghezza, perimetro, numero di vertici, bounding box, "
             "posizione lungo una linea di riferimento, distanza dalla linea di riferimento, "
             "curva di Hilbert (ordinamento spaziale), espressione QGIS, serpentina "
-            "(bande orizzontali).\n\n"
+            "(boustrophedon, bande orizzontali o verticali).\n\n"
             "<b>Modalità di ordinamento testuale (attributo/espressione):</b>\n"
             "• <b>Lessicografico</b> (default): confronto carattere per carattere. "
             "Esempio: «1010» &lt; «11» &lt; «1111».\n"
