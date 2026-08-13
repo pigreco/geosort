@@ -23,13 +23,31 @@ The dialog tests require QGIS in PATH:
 python -m pytest tests/test_dialog.py -v
 ```
 
+### Test empirici (manuali, non in CI)
+
+`test_empirici/` (gitignored, non tracciato) può contenere GeoPackage reali —
+punti, linee, poligoni con casi limite scomodi da costruire a mano in un test
+(multipart, buchi, geometrie NULL, geometrie topologicamente invalide) — per
+esplorazione manuale con la skill `qgis-headless`, non come parte della suite
+automatica. Rigenerabile con:
+
+```bash
+MAMBA_ROOT_PREFIX=$HOME/micromamba QT_QPA_PLATFORM=offscreen \
+  micromamba run -n qgis python scripts/gen_test_empirici.py
+```
+
+Se un caso scoperto lì rivela un bug, va poi incapsulato come geometria
+sintetica minimale in `tests/test_algorithm.py` (o `test_sorting.py`) così da
+restare protetto in CI — `test_empirici/` è dove si *scopre* un problema, non
+dove resta l'unica prova che sia stato risolto.
+
 ## Architecture
 
 The plugin is split into four modules with a deliberate dependency boundary:
 
 - **`geosort_core.py`** — pure sorting logic with no UI dependency. Contains all sort functions (`sort_by_attribute`, `sort_by_centroid`, `sort_by_geometry_property`, `sort_by_line_position`, `sort_by_expression`) plus `apply_sort_order` and `create_memory_layer`. This is the only module with unit tests.
 
-- **`geosort_algorithm.py`** — `GeoSortAlgorithm(QgsProcessingAlgorithm)` that wraps `geosort_core` for use in the Processing Toolbox, the graphical modeler, and headless PyQGIS. Defines the 15 sort criteria as an enum (`_CRITERIA_KEYS` / `_CRITERIA_LABELS`).
+- **`geosort_algorithm.py`** — `GeoSortAlgorithm(QgsProcessingAlgorithm)` that wraps `geosort_core` for use in the Processing Toolbox, the graphical modeler, and headless PyQGIS. Defines the 16 sort criteria as an enum (`_CRITERIA_KEYS` / `_CRITERIA_LABELS`).
 
 - **`geosort_dialog.py`** — `GeoSortDialog(QDialog)` for the interactive UI. Built programmatically (no `.ui` file). The dialog is opened non-modally via `show()` (not `exec()`) so the QGIS canvas stays interactive for map-point picking. Contains `_PointPickerTool(QgsMapToolEmitPoint)` for reference-point selection.
 
