@@ -21,6 +21,8 @@ from qgis.PyQt.QtWidgets import (
     QLabel,
     QCheckBox,
     QDoubleSpinBox,
+    QSpinBox,
+    QLineEdit,
     QPushButton,
     QButtonGroup,
     QTableWidget,
@@ -368,6 +370,33 @@ class GeoSortDialog(QDialog):
             "Aggiungi campo con il valore del criterio usato (es. sort_area, sort_dist)"
         ))
         layout.addWidget(self.chk_add_value)
+
+        # ── Numerazione del campo progressivo ────────────────────────────────
+        num_row = QHBoxLayout()
+        num_row.addWidget(QLabel(self.tr("Campo:")))
+        self.edit_order_field = QLineEdit("sort_order")
+        self.edit_order_field.setToolTip(self.tr(
+            "Nome del campo progressivo (default: sort_order).\n"
+            "Se esiste già, i valori vengono sovrascritti."
+        ))
+        self.edit_order_field.setMaximumWidth(140)
+        num_row.addWidget(self.edit_order_field)
+        num_row.addWidget(QLabel(self.tr("Inizio:")))
+        self.spin_start = QSpinBox()
+        self.spin_start.setRange(-2147483647, 2147483647)
+        self.spin_start.setValue(1)
+        self.spin_start.setToolTip(self.tr("Valore iniziale della numerazione (es. 0 o 1)."))
+        num_row.addWidget(self.spin_start)
+        num_row.addWidget(QLabel(self.tr("Passo:")))
+        self.spin_step = QSpinBox()
+        self.spin_step.setRange(1, 1000000)
+        self.spin_step.setValue(1)
+        self.spin_step.setToolTip(self.tr(
+            "Incremento fra feature consecutive (es. 10 → 10, 20, 30...)."
+        ))
+        num_row.addWidget(self.spin_step)
+        num_row.addStretch()
+        layout.addLayout(num_row)
 
         return grp
 
@@ -944,6 +973,10 @@ class GeoSortDialog(QDialog):
 
         n = min(10, len(sorted_feats))
         self.preview_table.setRowCount(n)
+        # Intestazione colonna 1 = nome campo progressivo scelto dall'utente
+        self.preview_table.setHorizontalHeaderItem(
+            1, QTableWidgetItem(self.edit_order_field.text().strip() or "sort_order")
+        )
         for i in range(n):
             feat = sorted_feats[i]
             val = values[i] if i < len(values) else ""
@@ -952,7 +985,8 @@ class GeoSortDialog(QDialog):
             else:
                 val_str = str(val) if val is not None else "NULL"
             self.preview_table.setItem(i, 0, QTableWidgetItem(str(feat.id())))
-            self.preview_table.setItem(i, 1, QTableWidgetItem(str(i + 1)))
+            order_value = self.spin_start.value() + i * self.spin_step.value()
+            self.preview_table.setItem(i, 1, QTableWidgetItem(str(order_value)))
             self.preview_table.setItem(i, 2, QTableWidgetItem(val_str))
         self.preview_table.resizeColumnsToContents()
 
@@ -990,13 +1024,20 @@ class GeoSortDialog(QDialog):
             QMessageBox.warning(self, "GeoSort", "Il layer non contiene feature.")
             return False
 
+        # Numerazione del campo progressivo
+        order_field = self.edit_order_field.text().strip() or "sort_order"
+        start = self.spin_start.value()
+        step = self.spin_step.value()
+
         # Controllo sovrascrittura (prima di avviare il progress)
-        if self.rb_update.isChecked() and layer.fields().indexOf("sort_order") != -1:
+        if self.rb_update.isChecked() and layer.fields().indexOf(order_field) != -1:
             reply = QMessageBox.question(
                 self,
                 "GeoSort",
-                "Il campo 'sort_order' esiste già nel layer.\n"
-                "Sovrascriverlo con il nuovo ordinamento?",
+                self.tr(
+                    "Il campo '{name}' esiste già nel layer.\n"
+                    "Sovrascriverlo con il nuovo ordinamento?"
+                ).format(name=order_field),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.Yes,
             )
@@ -1047,6 +1088,7 @@ class GeoSortDialog(QDialog):
                 ok = apply_sort_order(
                     layer, sorted_feats, add_crit, values, crit_name,
                     progress_callback=write_progress,
+                    start=start, step=step, order_field_name=order_field,
                 )
                 _check_cancel()
                 if ok:
@@ -1056,7 +1098,7 @@ class GeoSortDialog(QDialog):
                         self,
                         "GeoSort",
                         f"Ordinamento applicato con successo.\n"
-                        f"Campo 'sort_order' aggiornato su {n} feature.{excl_msg}"
+                        f"Campo '{order_field}' aggiornato su {n} feature.{excl_msg}"
                         f"{geo_suffix}",
                     )
                 else:
@@ -1073,6 +1115,7 @@ class GeoSortDialog(QDialog):
                 mem_layer = create_memory_layer(
                     layer, sorted_feats, add_crit, values, crit_name,
                     progress_callback=write_progress,
+                    start=start, step=step, order_field_name=order_field,
                 )
                 _check_cancel()
                 QgsProject.instance().addMapLayer(mem_layer)

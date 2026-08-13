@@ -2,7 +2,7 @@
 
 [🇮🇹 Italiano](README.md) | 🇬🇧 **English**
 
-[![Version](https://img.shields.io/badge/version-1.8.1-blue.svg)](https://github.com/pigreco/geosort/releases)
+[![Version](https://img.shields.io/badge/version-1.9.0-blue.svg)](https://github.com/pigreco/geosort/releases)
 [![Languages](https://img.shields.io/badge/languages-IT%20%7C%20EN-green.svg)](#languageslingue)
 [![QGIS](https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg)](#requirements)
 [![License](https://img.shields.io/badge/license-GPLv2-red.svg)](LICENSE)
@@ -11,7 +11,8 @@
 ---
 
 QGIS plugin to sort vector layer features by geometric and attribute criteria,
-with automatic assignment of the progressive `sort_order` field.
+with automatic assignment of a progressive field (default `sort_order`, name/
+starting value/step all customizable).
 
 Compatible with **QGIS 3.16+** (Qt5 / PyQt5) and **QGIS 4.x** (Qt6 / PyQt6).
 
@@ -25,7 +26,7 @@ Compatible with **QGIS 3.16+** (Qt5 / PyQt5) and **QGIS 4.x** (Qt6 / PyQt6).
 |---|---|---|
 | Attribute / Expression | All | Sort by the value of any field (String, Int, Double, Date) |
 | Centroid Coordinates X / Y | All | Sort by the geographic position of the centroid |
-| Distance from Origin | All | Euclidean distance of centroid from origin (0, 0) |
+| Distance from Reference Point | All | Euclidean distance of centroid from a configurable point (default origin 0, 0) |
 | Area | Polygons | Surface area of the geometry |
 | Perimeter | Polygons | Length of the perimeter |
 | Length | Lines | Total length of the line |
@@ -79,6 +80,16 @@ For **Attribute** and **QGIS Expression** criteria, you can choose between two m
 Natural Sort is useful with concatenation expressions (e.g. `"fid" || "id_poly"`)
 or with alphanumeric fields like `FILE1`, `FILE2`, `FILE10`.
 
+### Custom Numbering
+
+The progressive field is configurable along three axes, both in the dialog and in Processing:
+
+| Parameter | Default | Example |
+|---|---|---|
+| Field name | `sort_order` | `rank`, `order` — if the field already exists on the layer, it is overwritten instead of duplicated |
+| Starting value | `1` | `0` for zero-based numbering |
+| Step | `1` | `10` → `10, 20, 30…`, to leave room for future insertions |
+
 ---
 
 ## Installation
@@ -99,8 +110,9 @@ or with alphanumeric fields like `FILE1`, `FILE2`, `FILE10`.
 5. Use the **Preview** button to verify the result
 6. Press **OK** to apply or **Apply** to keep the dialog open
 
-The `sort_order` field is added/updated on the layer (or on a new in-memory layer,
-if the corresponding option is selected).
+The progressive field (default `sort_order`, customizable — name, starting value,
+step) is added/updated on the layer (or on a new in-memory layer, if the
+corresponding option is selected).
 
 ---
 
@@ -125,6 +137,10 @@ result = processing.run("geosort:geosort_sort", {
     'SECONDARY_CRITERION': 5,    # 5 = Area (polygons)
     'SECONDARY_DIRECTION': False,  # False = Descending
     'ADD_VALUE_FIELD': False,
+    # Custom numbering (advanced, all optional):
+    'START': 0,               # default 1
+    'STEP': 10,                # default 1 → 0, 10, 20, 30...
+    'ORDER_FIELD': 'rank',    # default 'sort_order'
     'OUTPUT': 'memory:'
 })
 output_layer = result['OUTPUT']
@@ -132,6 +148,20 @@ output_layer = result['OUTPUT']
 
 > The secondary criterion is ignored when the primary criterion is line-based
 > (`line_position` / `line_distance`).
+
+For the `centroid_dist` criterion (index `3`, distance from centroid) you can
+provide a reference point other than the origin via the `REF_POINT` parameter
+(optional, `"x,y [EPSG:xxxx]"` string or `QgsPointXY`):
+
+```python
+result = processing.run("geosort:geosort_sort", {
+    'INPUT': layer,
+    'CRITERION': 3,                          # centroid – distance
+    'REF_POINT': '500000,4649776 [EPSG:32633]',
+    'DIRECTION': True,
+    'OUTPUT': 'memory:'
+})
+```
 
 To sort only the selected features from PyQGIS:
 
@@ -206,21 +236,21 @@ Core sorting logic tests do not require QGIS:
 ```bash
 cd geosort
 python -m unittest tests.test_sorting -v
-# 155 tests on core logic (sort_by_attribute, sort_by_centroid, sort_multi, NULL geometry robustness, geodesic measurement, etc.)
+# 160 tests on core logic (sort_by_attribute, sort_by_centroid, sort_multi, NULL geometry robustness, geodesic measurement, etc.)
 ```
 
 Dialog and Processing algorithm tests require QGIS in PATH:
 
 ```bash
-python -m unittest tests.test_dialog -v     # UI tests (27 tests)
-python -m unittest tests.test_algorithm -v  # Processing Toolbox tests (25 tests)
+python -m unittest tests.test_dialog -v     # UI tests (29 tests)
+python -m unittest tests.test_algorithm -v  # Processing Toolbox tests (32 tests)
 ```
 
 Run all tests:
 
 ```bash
 python -m unittest discover tests -p "test_*.py" -v
-# Output: 207 tests (155 ok, 52 skipped that require QGIS)
+# Output: 221 tests (160 ok, 61 skipped that require QGIS)
 ```
 
 Every push and pull request automatically runs the whole suite on GitHub Actions:

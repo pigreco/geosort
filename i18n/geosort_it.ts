@@ -117,6 +117,10 @@ Es: "area_kmq" / "popolazione"   oppure   length($geometry)</translation>
       <translation>Campo del criterio secondario (solo se 'Attributo tabellare')</translation>
     </message>
     <message>
+      <source>Campo:</source>
+      <translation>Campo:</translation>
+    </message>
+    <message>
       <source>Caricamento feature...</source>
       <translation>Caricamento feature...</translation>
     </message>
@@ -129,8 +133,8 @@ Es: "area_kmq" / "popolazione"   oppure   length($geometry)</translation>
       <translation>Centroide – coordinata Y</translation>
     </message>
     <message>
-      <source>Centroide – distanza da origine (0,0)</source>
-      <translation>Centroide – distanza da origine (0,0)</translation>
+      <source>Centroide – distanza da punto di riferimento (default 0,0)</source>
+      <translation>Centroide – distanza da punto di riferimento (default 0,0)</translation>
     </message>
     <message>
       <source>Chiudi</source>
@@ -253,6 +257,10 @@ Espressione: {expr}</translation>
       <translation>GeoSort: criterio secondario ignorato perché il criterio primario è basato su una linea di riferimento.</translation>
     </message>
     <message>
+      <source>GeoSort: il campo '{name}' esiste già, i valori saranno sovrascritti.</source>
+      <translation>GeoSort: il campo '{name}' esiste già, i valori saranno sovrascritti.</translation>
+    </message>
+    <message>
       <source>GeoSort: ordinamento multi-criterio (primario + secondario).</source>
       <translation>GeoSort: ordinamento multi-criterio (primario + secondario).</translation>
     </message>
@@ -265,6 +273,12 @@ Espressione: {expr}</translation>
       <translation>Aiuto</translation>
     </message>
     <message>
+      <source>Il campo '{name}' esiste già nel layer.
+Sovrascriverlo con il nuovo ordinamento?</source>
+      <translation>Il campo '{name}' esiste già nel layer.
+Sovrascriverlo con il nuovo ordinamento?</translation>
+    </message>
+    <message>
       <source>Il layer di riferimento non contiene feature.</source>
       <translation>Il layer di riferimento non contiene feature.</translation>
     </message>
@@ -273,8 +287,20 @@ Espressione: {expr}</translation>
       <translation>Il layer non contiene feature.</translation>
     </message>
     <message>
+      <source>Il nome del campo progressivo non può essere 'sort_value' quando è attivo il campo con il valore del criterio.</source>
+      <translation>Il nome del campo progressivo non può essere 'sort_value' quando è attivo il campo con il valore del criterio.</translation>
+    </message>
+    <message>
       <source>Impossibile creare il layer di output.</source>
       <translation>Impossibile creare il layer di output.</translation>
+    </message>
+    <message>
+      <source>Incremento fra feature consecutive (es. 10 → 10, 20, 30...).</source>
+      <translation>Incremento fra feature consecutive (es. 10 → 10, 20, 30...).</translation>
+    </message>
+    <message>
+      <source>Inizio:</source>
+      <translation>Inizio:</translation>
     </message>
     <message>
       <source>Input Layer</source>
@@ -361,6 +387,24 @@ Espressione: {expr}</translation>
       <translation>Nessuna feature selezionata sul layer (è attivo 'Ordina solo le feature selezionate').</translation>
     </message>
     <message>
+      <source>Nome del campo progressivo</source>
+      <translation>Nome del campo progressivo</translation>
+    </message>
+    <message>
+      <source>Nome del campo progressivo (default: sort_order).
+Se esiste già, i valori vengono sovrascritti.</source>
+      <translation>Nome del campo progressivo (default: sort_order).
+Se esiste già, i valori vengono sovrascritti.</translation>
+    </message>
+    <message>
+      <source>Numerazione: passo (incremento fra feature)</source>
+      <translation>Numerazione: passo (incremento fra feature)</translation>
+    </message>
+    <message>
+      <source>Numerazione: valore iniziale</source>
+      <translation>Numerazione: valore iniziale</translation>
+    </message>
+    <message>
       <source>Numero di vertici</source>
       <translation>Numero di vertici</translation>
     </message>
@@ -387,6 +431,10 @@ Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghe
 
 &lt;b&gt;Ordinamento multi-criterio:&lt;/b&gt; imposta un &lt;b&gt;criterio secondario&lt;/b&gt; per spezzare i pareggi del criterio primario (es. primario = regione, secondario = area decrescente). Disponibile per i criteri non basati su linea.
 
+&lt;b&gt;Punto di riferimento:&lt;/b&gt; per il criterio «Centroide – distanza» è possibile indicare un punto di riferimento (anche col pulsante «... sulla mappa»); se lasciato vuoto si usa l'origine (0,0) come nelle versioni precedenti.
+
+&lt;b&gt;Numerazione personalizzata (parametri avanzati):&lt;/b&gt; valore iniziale (es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo (default &lt;b&gt;sort_order&lt;/b&gt;). Se il campo esiste già nel layer di input, i suoi valori vengono sovrascritti invece di creare un duplicato.
+
 &lt;b&gt;Misura geodetica (ellissoidale):&lt;/b&gt; quando il CRS del layer è geografico (coordinate in gradi, es. EPSG:4326), le misure planari di area, lunghezza, perimetro e distanza sarebbero in gradi — metricamente prive di senso. Con la modalità &lt;i&gt;Automatica&lt;/i&gt; (default) GeoSort usa automaticamente il calcolo ellissoidale (QgsDistanceArea) restituendo valori in m² / m. Selezionare &lt;i&gt;Mai&lt;/i&gt; per forzare la misura planare nelle unità del CRS.
 
 Compatibile con il Processing Toolbox, il modellatore grafico e PyQGIS headless.</source>
@@ -399,6 +447,10 @@ Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghe
 • &lt;b&gt;Natural Sort&lt;/b&gt;: le sequenze di cifre sono confrontate come numeri. Esempio: «11» &amp;lt; «1010» &amp;lt; «1111». Utile con campi alfanumerici (FILE1, FILE2, FILE10) o espressioni di concatenazione come &lt;code&gt;"fid" || "id_poly"&lt;/code&gt;.
 
 &lt;b&gt;Ordinamento multi-criterio:&lt;/b&gt; imposta un &lt;b&gt;criterio secondario&lt;/b&gt; per spezzare i pareggi del criterio primario (es. primario = regione, secondario = area decrescente). Disponibile per i criteri non basati su linea.
+
+&lt;b&gt;Punto di riferimento:&lt;/b&gt; per il criterio «Centroide – distanza» è possibile indicare un punto di riferimento (anche col pulsante «... sulla mappa»); se lasciato vuoto si usa l'origine (0,0) come nelle versioni precedenti.
+
+&lt;b&gt;Numerazione personalizzata (parametri avanzati):&lt;/b&gt; valore iniziale (es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo (default &lt;b&gt;sort_order&lt;/b&gt;). Se il campo esiste già nel layer di input, i suoi valori vengono sovrascritti invece di creare un duplicato.
 
 &lt;b&gt;Misura geodetica (ellissoidale):&lt;/b&gt; quando il CRS del layer è geografico (coordinate in gradi, es. EPSG:4326), le misure planari di area, lunghezza, perimetro e distanza sarebbero in gradi — metricamente prive di senso. Con la modalità &lt;i&gt;Automatica&lt;/i&gt; (default) GeoSort usa automaticamente il calcolo ellissoidale (QgsDistanceArea) restituendo valori in m² / m. Selezionare &lt;i&gt;Mai&lt;/i&gt; per forzare la misura planare nelle unità del CRS.
 
@@ -427,6 +479,10 @@ Compatibile con il Processing Toolbox, il modellatore grafico e PyQGIS headless.
     <message>
       <source>Output</source>
       <translation>Output</translation>
+    </message>
+    <message>
+      <source>Passo:</source>
+      <translation>Passo:</translation>
     </message>
     <message>
       <source>Per attributo / espressione</source>
@@ -475,6 +531,10 @@ Solo intersecanti – primo punto: usa il punto in cui la feature tocca per prim
     <message>
       <source>Punto di riferimento (X, Y)</source>
       <translation>Punto di riferimento (X, Y)</translation>
+    </message>
+    <message>
+      <source>Punto di riferimento (solo per criterio 'Centroide – distanza'; vuoto = origine 0,0)</source>
+      <translation>Punto di riferimento (solo per criterio 'Centroide – distanza'; vuoto = origine 0,0)</translation>
     </message>
     <message>
       <source>Rimuovi</source>
@@ -571,6 +631,10 @@ vengono misurate sull'ellissoide (m²/m) invece che in gradi.
     <message>
       <source>Valore criterio</source>
       <translation>Valore criterio</translation>
+    </message>
+    <message>
+      <source>Valore iniziale della numerazione (es. 0 o 1).</source>
+      <translation>Valore iniziale della numerazione (es. 0 o 1).</translation>
     </message>
     <message>
       <source>Valori NULL in fondo (attributo e espressione)</source>

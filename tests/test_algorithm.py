@@ -166,6 +166,18 @@ class TestGeoSortAlgorithm(unittest.TestCase):
         param_names = [p.name() for p in params]
         self.assertIn("LINE_DISTANCE_MODE", param_names)
 
+    def test_algorithm_has_ref_point_parameter(self):
+        """L'algoritmo deve avere il parametro REF_POINT (opzionale)."""
+        param = self.algo.parameterDefinition("REF_POINT")
+        self.assertIsNotNone(param)
+
+    def test_algorithm_has_numbering_parameters(self):
+        """L'algoritmo deve avere i parametri START, STEP e ORDER_FIELD."""
+        param_names = [p.name() for p in self.algo.parameterDefinitions()]
+        self.assertIn("START", param_names)
+        self.assertIn("STEP", param_names)
+        self.assertIn("ORDER_FIELD", param_names)
+
     # ── Criteri ───────────────────────────────────────────────────────────────
 
     def test_algorithm_criteria_keys_count(self):
@@ -257,6 +269,90 @@ class TestGeoSortAlgorithm(unittest.TestCase):
         self.assertEqual(out.featureCount(), 2)
         orders = sorted(f["sort_order"] for f in out.getFeatures())
         self.assertEqual(orders, [1, 2])
+
+    def test_end_to_end_ref_point(self):
+        """Con REF_POINT la distanza del centroide è calcolata dal punto indicato."""
+        import processing
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": self.layer,
+            "CRITERION": 3,                 # centroide – distanza da punto
+            "DIRECTION": True,
+            "REF_POINT": "2,2 [EPSG:4326]",
+            "OUTPUT": "memory:",
+        })
+        out = result["OUTPUT"]
+        # Le feature sono in (0,0), (1,1), (2,2): dal punto (2,2) l'ordine
+        # ascendente è id 2, 1, 0 (dall'origine sarebbe l'inverso).
+        order_by_id = {f["id"]: f["sort_order"] for f in out.getFeatures()}
+        self.assertEqual(order_by_id, {2: 1, 1: 2, 0: 3})
+
+    def test_end_to_end_without_ref_point_uses_origin(self):
+        """Senza REF_POINT la distanza resta calcolata dall'origine (0,0)."""
+        import processing
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": self.layer,
+            "CRITERION": 3,                 # centroide – distanza da punto
+            "DIRECTION": True,
+            "OUTPUT": "memory:",
+        })
+        out = result["OUTPUT"]
+        order_by_id = {f["id"]: f["sort_order"] for f in out.getFeatures()}
+        self.assertEqual(order_by_id, {0: 1, 1: 2, 2: 3})
+
+    def test_end_to_end_ref_point_multi_criteria(self):
+        """REF_POINT è rispettato anche con un criterio secondario attivo."""
+        import processing
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": self.layer,
+            "CRITERION": 3,                 # centroide – distanza da punto
+            "DIRECTION": True,
+            "REF_POINT": "2,2 [EPSG:4326]",
+            "SECONDARY_CRITERION": 1,       # attributo
+            "SECONDARY_FIELD": "name",
+            "OUTPUT": "memory:",
+        })
+        out = result["OUTPUT"]
+        order_by_id = {f["id"]: f["sort_order"] for f in out.getFeatures()}
+        self.assertEqual(order_by_id, {2: 1, 1: 2, 0: 3})
+
+    def test_end_to_end_start_step_field_name(self):
+        """START, STEP e ORDER_FIELD personalizzano la numerazione."""
+        import processing
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": self.layer,
+            "CRITERION": 1,                 # centroide X
+            "DIRECTION": True,
+            "START": 0,
+            "STEP": 10,
+            "ORDER_FIELD": "rank",
+            "OUTPUT": "memory:",
+        })
+        out = result["OUTPUT"]
+        field_names = [f.name() for f in out.fields()]
+        self.assertIn("rank", field_names)
+        self.assertNotIn("sort_order", field_names)
+        orders = sorted(f["rank"] for f in out.getFeatures())
+        self.assertEqual(orders, [0, 10, 20])
+
+    def test_end_to_end_existing_order_field_reused(self):
+        """Se il campo progressivo esiste già nell'input non viene duplicato."""
+        import processing
+        first = processing.run("geosort:geosort_sort", {
+            "INPUT": self.layer,
+            "CRITERION": 1,                 # centroide X
+            "DIRECTION": True,
+            "OUTPUT": "memory:",
+        })["OUTPUT"]
+        second = processing.run("geosort:geosort_sort", {
+            "INPUT": first,
+            "CRITERION": 1,                 # centroide X
+            "DIRECTION": False,             # inverte l'ordine
+            "OUTPUT": "memory:",
+        })["OUTPUT"]
+        field_names = [f.name() for f in second.fields()]
+        self.assertEqual(field_names.count("sort_order"), 1)
+        order_by_id = {f["id"]: f["sort_order"] for f in second.getFeatures()}
+        self.assertEqual(order_by_id, {2: 1, 1: 2, 0: 3})
 
     def test_end_to_end_multi_criteria(self):
         """Esecuzione completa con criterio primario + secondario."""

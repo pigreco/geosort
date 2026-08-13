@@ -3,27 +3,29 @@ name=GeoSort
 qgisMinimumVersion=3.16
 qgisMaximumVersion=4.99
 description=Sort vector layer features by geometric and attribute criteria | Ordina le feature di un layer vettoriale per criteri geometrici e attributivi
-version=1.8.1
+version=1.9.0
 author=Salvatore Fiandaca
 email=pigrecoinfinito@gmail.com
 about=GeoSort sorts points, lines and polygons by centroid coordinates, area, length,
-    vertex count, bounding box, distance from a reference point, position along a line,
+    vertex count, bounding box, distance from a configurable reference point, position along a line,
     and custom QGIS expressions. Supports hierarchical multi-criteria sorting (a secondary
     criterion breaks ties of the primary one) and both lexicographic and Natural Sort ordering
     for text and expression criteria (e.g. "11" < "1010" < "1111" instead of "1010" < "11" < "1111").
     On geographic CRS (degrees) area, length, perimeter and distances are automatically measured
     on the ellipsoid (geodesic, in m²/m) — Auto/Always/Never modes available.
-    It adds a progressive 'sort_order' field to the layer or creates a new in-memory sorted layer.
+    It adds a progressive field (default 'sort_order', name/start value/step all customizable)
+    to the layer or creates a new in-memory sorted layer.
     Also available in the Processing Toolbox for batch use and the graphical modeler.
     ---
     GeoSort permette di ordinare punti, linee e poligoni per coordinate centroide,
-    area, lunghezza, numero di vertici, bounding box, distanza da punto di riferimento,
+    area, lunghezza, numero di vertici, bounding box, distanza da punto di riferimento configurabile,
     posizione lungo una linea ed espressioni QGIS personalizzate. Supporta l'ordinamento
     gerarchico multi-criterio (un criterio secondario spezza i pareggi del primario) e
     l'ordinamento lessicografico e Natural Sort per criteri testuali ed espressioni (es. "11" < "1010" < "1111"
     invece di "1010" < "11" < "1111"). Su CRS geografici (gradi) area, lunghezza, perimetro
     e distanze sono misurati sull'ellissoide (geodetica, in m²/m) — modalità Auto/Sempre/Mai.
-    Aggiunge un campo progressivo 'sort_order' al layer o crea un nuovo layer ordinato in memoria.
+    Aggiunge un campo progressivo (default 'sort_order', nome/valore iniziale/passo personalizzabili)
+    al layer o crea un nuovo layer ordinato in memoria.
     Disponibile anche nel Processing Toolbox per uso in batch e nel modellatore grafico.
     ---
     Developed with the assistance of Claude Code (Anthropic) | Realizzato con l'ausilio di Claude Code (Anthropic)
@@ -39,6 +41,7 @@ deprecated=False
 server=False
 supportsQt6=True
 changelog=
+    1.9.0 Punto di riferimento configurabile per il criterio "Centroide – distanza" anche nel Processing Toolbox (parametro REF_POINT, vuoto = origine 0,0 come prima, parità con il dialogo interattivo); numerazione personalizzata del campo progressivo — valore iniziale, passo e nome campo (default sort_order), disponibile nel dialogo e nel Processing, con riuso del campo se già presente sul layer invece di duplicarlo; fix: nel Processing i parametri opzionali marcati "Avanzate" (campo/espressione del criterio secondario) perdevano il flag opzionale e venivano richiesti come obbligatori
     1.8.1 Performance: undo atomico per l'ordinamento (beginEditCommand/endEditCommand, un solo blocco Ctrl+Z anche su migliaia di feature); riuso del motore GEOS preparato anche per il criterio "primo punto di intersezione" lungo linea, con distanza curvilinea valutata solo sugli estremi di ogni parte invece di tutti i vertici; lookup del campo per indice invece che per nome nell'ordinamento per attributo. Processing: barra di progresso e cancellazione effettive durante la fase di ordinamento (non solo a inizio/fine); parametri condizionali (Natural Sort, misura geodetica, modalità linea, criterio secondario) spostati in "Avanzate" per una finestra più pulita; rimossa import duplicata
     1.8.0 Ordinamento delle sole feature selezionate (dialogo e Processing, con parametri FeatureSource e layer di riferimento limitato alle linee); correzioni: crash sui pareggi di distanza lungo linea, ordinamento di valori a tipo misto (numeri+testo) senza errori, NULL sempre in fondo anche con ordine discendente; performance: motore GEOS preparato per i criteri su linea (fino a 2x su linee complesse) e scritture batch degli attributi; i18n: algoritmo Processing e messaggi del core tradotti, tooltip multilinea ora tradotti in inglese; supportsQt6=True per il repository plugin; CI GitHub Actions (test senza QGIS + QGIS LTR/latest)
     1.7.0 Misura geodetica su CRS geografici: area, perimetro, lunghezza e distanze misurati sull'ellissoide (m²/m) con modalità Auto/Sempre/Mai; avviso non bloccante su attivazione automatica; bounding box e posizione lungo linea restano planari

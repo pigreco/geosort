@@ -75,6 +75,17 @@ class TestGeoSortDialog(unittest.TestCase):
         """La checkbox 'NULL in fondo' deve essere spuntata per default."""
         self.assertTrue(self.dialog.chk_nulls_last.isChecked())
 
+    def test_default_numbering_widgets(self):
+        """Nome campo/inizio/passo devono avere i default retrocompatibili."""
+        self.assertEqual(self.dialog.edit_order_field.text(), "sort_order")
+        self.assertEqual(self.dialog.spin_start.value(), 1)
+        self.assertEqual(self.dialog.spin_step.value(), 1)
+
+    def test_step_minimum_is_one(self):
+        """Il passo non può scendere sotto 1."""
+        self.dialog.spin_step.setValue(0)
+        self.assertEqual(self.dialog.spin_step.value(), 1)
+
     # ── Cambio criterio → stato widget ───────────────────────────────────────
 
     def test_attribute_criterion_enables_field_combo(self):

@@ -17,7 +17,7 @@ EXTRA = [
     "(nessuno)",
     "Attributo tabellare", "Espressione QGIS",
     "Centroide – coordinata X", "Centroide – coordinata Y",
-    "Centroide – distanza da origine (0,0)",
+    "Centroide – distanza da punto di riferimento (default 0,0)",
     "Area (poligoni)", "Perimetro (poligoni)", "Lunghezza (linee)",
     "Numero di vertici", "Larghezza Bounding Box", "Altezza Bounding Box",
     "Area Bounding Box", "Xmin Bounding Box", "Ymin Bounding Box",
@@ -121,7 +121,8 @@ EN = {
 # opzione "solo selezionate", tooltip estratti per intero.
 EN.update({
     "Espressione QGIS": "QGIS expression",
-    "Centroide – distanza da origine (0,0)": "Centroid – distance from origin (0,0)",
+    "Centroide – distanza da punto di riferimento (default 0,0)":
+        "Centroid – distance from reference point (default 0,0)",
     "Posizione lungo linea di riferimento": "Position along reference line",
     "Distanza dalla linea di riferimento": "Distance from reference line",
     "Ordina solo le feature selezionate": "Sort only selected features",
@@ -255,6 +256,13 @@ EN.update({
     "<b>Ordinamento multi-criterio:</b> imposta un <b>criterio secondario</b> "
     "per spezzare i pareggi del criterio primario (es. primario = regione, "
     "secondario = area decrescente). Disponibile per i criteri non basati su linea.\n\n"
+    "<b>Punto di riferimento:</b> per il criterio «Centroide – distanza» è possibile "
+    "indicare un punto di riferimento (anche col pulsante «... sulla mappa»); "
+    "se lasciato vuoto si usa l'origine (0,0) come nelle versioni precedenti.\n\n"
+    "<b>Numerazione personalizzata (parametri avanzati):</b> valore iniziale "
+    "(es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo "
+    "(default <b>sort_order</b>). Se il campo esiste già nel layer di input, "
+    "i suoi valori vengono sovrascritti invece di creare un duplicato.\n\n"
     "<b>Misura geodetica (ellissoidale):</b> quando il CRS del layer è geografico "
     "(coordinate in gradi, es. EPSG:4326), le misure planari di area, lunghezza, "
     "perimetro e distanza sarebbero in gradi — metricamente prive di senso. "
@@ -277,6 +285,13 @@ EN.update({
         "<b>Multi-criteria sorting:</b> set a <b>secondary criterion</b> "
         "to break ties of the primary criterion (e.g. primary = region, "
         "secondary = descending area). Available for non line-based criteria.\n\n"
+        "<b>Reference point:</b> for the «Centroid – distance» criterion you can "
+        "provide a reference point (also via the «... on map» button); "
+        "if left empty, the origin (0,0) is used, as in previous versions.\n\n"
+        "<b>Custom numbering (advanced parameters):</b> starting value "
+        "(e.g. 0), step (e.g. 10 → 10, 20, 30...) and the name of the progressive "
+        "field (default <b>sort_order</b>). If the field already exists in the input "
+        "layer, its values are overwritten instead of creating a duplicate.\n\n"
         "<b>Geodesic (ellipsoidal) measurement:</b> when the layer CRS is geographic "
         "(coordinates in degrees, e.g. EPSG:4326), planar measures of area, length, "
         "perimeter and distance would be in degrees — metrically meaningless. "
@@ -284,6 +299,30 @@ EN.update({
         "calculation (QgsDistanceArea) returning values in m² / m. "
         "Select <i>Never</i> to force planar measurement in CRS units.\n\n"
         "Compatible with the Processing Toolbox, the graphical modeler and headless PyQGIS.",
+    "Punto di riferimento (solo per criterio 'Centroide – distanza'; vuoto = origine 0,0)":
+        "Reference point (only for the 'Centroid – distance' criterion; empty = origin 0,0)",
+    "Numerazione: valore iniziale": "Numbering: starting value",
+    "Numerazione: passo (incremento fra feature)": "Numbering: step (increment between features)",
+    "Nome del campo progressivo": "Progressive field name",
+    "Il nome del campo progressivo non può essere 'sort_value' "
+    "quando è attivo il campo con il valore del criterio.":
+        "The progressive field name cannot be 'sort_value' "
+        "when the criterion value field is enabled.",
+    "GeoSort: il campo '{name}' esiste già, i valori saranno sovrascritti.":
+        "GeoSort: field '{name}' already exists, its values will be overwritten.",
+    "Campo:": "Field:",
+    "Inizio:": "Start:",
+    "Passo:": "Step:",
+    "Nome del campo progressivo (default: sort_order).\n"
+    "Se esiste già, i valori vengono sovrascritti.":
+        "Progressive field name (default: sort_order).\n"
+        "If it already exists, its values are overwritten.",
+    "Valore iniziale della numerazione (es. 0 o 1).":
+        "Starting value of the numbering (e.g. 0 or 1).",
+    "Incremento fra feature consecutive (es. 10 → 10, 20, 30...).":
+        "Increment between consecutive features (e.g. 10 → 10, 20, 30...).",
+    "Il campo '{name}' esiste già nel layer.\nSovrascriverlo con il nuovo ordinamento?":
+        "The field '{name}' already exists in the layer.\nOverwrite it with the new ordering?",
     # ── Core (avvisi CRS geografico e messaggi d'errore) ──
     "CRS geografico ({authid}): misura ellissoidica (geodetica) applicata automaticamente. "
     "I valori del criterio sono in metri/m² sull'ellissoide {ellipsoid}, non in gradi.":

@@ -117,6 +117,10 @@ E.g.: "area_kmq" / "popolazione"   or   length($geometry)</translation>
       <translation>Secondary criterion field (only if 'Table attribute')</translation>
     </message>
     <message>
+      <source>Campo:</source>
+      <translation>Field:</translation>
+    </message>
+    <message>
       <source>Caricamento feature...</source>
       <translation>Loading features...</translation>
     </message>
@@ -129,8 +133,8 @@ E.g.: "area_kmq" / "popolazione"   or   length($geometry)</translation>
       <translation>Centroid – Y coordinate</translation>
     </message>
     <message>
-      <source>Centroide – distanza da origine (0,0)</source>
-      <translation>Centroid – distance from origin (0,0)</translation>
+      <source>Centroide – distanza da punto di riferimento (default 0,0)</source>
+      <translation>Centroid – distance from reference point (default 0,0)</translation>
     </message>
     <message>
       <source>Chiudi</source>
@@ -253,6 +257,10 @@ Expression: {expr}</translation>
       <translation>GeoSort: secondary criterion ignored because the primary criterion is line-based.</translation>
     </message>
     <message>
+      <source>GeoSort: il campo '{name}' esiste già, i valori saranno sovrascritti.</source>
+      <translation>GeoSort: field '{name}' already exists, its values will be overwritten.</translation>
+    </message>
+    <message>
       <source>GeoSort: ordinamento multi-criterio (primario + secondario).</source>
       <translation>GeoSort: multi-criteria sorting (primary + secondary).</translation>
     </message>
@@ -265,6 +273,12 @@ Expression: {expr}</translation>
       <translation>Help</translation>
     </message>
     <message>
+      <source>Il campo '{name}' esiste già nel layer.
+Sovrascriverlo con il nuovo ordinamento?</source>
+      <translation>The field '{name}' already exists in the layer.
+Overwrite it with the new ordering?</translation>
+    </message>
+    <message>
       <source>Il layer di riferimento non contiene feature.</source>
       <translation>The reference layer contains no features.</translation>
     </message>
@@ -273,8 +287,20 @@ Expression: {expr}</translation>
       <translation>The layer contains no features.</translation>
     </message>
     <message>
+      <source>Il nome del campo progressivo non può essere 'sort_value' quando è attivo il campo con il valore del criterio.</source>
+      <translation>The progressive field name cannot be 'sort_value' when the criterion value field is enabled.</translation>
+    </message>
+    <message>
       <source>Impossibile creare il layer di output.</source>
       <translation>Could not create the output layer.</translation>
+    </message>
+    <message>
+      <source>Incremento fra feature consecutive (es. 10 → 10, 20, 30...).</source>
+      <translation>Increment between consecutive features (e.g. 10 → 10, 20, 30...).</translation>
+    </message>
+    <message>
+      <source>Inizio:</source>
+      <translation>Start:</translation>
     </message>
     <message>
       <source>Input Layer</source>
@@ -361,6 +387,24 @@ Expression: {expr}</translation>
       <translation>No features selected on the layer ('Sort only selected features' is enabled).</translation>
     </message>
     <message>
+      <source>Nome del campo progressivo</source>
+      <translation>Progressive field name</translation>
+    </message>
+    <message>
+      <source>Nome del campo progressivo (default: sort_order).
+Se esiste già, i valori vengono sovrascritti.</source>
+      <translation>Progressive field name (default: sort_order).
+If it already exists, its values are overwritten.</translation>
+    </message>
+    <message>
+      <source>Numerazione: passo (incremento fra feature)</source>
+      <translation>Numbering: step (increment between features)</translation>
+    </message>
+    <message>
+      <source>Numerazione: valore iniziale</source>
+      <translation>Numbering: starting value</translation>
+    </message>
+    <message>
       <source>Numero di vertici</source>
       <translation>Number of vertices</translation>
     </message>
@@ -387,6 +431,10 @@ Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghe
 
 &lt;b&gt;Ordinamento multi-criterio:&lt;/b&gt; imposta un &lt;b&gt;criterio secondario&lt;/b&gt; per spezzare i pareggi del criterio primario (es. primario = regione, secondario = area decrescente). Disponibile per i criteri non basati su linea.
 
+&lt;b&gt;Punto di riferimento:&lt;/b&gt; per il criterio «Centroide – distanza» è possibile indicare un punto di riferimento (anche col pulsante «... sulla mappa»); se lasciato vuoto si usa l'origine (0,0) come nelle versioni precedenti.
+
+&lt;b&gt;Numerazione personalizzata (parametri avanzati):&lt;/b&gt; valore iniziale (es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo (default &lt;b&gt;sort_order&lt;/b&gt;). Se il campo esiste già nel layer di input, i suoi valori vengono sovrascritti invece di creare un duplicato.
+
 &lt;b&gt;Misura geodetica (ellissoidale):&lt;/b&gt; quando il CRS del layer è geografico (coordinate in gradi, es. EPSG:4326), le misure planari di area, lunghezza, perimetro e distanza sarebbero in gradi — metricamente prive di senso. Con la modalità &lt;i&gt;Automatica&lt;/i&gt; (default) GeoSort usa automaticamente il calcolo ellissoidale (QgsDistanceArea) restituendo valori in m² / m. Selezionare &lt;i&gt;Mai&lt;/i&gt; per forzare la misura planare nelle unità del CRS.
 
 Compatibile con il Processing Toolbox, il modellatore grafico e PyQGIS headless.</source>
@@ -399,6 +447,10 @@ Available criteria: table attribute, centroid coordinates, area, length, perimet
 • &lt;b&gt;Natural Sort&lt;/b&gt;: digit sequences are compared as numbers. Example: «11» &amp;lt; «1010» &amp;lt; «1111». Useful with alphanumeric fields (FILE1, FILE2, FILE10) or concatenation expressions such as &lt;code&gt;"fid" || "id_poly"&lt;/code&gt;.
 
 &lt;b&gt;Multi-criteria sorting:&lt;/b&gt; set a &lt;b&gt;secondary criterion&lt;/b&gt; to break ties of the primary criterion (e.g. primary = region, secondary = descending area). Available for non line-based criteria.
+
+&lt;b&gt;Reference point:&lt;/b&gt; for the «Centroid – distance» criterion you can provide a reference point (also via the «... on map» button); if left empty, the origin (0,0) is used, as in previous versions.
+
+&lt;b&gt;Custom numbering (advanced parameters):&lt;/b&gt; starting value (e.g. 0), step (e.g. 10 → 10, 20, 30...) and the name of the progressive field (default &lt;b&gt;sort_order&lt;/b&gt;). If the field already exists in the input layer, its values are overwritten instead of creating a duplicate.
 
 &lt;b&gt;Geodesic (ellipsoidal) measurement:&lt;/b&gt; when the layer CRS is geographic (coordinates in degrees, e.g. EPSG:4326), planar measures of area, length, perimeter and distance would be in degrees — metrically meaningless. With the &lt;i&gt;Automatic&lt;/i&gt; mode (default) GeoSort automatically uses ellipsoidal calculation (QgsDistanceArea) returning values in m² / m. Select &lt;i&gt;Never&lt;/i&gt; to force planar measurement in CRS units.
 
@@ -427,6 +479,10 @@ Compatible with the Processing Toolbox, the graphical modeler and headless PyQGI
     <message>
       <source>Output</source>
       <translation>Output</translation>
+    </message>
+    <message>
+      <source>Passo:</source>
+      <translation>Step:</translation>
     </message>
     <message>
       <source>Per attributo / espressione</source>
@@ -475,6 +531,10 @@ Intersecting only – first point: uses the point where the feature first touche
     <message>
       <source>Punto di riferimento (X, Y)</source>
       <translation>Reference point (X, Y)</translation>
+    </message>
+    <message>
+      <source>Punto di riferimento (solo per criterio 'Centroide – distanza'; vuoto = origine 0,0)</source>
+      <translation>Reference point (only for the 'Centroid – distance' criterion; empty = origin 0,0)</translation>
     </message>
     <message>
       <source>Rimuovi</source>
@@ -571,6 +631,10 @@ are measured on the ellipsoid (m²/m) instead of degrees.
     <message>
       <source>Valore criterio</source>
       <translation>Criterion value</translation>
+    </message>
+    <message>
+      <source>Valore iniziale della numerazione (es. 0 o 1).</source>
+      <translation>Starting value of the numbering (e.g. 0 or 1).</translation>
     </message>
     <message>
       <source>Valori NULL in fondo (attributo e espressione)</source>

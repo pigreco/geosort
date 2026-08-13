@@ -478,17 +478,18 @@ class MockLayer:
 
 
 def _mock_apply_sort_order(layer, sorted_features, add_criterion_field=False,
-                           criterion_values=None, criterion_field_name="sort_value"):
+                           criterion_values=None, criterion_field_name="sort_value",
+                           start=1, step=1, order_field_name="sort_order"):
     """Mock standalone di apply_sort_order – senza QgsField/QMetaType."""
     try:
         if not layer.isEditable():
             if not layer.startEditing():
                 return False
 
-        sort_idx = layer.indexOf("sort_order")
+        sort_idx = layer.indexOf(order_field_name)
         if sort_idx == -1:
-            layer.addAttribute("sort_order")
-            sort_idx = layer.indexOf("sort_order")
+            layer.addAttribute(order_field_name)
+            sort_idx = layer.indexOf(order_field_name)
 
         crit_idx = -1
         if add_criterion_field and criterion_values:
@@ -498,7 +499,7 @@ def _mock_apply_sort_order(layer, sorted_features, add_criterion_field=False,
                 crit_idx = layer.indexOf(criterion_field_name)
 
         for i, feat in enumerate(sorted_features):
-            changes = {sort_idx: i + 1}
+            changes = {sort_idx: start + i * step}
             if add_criterion_field and criterion_values and crit_idx != -1:
                 try:
                     changes[crit_idx] = float(criterion_values[i])
@@ -579,6 +580,48 @@ class TestApplySortOrder(unittest.TestCase):
         layer = MockLayer(field_names=[])
         _mock_apply_sort_order(layer, self._feats(2))
         self.assertTrue(layer._committed)
+
+    # ── Numerazione personalizzata (start / step / nome campo) ───────────────
+
+    def test_custom_start(self):
+        layer = MockLayer(field_names=[])
+        feats = self._feats(3)
+        _mock_apply_sort_order(layer, feats, start=0)
+        sort_idx = layer.indexOf("sort_order")
+        values = [layer._changes[(f.id(), sort_idx)] for f in feats]
+        self.assertEqual(values, [0, 1, 2])
+
+    def test_custom_step(self):
+        layer = MockLayer(field_names=[])
+        feats = self._feats(3)
+        _mock_apply_sort_order(layer, feats, start=10, step=10)
+        sort_idx = layer.indexOf("sort_order")
+        values = [layer._changes[(f.id(), sort_idx)] for f in feats]
+        self.assertEqual(values, [10, 20, 30])
+
+    def test_negative_start(self):
+        layer = MockLayer(field_names=[])
+        feats = self._feats(3)
+        _mock_apply_sort_order(layer, feats, start=-5, step=5)
+        sort_idx = layer.indexOf("sort_order")
+        values = [layer._changes[(f.id(), sort_idx)] for f in feats]
+        self.assertEqual(values, [-5, 0, 5])
+
+    def test_custom_field_name(self):
+        layer = MockLayer(field_names=["nome"])
+        feats = self._feats(2)
+        ok = _mock_apply_sort_order(layer, feats, order_field_name="rank")
+        self.assertTrue(ok)
+        self.assertIn("rank", layer._field_names)
+        self.assertNotIn("sort_order", layer._field_names)
+
+    def test_custom_field_name_existing_not_duplicated(self):
+        layer = MockLayer(field_names=["nome", "rank"])
+        feats = self._feats(2)
+        _mock_apply_sort_order(layer, feats, order_field_name="rank")
+        self.assertEqual(layer._field_names.count("rank"), 1)
+        sort_idx = layer.indexOf("rank")
+        self.assertEqual(layer._changes[(feats[0].id(), sort_idx)], 1)
 
 
 class TestSortByCentroid(unittest.TestCase):

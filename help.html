@@ -18,7 +18,8 @@
 <h2>GeoSort – Guida rapida</h2>
 
 <p>GeoSort ordina le feature di un layer vettoriale e assegna un numero progressivo
-<code>sort_order</code> (1 = prima feature nell'ordine scelto).</p>
+<code>sort_order</code> (1 = prima feature nell'ordine scelto; nome campo, valore
+iniziale e passo sono personalizzabili, vedi <a href="#numerazione">Numerazione</a>).</p>
 
 <div class="tip">
   <b>Lingue / Languages:</b> GeoSort è disponibile in <b>Italiano</b> e <b>Inglese</b>.
@@ -51,7 +52,9 @@
             o campi con codici alfanumerici (<code>FILE1</code>, <code>FILE2</code>, <code>FILE10</code>).</li>
       </ul>
   </li>
-  <li><b>Coordinate centroide</b> – per X, Y o distanza da un punto di riferimento</li>
+  <li><b>Coordinate centroide</b> – per X, Y o distanza da un punto di riferimento
+      (picker sulla mappa nel dialogo; nel Processing il parametro
+      <code>REF_POINT</code>, opzionale — vuoto = origine 0,0)</li>
   <li><b>Proprietà geometrica</b> – area, perimetro, lunghezza, numero di vertici, bounding box</li>
   <li><b>Distanza dalla linea</b> – distanza perpendicolare da una linea di riferimento, due modalità:
     <ul>
@@ -86,11 +89,27 @@ Ogni livello ha la propria direzione (ascendente/discendente).</p>
 
 <h3>Output</h3>
 <ul>
-  <li><b>Aggiorna il layer corrente</b> – aggiunge o aggiorna il campo <code>sort_order</code>.
-      Se il campo esiste già, viene chiesta conferma prima di sovrascriverlo.</li>
+  <li><b>Aggiorna il layer corrente</b> – aggiunge o aggiorna il campo progressivo
+      (default <code>sort_order</code>). Se il campo esiste già, viene chiesta conferma
+      prima di sovrascriverlo.</li>
   <li><b>Nuovo layer in memoria</b> – crea una copia ordinata senza modificare l'originale</li>
   <li>Opzione: aggiungi <code>sort_value</code> con il valore del criterio usato</li>
 </ul>
+
+<h3 id="numerazione">Numerazione personalizzata</h3>
+<p>Il campo progressivo è configurabile tramite tre parametri (avanzati nel Processing):</p>
+<ul>
+  <li><b>Nome del campo</b> – default <code>sort_order</code>; se coincide con un campo
+      già presente sul layer, i suoi valori vengono sovrascritti invece di duplicarlo.</li>
+  <li><b>Valore iniziale</b> – default <code>1</code> (es. <code>0</code> per una
+      numerazione da zero).</li>
+  <li><b>Passo</b> – default <code>1</code> (es. <code>10</code> → <code>10, 20, 30…</code>,
+      utile come chiave numerabile che lascia spazio per inserimenti futuri).</li>
+</ul>
+<div class="tip">
+  Nel Processing Toolbox: parametri <code>ORDER_FIELD</code>, <code>START</code>,
+  <code>STEP</code>.
+</div>
 
 <h3>Solo feature selezionate</h3>
 <ul>
