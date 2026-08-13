@@ -2,7 +2,7 @@
 
 🇮🇹 **Italiano** | [🇬🇧 English](README.en.md)
 
-[![Version](https://img.shields.io/badge/version-1.10.0-blue.svg)](https://github.com/pigreco/geosort/releases)
+[![Version](https://img.shields.io/badge/version-1.11.0-blue.svg)](https://github.com/pigreco/geosort/releases)
 [![Languages](https://img.shields.io/badge/languages-IT%20%7C%20EN-green.svg)](#lingue--languages)
 [![QGIS](https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg)](#requisiti)
 [![License](https://img.shields.io/badge/license-GPLv2-red.svg)](LICENSE)
@@ -36,6 +36,7 @@ Compatibile con **QGIS 3.16+** (Qt5 / PyQt5) e **QGIS 4.x** (Qt6 / PyQt6).
 | Posizione lungo linea | Tutti | Proiezione del centroide su una linea di riferimento (tre modalità) |
 | Curva di Hilbert | Tutti | Ordina lungo una curva di Hilbert calcolata sui centroidi normalizzati sull'extent: le feature vicine nello spazio restano vicine nell'ordine |
 | Espressione QGIS | Tutti | Ordina per il risultato di un'espressione QGIS arbitraria |
+| Serpentina (boustrophedon) | Tutti | Bande orizzontali (per Y, X alternato) o verticali (per X, Y alternato), asse trasversale alternato crescente/decrescente da una banda alla successiva — l'ordine classico per serie cartografiche a taglio regolare e percorsi di volo fotogrammetrico |
 | **Multi-criterio (gerarchico)** | Tutti | Criterio secondario per spezzare i pareggi del primario (es. regione → area) |
 
 > **Robustezza:** le feature con geometria NULL/vuota e i layer a geometria mista non
@@ -69,8 +70,8 @@ rispetto alla scala).
 Esempio tipico: ordinare per *regione* (crescente) e, a parità di regione, per *area*
 (decrescente). Ogni livello ha la propria direzione. Disponibile sia nel dialogo
 (menu a tendina **Criterio secondario**) sia nel Processing (parametri `SECONDARY_*`).
-Non disponibile quando il criterio primario è basato su una linea di riferimento o è la
-curva di Hilbert.
+Non disponibile quando il criterio primario è basato su una linea di riferimento, è la
+curva di Hilbert o la serpentina.
 
 ### Modalità di ordinamento testuale
 

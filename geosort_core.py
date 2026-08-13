@@ -615,6 +615,135 @@ def sort_by_hilbert(features, ascending=True, order=16, progress_callback=None):
     return sorted_feats, values
 
 
+def sort_by_serpentine(features, band_size=None, ascending=True, axis="horizontal",
+                       cross_ascending=True, progress_callback=None):
+    """Ordina le feature "a serpentina" (boustrophedon): bande per Y (o per X),
+    con l'asse trasversale alternato crescente/decrescente da una banda alla
+    successiva.
+
+    È il classico ordine di numerazione delle tavole in una serie cartografica
+    a taglio regolare (griglie di quadranti, indici IGM/CTR, percorsi di volo
+    fotogrammetrico "a serpentina"): a differenza di un ordinamento a righe
+    semplice (prima per Y poi per X), evita il salto lungo da fine banda a
+    inizio banda successiva, perché l'ultima feature di una banda è già vicina
+    alla prima della banda seguente.
+
+    Con ``axis="horizontal"`` (default) le bande sono orizzontali: raggruppate
+    per Y, con X alternato. Con ``axis="vertical"`` le bande sono verticali:
+    raggruppate per X, con Y alternato — utile per griglie percorse per
+    colonne anziché per righe. La geometria rappresentativa è il centroide
+    (``pointOnSurface`` per le geometrie multiparte).
+
+    Le bande vengono percorse in ordine (dal valore minimo della coordinata di
+    raggruppamento se ``ascending``, dal massimo altrimenti); l'indice di
+    percorrenza (non l'indice di banda "grezzo", per restare continuo anche se
+    qualche banda risulta vuota) determina il verso di lettura dell'asse
+    trasversale, alternato da una banda alla successiva a partire dal verso
+    scelto per la prima banda (``cross_ascending``).
+
+    Combinando ``ascending`` (quale banda è la prima) e ``cross_ascending``
+    (verso dell'asse trasversale nella prima banda) si sceglie liberamente
+    l'angolo di partenza del percorso — i quattro angoli della bounding box
+    complessiva sono tutti raggiungibili con le quattro combinazioni dei due
+    booleani, per qualunque ``axis``.
+
+    Args:
+        features (list[QgsFeature]): feature da ordinare.
+        band_size (float | None): dimensione di ciascuna banda nelle unità del
+            CRS del layer — altezza se ``axis="horizontal"``, larghezza se
+            ``axis="vertical"``. Se ``None`` o ``<= 0``, calcolata
+            automaticamente come dimensione media delle bounding box delle
+            feature (altezza o larghezza a seconda dell'asse); se questa è a
+            sua volta 0 (es. layer di soli punti), si usa in fallback
+            ``estensione / sqrt(n_feature)``.
+        ascending (bool): True = prima banda dal valore minimo della
+            coordinata di raggruppamento (in basso per orizzontale, a sinistra
+            per verticale), si procede verso il massimo; False = viceversa.
+        axis (str): ``"horizontal"`` (bande per Y, default) o ``"vertical"``
+            (bande per X).
+        cross_ascending (bool): True (default) = nella prima banda percorsa
+            l'asse trasversale va dal valore minimo al massimo (X crescente
+            per bande orizzontali, Y crescente per verticali); False =
+            viceversa. Le bande successive alternano rispetto a questo verso.
+        progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
+
+    Returns:
+        tuple[list[QgsFeature], list[int]]: (feature ordinate, indice di banda
+        "grezzo" di ciascuna feature, utile come colonna di verifica). Le
+        feature prive di geometria sono relegate in fondo con valore ``None``.
+    """
+    pts = []
+    invalid = []
+    sizes = []
+    for f in features:
+        geom = f.geometry()
+        if _is_empty_geom(geom):
+            invalid.append(f)
+            continue
+        bbox = geom.boundingBox()
+        pt = (geom.pointOnSurface() if geom.isMultipart() else geom.centroid()).asPoint()
+        pts.append((f, pt.x(), pt.y()))
+        sizes.append(bbox.height() if axis == "horizontal" else bbox.width())
+
+    if not pts:
+        if progress_callback:
+            progress_callback(100)
+        return invalid, [None] * len(invalid)
+
+    # Coordinata di raggruppamento (banda) e coordinata trasversale
+    # (alternanza): Y/X per bande orizzontali, X/Y per bande verticali.
+    if axis == "horizontal":
+        band_vals = [p[2] for p in pts]
+        cross_vals = [p[1] for p in pts]
+    else:
+        band_vals = [p[1] for p in pts]
+        cross_vals = [p[2] for p in pts]
+
+    band_min, band_max = min(band_vals), max(band_vals)
+    band_span = (band_max - band_min) or 1.0
+
+    if not band_size or band_size <= 0:
+        mean_size = (sum(sizes) / len(sizes)) if sizes else 0.0
+        if mean_size > 0:
+            band_size = mean_size
+        else:
+            # Fallback per geometrie senza altezza/larghezza (es. soli punti):
+            # stima una banda "ragionevole" dall'estensione complessiva e dal
+            # numero di feature, invece di lasciare tutto in un'unica banda
+            # degenere.
+            band_size = band_span / math.sqrt(len(pts))
+    band_size = band_size or band_span  # ultima difesa, evita divisione per 0
+
+    raw = []
+    for (f, _x, _y), bval, cval in zip(pts, band_vals, cross_vals):
+        band = int((bval - band_min) / band_size)
+        raw.append((f, band, cval))
+
+    # L'ordine di percorrenza delle bande dipende da ascending; l'alternanza
+    # dell'asse trasversale segue il "rango" di percorrenza (non l'indice di
+    # banda grezzo), così il percorso resta continuo anche se qualche banda
+    # intermedia risulta vuota (nessuna feature con quel band index).
+    distinct_bands = sorted({b for _, b, _ in raw}, reverse=not ascending)
+    rank_of_band = {b: r for r, b in enumerate(distinct_bands)}
+
+    def sort_key(item):
+        _, band, cval = item
+        rank = rank_of_band[band]
+        rank_is_even = (rank % 2 == 0)
+        eff_ascending = cross_ascending if rank_is_even else not cross_ascending
+        c_key = cval if eff_ascending else -cval
+        return (rank, c_key)
+
+    raw.sort(key=sort_key)
+    sorted_feats = [r[0] for r in raw] + invalid
+    values = [r[1] for r in raw] + [None] * len(invalid)
+
+    if progress_callback:
+        progress_callback(100)
+
+    return sorted_feats, values
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Ordinamento per proprietà geometrica
 # ──────────────────────────────────────────────────────────────────────────────

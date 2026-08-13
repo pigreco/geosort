@@ -98,6 +98,9 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     REF_LAYER = "REF_LAYER"
     REF_POINT = "REF_POINT"
     HILBERT_ORDER = "HILBERT_ORDER"
+    BAND_SIZE = "BAND_SIZE"
+    BAND_AXIS = "BAND_AXIS"
+    CROSS_ASCENDING = "CROSS_ASCENDING"
     ADD_VALUE_FIELD = "ADD_VALUE_FIELD"
     START = "START"
     STEP = "STEP"
@@ -123,6 +126,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         "line_distance",
         "hilbert",
         "expression",
+        "serpentine",
     ]
 
     # ── Criterio secondario (tie-break) per l'ordinamento multi-criterio ──
@@ -132,9 +136,9 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     SECONDARY_DIRECTION = "SECONDARY_DIRECTION"
 
     # Criteri ammessi come primario in modalità multi-criterio (no linea: niente
-    # geometria di riferimento esterna né semantica di esclusione; niente Hilbert:
-    # richiede l'extent calcolato su tutte le feature, non un valore per-feature
-    # indipendente come richiesto da _numeric_extractor).
+    # geometria di riferimento esterna né semantica di esclusione; niente Hilbert
+    # né serpentina: richiedono l'extent/le bande calcolate su tutte le feature,
+    # non un valore per-feature indipendente come richiesto da _numeric_extractor).
     _MULTI_PRIMARY_KEYS = frozenset({
         "attribute", "expression",
         "centroid_x", "centroid_y", "centroid_dist",
@@ -177,6 +181,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         "Distanza dalla linea di riferimento",
         "Curva di Hilbert (ordinamento spaziale)",
         "Espressione QGIS",
+        "Serpentina (boustrophedon)",
     ]
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -206,7 +211,8 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             "Criteri disponibili: attributo tabellare, coordinate del centroide, "
             "area, lunghezza, perimetro, numero di vertici, bounding box, "
             "posizione lungo una linea di riferimento, distanza dalla linea di riferimento, "
-            "curva di Hilbert (ordinamento spaziale), espressione QGIS.\n\n"
+            "curva di Hilbert (ordinamento spaziale), espressione QGIS, serpentina "
+            "(boustrophedon, bande orizzontali o verticali).\n\n"
             "<b>Modalità di ordinamento testuale (attributo/espressione):</b>\n"
             "• <b>Lessicografico</b> (default): confronto carattere per carattere. "
             "Esempio: «1010» &lt; «11» &lt; «1111».\n"
@@ -230,6 +236,21 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             "più veloci). Il parametro avanzato <code>HILBERT_ORDER</code> regola la "
             "risoluzione della griglia (default 16, lato 2^16); non è disponibile come "
             "criterio primario in modalità multi-criterio.\n\n"
+            "<b>Serpentina (boustrophedon):</b> ordina le feature a bande, con l'asse "
+            "trasversale alternato crescente/decrescente da una banda alla successiva — "
+            "l'ordine classico per numerare le tavole di una serie cartografica a taglio "
+            "regolare o un percorso di volo fotogrammetrico, senza il salto lungo da fine "
+            "banda a inizio banda successiva tipico di un ordinamento a righe semplice. "
+            "Il parametro <code>BAND_AXIS</code> sceglie l'orientamento: bande orizzontali "
+            "(per Y, X alternato — default) o verticali (per X, Y alternato). Il parametro "
+            "avanzato <code>BAND_SIZE</code> imposta la dimensione di banda nelle unità del "
+            "CRS — altezza per bande orizzontali, larghezza per verticali (0/vuoto = "
+            "automatica, dalla dimensione media delle bounding box delle feature). Il "
+            "parametro avanzato <code>CROSS_ASCENDING</code> sceglie l'angolo di partenza: "
+            "con <code>DIRECTION</code> (quale banda è la prima) e <code>CROSS_ASCENDING</code> "
+            "(verso dell'asse trasversale nella prima banda) sono raggiungibili tutti e "
+            "quattro gli angoli della griglia. Non disponibile come criterio primario in "
+            "modalità multi-criterio.\n\n"
             "<b>Numerazione personalizzata (parametri avanzati):</b> valore iniziale "
             "(es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo "
             "(default <b>sort_order</b>). Se il campo esiste già nel layer di input, "
@@ -371,6 +392,47 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         )
         param_hilbert_order.setFlags(param_hilbert_order.flags() | _FLAG_ADVANCED)
         self.addParameter(param_hilbert_order)
+
+        # Orientamento bande (condizionale, solo per il criterio "Serpentina").
+        param_band_axis = QgsProcessingParameterEnum(
+            self.BAND_AXIS,
+            self.tr("Serpentina – orientamento bande"),
+            options=[
+                self.tr("Orizzontali (bande per Y, X alternato)"),
+                self.tr("Verticali (bande per X, Y alternato)"),
+            ],
+            defaultValue=0,
+        )
+        param_band_axis.setFlags(param_band_axis.flags() | _FLAG_ADVANCED)
+        self.addParameter(param_band_axis)
+
+        # Dimensione banda (condizionale, solo per il criterio "Serpentina"). 0/vuoto
+        # → calcolata automaticamente dalla dimensione media delle bbox delle feature
+        # (altezza per bande orizzontali, larghezza per verticali).
+        param_band_size = QgsProcessingParameterNumber(
+            self.BAND_SIZE,
+            self.tr(
+                "Serpentina – dimensione banda, unità del CRS (0 = automatica, "
+                "da altezza/larghezza media delle feature)"
+            ),
+            defaultValue=0.0,
+            minValue=0.0,
+            optional=True,
+        )
+        param_band_size.setFlags(param_band_size.flags() | _FLAG_ADVANCED)
+        self.addParameter(param_band_size)
+
+        # Verso dell'asse trasversale nella prima banda percorsa (condizionale,
+        # solo per il criterio "Serpentina"): combinato con DIRECTION (quale
+        # banda è la prima) permette di scegliere uno qualunque dei quattro
+        # angoli di partenza della griglia.
+        param_cross_ascending = QgsProcessingParameterBoolean(
+            self.CROSS_ASCENDING,
+            self.tr("Serpentina – prima banda in verso crescente (altrimenti decrescente)"),
+            defaultValue=True,
+        )
+        param_cross_ascending.setFlags(param_cross_ascending.flags() | _FLAG_ADVANCED)
+        self.addParameter(param_cross_ascending)
 
         self.addParameter(
             QgsProcessingParameterExpression(
@@ -587,6 +649,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             sort_by_line_position,
             sort_by_line_distance,
             sort_by_hilbert,
+            sort_by_serpentine,
             _infer_field_type,
             _coerce_value,
             build_distance_area,
@@ -639,7 +702,8 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         if sec_key is not None and not multi_active:
             feedback.pushWarning(self.tr(
                 "GeoSort: criterio secondario ignorato perché il criterio primario "
-                "non supporta l'ordinamento multi-criterio (linea di riferimento o curva di Hilbert)."
+                "non supporta l'ordinamento multi-criterio "
+                "(linea di riferimento, curva di Hilbert o serpentina)."
             ))
 
         try:
@@ -732,6 +796,18 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 hilbert_order = self.parameterAsInt(parameters, self.HILBERT_ORDER, context)
                 sorted_feats, values = sort_by_hilbert(
                     features, ascending, order=hilbert_order, progress_callback=_progress_cb,
+                )
+                excluded = []
+
+            elif criterion == "serpentine":
+                band_size = self.parameterAsDouble(parameters, self.BAND_SIZE, context)
+                axis_keys = ["horizontal", "vertical"]
+                band_axis = axis_keys[self.parameterAsEnum(parameters, self.BAND_AXIS, context)]
+                cross_ascending = self.parameterAsBoolean(parameters, self.CROSS_ASCENDING, context)
+                sorted_feats, values = sort_by_serpentine(
+                    features, band_size=band_size or None, ascending=ascending,
+                    axis=band_axis, cross_ascending=cross_ascending,
+                    progress_callback=_progress_cb,
                 )
                 excluded = []
 

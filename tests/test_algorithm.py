@@ -182,8 +182,8 @@ class TestGeoSortAlgorithm(unittest.TestCase):
     # ── Criteri ───────────────────────────────────────────────────────────────
 
     def test_algorithm_criteria_keys_count(self):
-        """Deve avere 17 criteri (16 + 1 nuovo hilbert)."""
-        self.assertEqual(len(self.algo._CRITERIA_KEYS), 17)
+        """Deve avere 18 criteri (17 + 1 nuovo serpentine)."""
+        self.assertEqual(len(self.algo._CRITERIA_KEYS), 18)
 
     def test_algorithm_criteria_keys_include_line_distance(self):
         """Deve includere 'line_distance' nei criteri."""
@@ -193,9 +193,13 @@ class TestGeoSortAlgorithm(unittest.TestCase):
         """Deve includere 'hilbert' nei criteri."""
         self.assertIn("hilbert", self.algo._CRITERIA_KEYS)
 
+    def test_algorithm_criteria_keys_include_serpentine(self):
+        """Deve includere 'serpentine' nei criteri."""
+        self.assertIn("serpentine", self.algo._CRITERIA_KEYS)
+
     def test_algorithm_criteria_labels_count(self):
-        """Deve avere 17 etichette (una per criterio)."""
-        self.assertEqual(len(self.algo._CRITERIA_LABELS), 17)
+        """Deve avere 18 etichette (una per criterio)."""
+        self.assertEqual(len(self.algo._CRITERIA_LABELS), 18)
 
     def test_algorithm_criteria_keys_and_labels_match(self):
         """Numero di chiavi e etichette deve coincidere."""
@@ -228,9 +232,30 @@ class TestGeoSortAlgorithm(unittest.TestCase):
         param_names = [p.name() for p in self.algo.parameterDefinitions()]
         self.assertIn("HILBERT_ORDER", param_names)
 
-    def test_expression_is_last_criterion(self):
-        """'expression' deve essere l'ultimo criterio."""
-        self.assertEqual(self.algo._CRITERIA_KEYS[-1], "expression")
+    def test_expression_index_position(self):
+        """'expression' deve essere al corretto indice (16)."""
+        self.assertEqual(self.algo._CRITERIA_KEYS[16], "expression")
+
+    def test_serpentine_is_last_criterion(self):
+        """'serpentine' deve essere l'ultimo criterio (aggiunto in coda, non
+        rompe gli indici dei criteri esistenti)."""
+        self.assertEqual(self.algo._CRITERIA_KEYS[-1], "serpentine")
+        self.assertEqual(self.algo._CRITERIA_KEYS[17], "serpentine")
+
+    def test_algorithm_has_band_size_parameter(self):
+        """L'algoritmo deve esporre il parametro avanzato BAND_SIZE."""
+        param_names = [p.name() for p in self.algo.parameterDefinitions()]
+        self.assertIn("BAND_SIZE", param_names)
+
+    def test_algorithm_has_band_axis_parameter(self):
+        """L'algoritmo deve esporre il parametro avanzato BAND_AXIS."""
+        param_names = [p.name() for p in self.algo.parameterDefinitions()]
+        self.assertIn("BAND_AXIS", param_names)
+
+    def test_algorithm_has_cross_ascending_parameter(self):
+        """L'algoritmo deve esporre il parametro avanzato CROSS_ASCENDING."""
+        param_names = [p.name() for p in self.algo.parameterDefinitions()]
+        self.assertIn("CROSS_ASCENDING", param_names)
 
     # ── Criterio secondario (multi-criterio) ──────────────────────────────────
 
@@ -266,6 +291,12 @@ class TestGeoSortAlgorithm(unittest.TestCase):
         """'hilbert' richiede l'extent globale: non ammesso come primario in multi-criterio."""
         self.assertNotIn("hilbert", self.algo._MULTI_PRIMARY_KEYS)
         self.assertNotIn("hilbert", self.algo._SECONDARY_KEYS)
+
+    def test_multi_primary_keys_excludes_serpentine(self):
+        """'serpentine' richiede le bande calcolate globalmente: non ammesso
+        come primario in multi-criterio."""
+        self.assertNotIn("serpentine", self.algo._MULTI_PRIMARY_KEYS)
+        self.assertNotIn("serpentine", self.algo._SECONDARY_KEYS)
 
     def test_end_to_end_selected_features_only(self):
         """Con QgsProcessingFeatureSourceDefinition vengono ordinate solo le selezionate."""
@@ -760,6 +791,125 @@ class TestGeoSortAlgorithmAllCriteria(unittest.TestCase):
         })
         # 10-id ascendente → id decrescente: id2 (8) < id1 (9) < id0 (10)
         self.assertEqual(self._order_by_id(result["OUTPUT"]), {2: 1, 1: 2, 0: 3})
+
+    # ── serpentine (indice 17) ────────────────────────────────────────────────
+
+    def test_serpentine(self):
+        """CRITERION=17: bande orizzontali (default) per Y, X alternato pari/dispari.
+
+        Griglia 4×2 (x=0..3, y=0,1) con BAND_SIZE=1 esplicito: banda 0
+        (y=0, in basso) percorsa a X crescente, banda 1 (y=1) a X
+        decrescente — un ordinamento a righe semplice (solo Y poi X)
+        produrrebbe invece id 0,1,2,3,4,5,6,7, smascherando un'implementazione
+        che ignori l'alternanza.
+        """
+        import processing
+        from qgis.core import QgsGeometry, QgsPointXY
+        layer = self._make_layer(
+            "Point?crs=EPSG:4326&field=id:integer", "serpentine_layer",
+            [
+                (QgsGeometry.fromPointXY(QgsPointXY(x, y)), [y * 4 + x])
+                for y in range(2) for x in range(4)
+            ],
+        )
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": layer, "CRITERION": 17, "BAND_SIZE": 1,
+            "DIRECTION": True, "OUTPUT": "memory:",
+        })
+        self.assertEqual(
+            self._order_by_id(result["OUTPUT"]),
+            {0: 1, 1: 2, 2: 3, 3: 4, 7: 5, 6: 6, 5: 7, 4: 8},
+        )
+
+    def test_serpentine_vertical_axis(self):
+        """CRITERION=17 con BAND_AXIS=1: bande verticali per X, Y alternato.
+
+        Stessa griglia 4×2 di test_serpentine, ma percorsa per colonne:
+        colonna x=0 (rank 0, pari) → Y crescente; colonna x=1 (rank 1,
+        dispari) → Y decrescente; e così via.
+        """
+        import processing
+        from qgis.core import QgsGeometry, QgsPointXY
+        layer = self._make_layer(
+            "Point?crs=EPSG:4326&field=id:integer", "serpentine_vertical_layer",
+            [
+                (QgsGeometry.fromPointXY(QgsPointXY(x, y)), [y * 4 + x])
+                for y in range(2) for x in range(4)
+            ],
+        )
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": layer, "CRITERION": 17, "BAND_SIZE": 1, "BAND_AXIS": 1,
+            "DIRECTION": True, "OUTPUT": "memory:",
+        })
+        # colonna x=0: id0(y0),id4(y1) asc → 0,4; colonna x=1: id5(y1),id1(y0) desc;
+        # colonna x=2: id2,id6 asc; colonna x=3: id7,id3 desc.
+        self.assertEqual(
+            self._order_by_id(result["OUTPUT"]),
+            {0: 1, 4: 2, 5: 3, 1: 4, 2: 5, 6: 6, 7: 7, 3: 8},
+        )
+
+    def test_serpentine_cross_ascending_false(self):
+        """CRITERION=17 con CROSS_ASCENDING=False: la prima banda parte da X
+        decrescente invece che crescente (angolo di partenza opposto)."""
+        import processing
+        from qgis.core import QgsGeometry, QgsPointXY
+        layer = self._make_layer(
+            "Point?crs=EPSG:4326&field=id:integer", "serpentine_cross_layer",
+            [
+                (QgsGeometry.fromPointXY(QgsPointXY(x, y)), [y * 4 + x])
+                for y in range(2) for x in range(4)
+            ],
+        )
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": layer, "CRITERION": 17, "BAND_SIZE": 1,
+            "DIRECTION": True, "CROSS_ASCENDING": False, "OUTPUT": "memory:",
+        })
+        self.assertEqual(
+            self._order_by_id(result["OUTPUT"]),
+            {3: 1, 2: 2, 1: 3, 0: 4, 4: 5, 5: 6, 6: 7, 7: 8},
+        )
+
+    def test_serpentine_auto_band_size(self):
+        """BAND_SIZE non impostato (0/default) non deve far crashare l'algoritmo
+        e deve comunque produrre un ordinamento completo (fallback automatico)."""
+        import processing
+        from qgis.core import QgsGeometry, QgsPointXY
+        layer = self._make_layer(
+            "Point?crs=EPSG:4326&field=id:integer", "serpentine_auto_layer",
+            [
+                (QgsGeometry.fromPointXY(QgsPointXY(x, y)), [y * 4 + x])
+                for y in range(2) for x in range(4)
+            ],
+        )
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": layer, "CRITERION": 17, "DIRECTION": True, "OUTPUT": "memory:",
+        })
+        out = result["OUTPUT"]
+        self.assertEqual(out.featureCount(), 8)
+        orders = sorted(f["sort_order"] for f in out.getFeatures())
+        self.assertEqual(orders, list(range(1, 9)))
+
+    def test_serpentine_not_available_as_multi_primary(self):
+        """Il criterio secondario deve essere ignorato quando il primario è 'serpentine'."""
+        import processing
+        from qgis.core import QgsGeometry, QgsPointXY
+        layer = self._make_layer(
+            "Point?crs=EPSG:4326&field=id:integer", "serpentine_multi_layer",
+            [
+                (QgsGeometry.fromPointXY(QgsPointXY(x, y)), [y * 4 + x])
+                for y in range(2) for x in range(4)
+            ],
+        )
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": layer, "CRITERION": 17, "BAND_SIZE": 1, "DIRECTION": True,
+            "SECONDARY_CRITERION": 1, "OUTPUT": "memory:",
+        })
+        # Deve comunque completare (criterio secondario ignorato, non un errore)
+        # e produrre lo stesso ordine del test 'serpentine' senza secondario.
+        self.assertEqual(
+            self._order_by_id(result["OUTPUT"]),
+            {0: 1, 1: 2, 2: 3, 3: 4, 7: 5, 6: 6, 5: 7, 4: 8},
+        )
 
 
 # ──────────────────────────────────────────────────────────────────────────────

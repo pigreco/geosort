@@ -29,6 +29,10 @@ Attivalo con campi alfanumerici (FILE1, FILE2, FILE10)
 o espressioni di concatenazione come "fid" || "id_poly".</translation>
     </message>
     <message>
+      <source>A serpentina (boustrophedon)</source>
+      <translation>A serpentina (boustrophedon)</translation>
+    </message>
+    <message>
       <source>Aggiorna anteprima</source>
       <translation>Aggiorna anteprima</translation>
     </message>
@@ -87,6 +91,10 @@ Es: "area_kmq" / "popolazione"   oppure   length($geometry)</translation>
     <message>
       <source>Attributo tabellare</source>
       <translation>Attributo tabellare</translation>
+    </message>
+    <message>
+      <source>Automatica</source>
+      <translation>Automatica</translation>
     </message>
     <message>
       <source>Automatica – geodetica su CRS geografico (consigliato)</source>
@@ -201,6 +209,14 @@ Es: "area_kmq" / "popolazione"   oppure   length($geometry)</translation>
       <translation>Curva di Hilbert – ordine (risoluzione griglia = 2^ordine)</translation>
     </message>
     <message>
+      <source>Dimensione di ciascuna banda nelle unità del CRS del layer
+(altezza se orizzontali, larghezza se verticali).
+0 = automatica (dimensione media delle bounding box delle feature).</source>
+      <translation>Dimensione di ciascuna banda nelle unità del CRS del layer
+(altezza se orizzontali, larghezza se verticali).
+0 = automatica (dimensione media delle bounding box delle feature).</translation>
+    </message>
+    <message>
       <source>Direzione:</source>
       <translation>Direzione:</translation>
     </message>
@@ -261,8 +277,8 @@ Espressione: {expr}</translation>
       <translation>GeoSort – Ordinamento Avanzato delle Geometrie</translation>
     </message>
     <message>
-      <source>GeoSort: criterio secondario ignorato perché il criterio primario non supporta l'ordinamento multi-criterio (linea di riferimento o curva di Hilbert).</source>
-      <translation>GeoSort: criterio secondario ignorato perché il criterio primario non supporta l'ordinamento multi-criterio (linea di riferimento o curva di Hilbert).</translation>
+      <source>GeoSort: criterio secondario ignorato perché il criterio primario non supporta l'ordinamento multi-criterio (linea di riferimento, curva di Hilbert o serpentina).</source>
+      <translation>GeoSort: criterio secondario ignorato perché il criterio primario non supporta l'ordinamento multi-criterio (linea di riferimento, curva di Hilbert o serpentina).</translation>
     </message>
     <message>
       <source>GeoSort: il campo '{name}' esiste già, i valori saranno sovrascritti.</source>
@@ -433,13 +449,29 @@ Se esiste già, i valori vengono sovrascritti.</translation>
       <translation>Ordina feature (GeoSort)</translation>
     </message>
     <message>
+      <source>Ordina le feature a bande (orizzontali o verticali), con l'asse
+trasversale alternato crescente/decrescente da una banda alla
+successiva (boustrophedon): l'ordine classico per numerare le
+tavole di una serie cartografica a taglio regolare, senza il
+salto lungo da fine banda a inizio banda successiva tipico di
+un ordinamento a righe semplice.
+Non disponibile come criterio primario in modalità multi-criterio.</source>
+      <translation>Ordina le feature a bande (orizzontali o verticali), con l'asse
+trasversale alternato crescente/decrescente da una banda alla
+successiva (boustrophedon): l'ordine classico per numerare le
+tavole di una serie cartografica a taglio regolare, senza il
+salto lungo da fine banda a inizio banda successiva tipico di
+un ordinamento a righe semplice.
+Non disponibile come criterio primario in modalità multi-criterio.</translation>
+    </message>
+    <message>
       <source>Ordina le feature di un layer vettoriale per criteri geometrici e attributivi</source>
       <translation>Ordina le feature di un layer vettoriale per criteri geometrici e attributivi</translation>
     </message>
     <message>
       <source>Ordina le feature di un layer vettoriale per criteri geometrici o attributivi e aggiunge il campo &lt;b&gt;sort_order&lt;/b&gt; (numero progressivo, 1 = prima feature).
 
-Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghezza, perimetro, numero di vertici, bounding box, posizione lungo una linea di riferimento, distanza dalla linea di riferimento, curva di Hilbert (ordinamento spaziale), espressione QGIS.
+Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghezza, perimetro, numero di vertici, bounding box, posizione lungo una linea di riferimento, distanza dalla linea di riferimento, curva di Hilbert (ordinamento spaziale), espressione QGIS, serpentina (boustrophedon, bande orizzontali o verticali).
 
 &lt;b&gt;Modalità di ordinamento testuale (attributo/espressione):&lt;/b&gt;
 • &lt;b&gt;Lessicografico&lt;/b&gt; (default): confronto carattere per carattere. Esempio: «1010» &amp;lt; «11» &amp;lt; «1111».
@@ -452,6 +484,8 @@ Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghe
 &lt;b&gt;Layer di riferimento (posizione/distanza lungo linea):&lt;/b&gt; se il layer di riferimento ha un CRS diverso da quello del layer di input, viene riproiettato automaticamente prima del calcolo (con un avviso non bloccante).
 
 &lt;b&gt;Curva di Hilbert:&lt;/b&gt; ordina le feature lungo una curva di Hilbert calcolata sui centroidi, normalizzati sull'extent complessivo del layer — le feature vicine nello spazio diventano vicine nell'ordine. Utile per atlanti a percorso continuo e per scrivere GeoPackage con feature spazialmente coerenti (letture più veloci). Il parametro avanzato &lt;code&gt;HILBERT_ORDER&lt;/code&gt; regola la risoluzione della griglia (default 16, lato 2^16); non è disponibile come criterio primario in modalità multi-criterio.
+
+&lt;b&gt;Serpentina (boustrophedon):&lt;/b&gt; ordina le feature a bande, con l'asse trasversale alternato crescente/decrescente da una banda alla successiva — l'ordine classico per numerare le tavole di una serie cartografica a taglio regolare o un percorso di volo fotogrammetrico, senza il salto lungo da fine banda a inizio banda successiva tipico di un ordinamento a righe semplice. Il parametro &lt;code&gt;BAND_AXIS&lt;/code&gt; sceglie l'orientamento: bande orizzontali (per Y, X alternato — default) o verticali (per X, Y alternato). Il parametro avanzato &lt;code&gt;BAND_SIZE&lt;/code&gt; imposta la dimensione di banda nelle unità del CRS — altezza per bande orizzontali, larghezza per verticali (0/vuoto = automatica, dalla dimensione media delle bounding box delle feature). Il parametro avanzato &lt;code&gt;CROSS_ASCENDING&lt;/code&gt; sceglie l'angolo di partenza: con &lt;code&gt;DIRECTION&lt;/code&gt; (quale banda è la prima) e &lt;code&gt;CROSS_ASCENDING&lt;/code&gt; (verso dell'asse trasversale nella prima banda) sono raggiungibili tutti e quattro gli angoli della griglia. Non disponibile come criterio primario in modalità multi-criterio.
 
 &lt;b&gt;Numerazione personalizzata (parametri avanzati):&lt;/b&gt; valore iniziale (es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo (default &lt;b&gt;sort_order&lt;/b&gt;). Se il campo esiste già nel layer di input, i suoi valori vengono sovrascritti invece di creare un duplicato.
 
@@ -460,7 +494,7 @@ Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghe
 Compatibile con il Processing Toolbox, il modellatore grafico e PyQGIS headless.</source>
       <translation>Ordina le feature di un layer vettoriale per criteri geometrici o attributivi e aggiunge il campo &lt;b&gt;sort_order&lt;/b&gt; (numero progressivo, 1 = prima feature).
 
-Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghezza, perimetro, numero di vertici, bounding box, posizione lungo una linea di riferimento, distanza dalla linea di riferimento, curva di Hilbert (ordinamento spaziale), espressione QGIS.
+Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghezza, perimetro, numero di vertici, bounding box, posizione lungo una linea di riferimento, distanza dalla linea di riferimento, curva di Hilbert (ordinamento spaziale), espressione QGIS, serpentina (boustrophedon, bande orizzontali o verticali).
 
 &lt;b&gt;Modalità di ordinamento testuale (attributo/espressione):&lt;/b&gt;
 • &lt;b&gt;Lessicografico&lt;/b&gt; (default): confronto carattere per carattere. Esempio: «1010» &amp;lt; «11» &amp;lt; «1111».
@@ -473,6 +507,8 @@ Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghe
 &lt;b&gt;Layer di riferimento (posizione/distanza lungo linea):&lt;/b&gt; se il layer di riferimento ha un CRS diverso da quello del layer di input, viene riproiettato automaticamente prima del calcolo (con un avviso non bloccante).
 
 &lt;b&gt;Curva di Hilbert:&lt;/b&gt; ordina le feature lungo una curva di Hilbert calcolata sui centroidi, normalizzati sull'extent complessivo del layer — le feature vicine nello spazio diventano vicine nell'ordine. Utile per atlanti a percorso continuo e per scrivere GeoPackage con feature spazialmente coerenti (letture più veloci). Il parametro avanzato &lt;code&gt;HILBERT_ORDER&lt;/code&gt; regola la risoluzione della griglia (default 16, lato 2^16); non è disponibile come criterio primario in modalità multi-criterio.
+
+&lt;b&gt;Serpentina (boustrophedon):&lt;/b&gt; ordina le feature a bande, con l'asse trasversale alternato crescente/decrescente da una banda alla successiva — l'ordine classico per numerare le tavole di una serie cartografica a taglio regolare o un percorso di volo fotogrammetrico, senza il salto lungo da fine banda a inizio banda successiva tipico di un ordinamento a righe semplice. Il parametro &lt;code&gt;BAND_AXIS&lt;/code&gt; sceglie l'orientamento: bande orizzontali (per Y, X alternato — default) o verticali (per X, Y alternato). Il parametro avanzato &lt;code&gt;BAND_SIZE&lt;/code&gt; imposta la dimensione di banda nelle unità del CRS — altezza per bande orizzontali, larghezza per verticali (0/vuoto = automatica, dalla dimensione media delle bounding box delle feature). Il parametro avanzato &lt;code&gt;CROSS_ASCENDING&lt;/code&gt; sceglie l'angolo di partenza: con &lt;code&gt;DIRECTION&lt;/code&gt; (quale banda è la prima) e &lt;code&gt;CROSS_ASCENDING&lt;/code&gt; (verso dell'asse trasversale nella prima banda) sono raggiungibili tutti e quattro gli angoli della griglia. Non disponibile come criterio primario in modalità multi-criterio.
 
 &lt;b&gt;Numerazione personalizzata (parametri avanzati):&lt;/b&gt; valore iniziale (es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo (default &lt;b&gt;sort_order&lt;/b&gt;). Se il campo esiste già nel layer di input, i suoi valori vengono sovrascritti invece di creare un duplicato.
 
@@ -511,6 +547,16 @@ Non disponibile come criterio primario in modalità multi-criterio.</translation
     <message>
       <source>Ordine ascendente</source>
       <translation>Ordine ascendente</translation>
+    </message>
+    <message>
+      <source>Orizzontali (bande per Y, X alternato)</source>
+      <translation>Orizzontali (bande per Y, X alternato)</translation>
+    </message>
+    <message>
+      <source>Orizzontali: raggruppa per Y, alterna il verso di lettura della X.
+Verticali: raggruppa per X, alterna il verso di lettura della Y.</source>
+      <translation>Orizzontali: raggruppa per Y, alterna il verso di lettura della X.
+Verticali: raggruppa per X, alterna il verso di lettura della Y.</translation>
     </message>
     <message>
       <source>Output</source>
@@ -555,6 +601,10 @@ Non disponibile come criterio primario in modalità multi-criterio.</translation
     <message>
       <source>Posizione lungo linea di riferimento</source>
       <translation>Posizione lungo linea di riferimento</translation>
+    </message>
+    <message>
+      <source>Prima banda in verso crescente</source>
+      <translation>Prima banda in verso crescente</translation>
     </message>
     <message>
       <source>Proiezione centroide  –  tutte le feature</source>
@@ -603,6 +653,22 @@ campo sort_order viene scritto solo su quelle feature.</translation>
     <message>
       <source>Sempre geodetica</source>
       <translation>Sempre geodetica</translation>
+    </message>
+    <message>
+      <source>Serpentina (boustrophedon)</source>
+      <translation>Serpentina (boustrophedon)</translation>
+    </message>
+    <message>
+      <source>Serpentina – dimensione banda, unità del CRS (0 = automatica, da altezza/larghezza media delle feature)</source>
+      <translation>Serpentina – dimensione banda, unità del CRS (0 = automatica, da altezza/larghezza media delle feature)</translation>
+    </message>
+    <message>
+      <source>Serpentina – orientamento bande</source>
+      <translation>Serpentina – orientamento bande</translation>
+    </message>
+    <message>
+      <source>Serpentina – prima banda in verso crescente (altrimenti decrescente)</source>
+      <translation>Serpentina – prima banda in verso crescente (altrimenti decrescente)</translation>
     </message>
     <message>
       <source>Solo intersecanti  –  primo punto di intersezione</source>
@@ -683,6 +749,20 @@ vengono misurate sull'ellissoide (m²/m) invece che in gradi.
     <message>
       <source>Valori NULL in fondo (solo per criterio attributo)</source>
       <translation>Valori NULL in fondo (solo per criterio attributo)</translation>
+    </message>
+    <message>
+      <source>Verso dell'asse trasversale nella prima banda percorsa (X per bande
+orizzontali, Y per verticali): crescente (default) o decrescente.
+Combinato con la Direzione generale (quale banda è la prima),
+sceglie l'angolo di partenza del percorso a serpentina.</source>
+      <translation>Verso dell'asse trasversale nella prima banda percorsa (X per bande
+orizzontali, Y per verticali): crescente (default) o decrescente.
+Combinato con la Direzione generale (quale banda è la prima),
+sceglie l'angolo di partenza del percorso a serpentina.</translation>
+    </message>
+    <message>
+      <source>Verticali (bande per X, Y alternato)</source>
+      <translation>Verticali (bande per X, Y alternato)</translation>
     </message>
     <message>
       <source>Xmin Bounding Box</source>

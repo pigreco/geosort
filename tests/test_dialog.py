@@ -118,6 +118,55 @@ class TestGeoSortDialog(unittest.TestCase):
         self.dialog.rb_hilbert.setChecked(True)
         self.assertFalse(self.dialog.combo_secondary.isEnabled())
 
+    def test_serpentine_criterion_disables_field_combo(self):
+        """Con criterio 'Serpentina', la combo dei campi deve essere disabilitata."""
+        self.dialog.rb_serpentine.setChecked(True)
+        self.assertFalse(self.dialog.combo_field.isEnabled())
+
+    def test_serpentine_criterion_disables_secondary_criterion(self):
+        """Il criterio secondario (multi-criterio) non è disponibile con la serpentina."""
+        self.dialog.rb_serpentine.setChecked(True)
+        self.assertFalse(self.dialog.combo_secondary.isEnabled())
+
+    def test_serpentine_criterion_enables_band_size_spinbox(self):
+        """Con criterio 'Serpentina', il campo dimensione banda deve essere abilitato."""
+        self.dialog.rb_serpentine.setChecked(True)
+        self.assertTrue(self.dialog.spin_band_size.isEnabled())
+
+    def test_serpentine_criterion_enables_band_axis_combo(self):
+        """Con criterio 'Serpentina', la combo orientamento bande deve essere abilitata."""
+        self.dialog.rb_serpentine.setChecked(True)
+        self.assertTrue(self.dialog.combo_band_axis.isEnabled())
+
+    def test_other_criterion_disables_band_size_spinbox(self):
+        """Con un criterio diverso da 'Serpentina', il campo dimensione banda è disabilitato."""
+        self.dialog.rb_attribute.setChecked(True)
+        self.assertFalse(self.dialog.spin_band_size.isEnabled())
+
+    def test_other_criterion_disables_band_axis_combo(self):
+        """Con un criterio diverso da 'Serpentina', la combo orientamento bande è disabilitata."""
+        self.dialog.rb_attribute.setChecked(True)
+        self.assertFalse(self.dialog.combo_band_axis.isEnabled())
+
+    def test_band_axis_default_is_horizontal(self):
+        """Di default l'orientamento bande deve essere 'horizontal'."""
+        self.assertEqual(self.dialog.combo_band_axis.currentData(), "horizontal")
+
+    def test_serpentine_criterion_enables_cross_ascending_checkbox(self):
+        """Con criterio 'Serpentina', il checkbox 'prima banda crescente' deve essere abilitato."""
+        self.dialog.rb_serpentine.setChecked(True)
+        self.assertTrue(self.dialog.chk_cross_ascending.isEnabled())
+
+    def test_other_criterion_disables_cross_ascending_checkbox(self):
+        """Con un criterio diverso da 'Serpentina', il checkbox è disabilitato."""
+        self.dialog.rb_attribute.setChecked(True)
+        self.assertFalse(self.dialog.chk_cross_ascending.isEnabled())
+
+    def test_cross_ascending_default_is_checked(self):
+        """Di default 'prima banda in verso crescente' deve essere spuntato
+        (comportamento retrocompatibile, angolo di partenza invariato)."""
+        self.assertTrue(self.dialog.chk_cross_ascending.isChecked())
+
     # ── Selettore layer di riferimento ────────────────────────────────────────
 
     def test_ref_layer_enabled_for_spatial(self):
@@ -227,6 +276,7 @@ class TestGeoSortDialog(unittest.TestCase):
             (self.dialog.rb_geometry,  "geometry"),
             (self.dialog.rb_spatial,   "spatial"),
             (self.dialog.rb_hilbert,   "hilbert"),
+            (self.dialog.rb_serpentine, "serpentine"),
         ]:
             rb.setChecked(True)
             self.assertEqual(self.dialog.get_criterion(), expected)
