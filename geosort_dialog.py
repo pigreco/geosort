@@ -99,7 +99,6 @@ class GeoSortDialog(QDialog):
         main.addWidget(self._build_criterion_group())
         main.addWidget(self._build_options_group())
         main.addWidget(self._build_output_group())
-        main.addWidget(self._build_preview_group())
         main.addLayout(self._build_buttons())
 
         self.setLayout(main)
@@ -123,6 +122,11 @@ class GeoSortDialog(QDialog):
         self.lbl_crs = QLabel("–")
         self.lbl_crs.setStyleSheet("color: gray; font-size: 10px;")
         layout.addRow(self.tr("CRS / Units:"), self.lbl_crs)
+
+        # Il gruppo non deve cambiare altezza/larghezza in base al layer scelto
+        # (es. il testo di lbl_crs si allungherebbe per i CRS geografici):
+        # policy verticale Fixed lo blocca al sizeHint calcolato qui.
+        grp.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         return grp
 
@@ -335,7 +339,7 @@ class GeoSortDialog(QDialog):
         grp = QGroupBox(self.tr("Opzioni"))
         layout = QVBoxLayout(grp)
 
-        # Direzione
+        # Direzione + NULL in fondo sulla stessa riga (era 2 righe separate)
         dir_row = QHBoxLayout()
         dir_row.addWidget(QLabel(self.tr("Direzione:")))
         self._dir_bg = QButtonGroup(self)
@@ -346,12 +350,12 @@ class GeoSortDialog(QDialog):
         self._dir_bg.addButton(self.rb_desc, 1)
         dir_row.addWidget(self.rb_asc)
         dir_row.addWidget(self.rb_desc)
-        dir_row.addStretch()
-        layout.addLayout(dir_row)
-
+        dir_row.addSpacing(16)
         self.chk_nulls_last = QCheckBox(self.tr("Valori NULL in fondo (attributo e espressione)"))
         self.chk_nulls_last.setChecked(True)
-        layout.addWidget(self.chk_nulls_last)
+        dir_row.addWidget(self.chk_nulls_last)
+        dir_row.addStretch()
+        layout.addLayout(dir_row)
 
         self.chk_natural_sort = QCheckBox(self.tr("Ordinamento naturale – Natural Sort (es. 1, 2, 10 invece di 1, 10, 2)"))
         self.chk_natural_sort.setChecked(False)
@@ -384,11 +388,12 @@ class GeoSortDialog(QDialog):
         self.combo_secondary_field = QgsFieldComboBox()
         self.combo_secondary_field.setEnabled(False)
         sec_row.addWidget(self.combo_secondary_field)
+        sec_row.addSpacing(16)
+        self.chk_secondary_desc = QCheckBox(self.tr("discendente ↓"))
+        self.chk_secondary_desc.setToolTip(self.tr("Criterio secondario discendente ↓"))
+        sec_row.addWidget(self.chk_secondary_desc)
         sec_row.addStretch()
         layout.addLayout(sec_row)
-
-        self.chk_secondary_desc = QCheckBox(self.tr("Criterio secondario discendente ↓"))
-        layout.addWidget(self.chk_secondary_desc)
 
         # ── Misura geodetica ─────────────────────────────────────────────────
         geo_row = QHBoxLayout()
@@ -464,31 +469,55 @@ class GeoSortDialog(QDialog):
 
         return grp
 
-    def _build_preview_group(self):
-        grp = QGroupBox(self.tr("Anteprima (prime 10 feature ordinate)"))
-        layout = QVBoxLayout(grp)
+    def _build_preview_popup(self):
+        """Costruisce (una sola volta) il dialog popup con la tabella di anteprima."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle(self.tr("GeoSort – Anteprima"))
+        layout = QVBoxLayout(dlg)
+
+        self._preview_title = QLabel("")
+        layout.addWidget(self._preview_title)
 
         self.preview_table = QTableWidget(0, 3)
         self.preview_table.setHorizontalHeaderLabels([self.tr("FID"), self.tr("sort_order"), self.tr("Valore criterio")])
-        self.preview_table.setMaximumHeight(180)
         self.preview_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.preview_table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.preview_table)
 
-        self.btn_preview = QPushButton(self.tr("Aggiorna anteprima"))
-        layout.addWidget(self.btn_preview)
+        btn_refresh = QPushButton(self.tr("Aggiorna anteprima"))
+        btn_refresh.clicked.connect(self._update_preview)
+        btn_row = QHBoxLayout()
+        btn_row.addWidget(btn_refresh)
+        btn_row.addStretch()
+        btn_close = QPushButton(self.tr("Chiudi"))
+        btn_close.clicked.connect(dlg.close)
+        btn_row.addWidget(btn_close)
+        layout.addLayout(btn_row)
 
-        return grp
+        dlg.resize(480, 340)
+        return dlg
+
+    def _show_preview_popup(self):
+        """Apre (o riporta in primo piano) il popup di anteprima e la aggiorna."""
+        if not hasattr(self, "preview_popup"):
+            self.preview_popup = self._build_preview_popup()
+        self._update_preview()
+        self.preview_popup.show()
+        self.preview_popup.raise_()
+        self.preview_popup.activateWindow()
 
     def _build_buttons(self):
         row = QHBoxLayout()
         self.btn_help = QPushButton(self.tr("Help"))
+        self.btn_preview = QPushButton(self.tr("Anteprima…"))
+        self.btn_preview.setToolTip(self.tr("Mostra le prime feature ordinate con il criterio corrente"))
         self.btn_apply = QPushButton(self.tr("Applica"))
         self.btn_ok = QPushButton("OK")
         self.btn_cancel = QPushButton(self.tr("Annulla"))
         self.btn_close = QPushButton(self.tr("Chiudi"))
         self.btn_ok.setDefault(True)
         row.addWidget(self.btn_help)
+        row.addWidget(self.btn_preview)
         row.addStretch()
         row.addWidget(self.btn_apply)
         row.addWidget(self.btn_ok)
@@ -508,7 +537,7 @@ class GeoSortDialog(QDialog):
         self.combo_centroid.currentIndexChanged.connect(self._on_centroid_mode_changed)
         self.combo_secondary.currentIndexChanged.connect(self._on_secondary_changed)
 
-        self.btn_preview.clicked.connect(self._update_preview)
+        self.btn_preview.clicked.connect(self._show_preview_popup)
         self.btn_ok.clicked.connect(self._on_ok)
         self.btn_apply.clicked.connect(self._on_apply)
         self.btn_cancel.clicked.connect(self.reject)
@@ -534,18 +563,20 @@ class GeoSortDialog(QDialog):
             # versioni QGIS e già tradotto nella lingua dell'interfaccia.
             unit_str = QgsUnitTypes.toString(crs.mapUnits())
             is_geographic = crs.isGeographic()
-            self.lbl_crs.setText(f"{crs.authid()} – unità: {unit_str}")
+            # Testo visibile sempre breve e su una riga (il gruppo Input Layer è a
+            # dimensione fissa): il dettaglio esteso sul CRS geografico va in
+            # tooltip, non più concatenato al testo, per non farlo allungare.
             if is_geographic:
+                self.lbl_crs.setText(f"{crs.authid()} – unità: {unit_str} ⚠")
                 self.lbl_crs.setStyleSheet("color: #e67e22; font-size: 10px; font-weight: bold;")
-                self.lbl_crs.setText(
-                    self.lbl_crs.text()
-                    + self.tr(
-                        " ⚠ CRS geografico: GeoSort applica automaticamente la misura"
-                        " ellissoidica (geodetica) per area/lunghezza/distanze (m²/m)."
-                    )
-                )
+                self.lbl_crs.setToolTip(self.tr(
+                    "CRS geografico: GeoSort applica automaticamente la misura"
+                    " ellissoidica (geodetica) per area/lunghezza/distanze (m²/m)."
+                ))
             else:
+                self.lbl_crs.setText(f"{crs.authid()} – unità: {unit_str}")
                 self.lbl_crs.setStyleSheet("color: gray; font-size: 10px;")
+                self.lbl_crs.setToolTip("")
         self._on_criterion_changed()
 
     def _on_criterion_changed(self):
@@ -560,6 +591,9 @@ class GeoSortDialog(QDialog):
         self.combo_band_axis.setEnabled(is_serpentine)
         self.spin_band_size.setEnabled(is_serpentine)
         self.chk_cross_ascending.setEnabled(is_serpentine)
+        # Nascosta (non solo disabilitata) quando non serpentina: la sua riga
+        # nel grid collassa a 0px, come già fa ref_point_group più sotto.
+        self.chk_cross_ascending.setVisible(is_serpentine)
         self.combo_field.setEnabled(is_attr)
         self.btn_expression_builder.setEnabled(is_attr)
         self.chk_nulls_last.setEnabled(is_attr)
@@ -1083,17 +1117,14 @@ class GeoSortDialog(QDialog):
             self.preview_table.setItem(i, 2, QTableWidgetItem(val_str))
         self.preview_table.resizeColumnsToContents()
 
-        # Mostra conteggio feature escluse nell'intestazione del gruppo
-        parent_grp = self.preview_table.parent()
-        if excluded and hasattr(parent_grp, "setTitle"):
-            parent_grp.setTitle(
-                f"Anteprima (prime {n} di {len(sorted_feats)} feature ordinate"
-                f" · {len(excluded)} escluse per non intersezione)"
+        # Mostra conteggio feature escluse nella label sopra la tabella
+        if excluded:
+            self._preview_title.setText(
+                f"Prime {n} di {len(sorted_feats)} feature ordinate"
+                f" · {len(excluded)} escluse per non intersezione"
             )
-        elif hasattr(parent_grp, "setTitle"):
-            parent_grp.setTitle(
-                f"Anteprima (prime {n} feature ordinate)"
-            )
+        else:
+            self._preview_title.setText(f"Prime {n} feature ordinate")
 
     # ──────────────────────────────────────────────────────────────────────────
     # Esecuzione

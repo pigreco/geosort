@@ -3,10 +3,6 @@
   <context>
     <name>GeoSort</name>
     <message>
-      <source> ⚠ CRS geografico: GeoSort applica automaticamente la misura ellissoidica (geodetica) per area/lunghezza/distanze (m²/m).</source>
-      <translation> ⚠ Geographic CRS: GeoSort automatically applies ellipsoidal (geodesic) measurement for area/length/distances (m²/m).</translation>
-    </message>
-    <message>
       <source>(nessuno)</source>
       <translation>(none)</translation>
     </message>
@@ -57,8 +53,8 @@ or concatenation expressions such as "fid" || "id_poly".</translation>
       <translation>Cancel</translation>
     </message>
     <message>
-      <source>Anteprima (prime 10 feature ordinate)</source>
-      <translation>Preview (first 10 sorted features)</translation>
+      <source>Anteprima…</source>
+      <translation>Preview…</translation>
     </message>
     <message>
       <source>Applica</source>
@@ -115,6 +111,10 @@ E.g.: "area_kmq" / "popolazione"   or   length($geometry)</translation>
     <message>
       <source>CRS geografico ({authid}): misura ellissoidica (geodetica) applicata automaticamente. I valori del criterio sono in metri/m² sull'ellissoide {ellipsoid}, non in gradi.</source>
       <translation>Geographic CRS ({authid}): ellipsoidal (geodesic) measurement applied automatically. Criterion values are in meters/m² on the {ellipsoid} ellipsoid, not in degrees.</translation>
+    </message>
+    <message>
+      <source>CRS geografico: GeoSort applica automaticamente la misura ellissoidica (geodetica) per area/lunghezza/distanze (m²/m).</source>
+      <translation>Geographic CRS: GeoSort automatically applies ellipsoidal (geodesic) measurement for area/length/distances (m²/m).</translation>
     </message>
     <message>
       <source>Campo attributo (solo per criterio 'Attributo tabellare')</source>
@@ -277,6 +277,10 @@ Expression: {expr}</translation>
       <translation>GeoSort – Advanced Geometry Sorting</translation>
     </message>
     <message>
+      <source>GeoSort – Anteprima</source>
+      <translation>GeoSort – Preview</translation>
+    </message>
+    <message>
       <source>GeoSort: criterio secondario ignorato perché il criterio primario non supporta l'ordinamento multi-criterio (linea di riferimento, curva di Hilbert o serpentina).</source>
       <translation>GeoSort: secondary criterion ignored because the primary criterion does not support multi-criteria sorting (line-based, Hilbert curve, or serpentine).</translation>
     </message>
@@ -413,6 +417,10 @@ Overwrite it with the new ordering?</translation>
     <message>
       <source>Modalità sconosciuta: '{mode}'. Valori ammessi: {valid}</source>
       <translation>Unknown mode: '{mode}'. Allowed values: {valid}</translation>
+    </message>
+    <message>
+      <source>Mostra le prime feature ordinate con il criterio corrente</source>
+      <translation>Show the first sorted features for the current criterion</translation>
     </message>
     <message>
       <source>Nessuna feature selezionata sul layer (è attivo 'Ordina solo le feature selezionate').</source>
@@ -771,6 +779,10 @@ it chooses the starting corner of the serpentine path.</translation>
     <message>
       <source>Ymin Bounding Box</source>
       <translation>Bounding Box Ymin</translation>
+    </message>
+    <message>
+      <source>discendente ↓</source>
+      <translation>descending ↓</translation>
     </message>
     <message>
       <source>sort_order</source>

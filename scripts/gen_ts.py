@@ -85,7 +85,10 @@ EN = {
     "Crea nuovo layer in memoria": "Create new memory layer",
     "Aggiungi campo con il valore del criterio usato (es. sort_area, sort_dist)":
         "Add a field with the used criterion value (e.g. sort_area, sort_dist)",
-    "Anteprima (prime 10 feature ordinate)": "Preview (first 10 sorted features)",
+    "Anteprima…": "Preview…",
+    "Mostra le prime feature ordinate con il criterio corrente":
+        "Show the first sorted features for the current criterion",
+    "GeoSort – Anteprima": "GeoSort – Preview",
     "FID": "FID",
     "sort_order": "sort_order",
     "Valore criterio": "Criterion value",
@@ -103,6 +106,7 @@ EN = {
     "Area (poligoni)": "Area (polygons)",
     "Perimetro (poligoni)": "Perimeter (polygons)",
     "Lunghezza (linee)": "Length (lines)",
+    "discendente ↓": "descending ↓",
     "Criterio secondario discendente ↓": "Secondary criterion descending ↓",
     "Spezza i pareggi del criterio primario (es. primario = Regione, secondario = Area). Non disponibile se il criterio primario è basato su linea.":
         "Breaks ties of the primary criterion (e.g. primary = Region, secondary = Area). "
@@ -115,8 +119,6 @@ EN = {
     "Misura geodetica: mai (planare)": "Geodesic measurement: never (planar)",
     "Su CRS geografico (gradi, es. EPSG:4326), area/lunghezza/distanze\n":
         "On a geographic CRS (degrees, e.g. EPSG:4326), area/length/distances\n",
-    " ⚠ CRS geografico: GeoSort applica automaticamente la misura":
-        " ⚠ Geographic CRS: GeoSort automatically applies ellipsoidal (geodesic) measurement",
 }
 
 # Stringhe complete (multilinea) e nuove voci: algoritmo Processing, core,
@@ -186,9 +188,9 @@ EN.update({
         "• Automatic: geodesic only if the CRS is geographic (recommended).\n"
         "• Always: geodesic even on projected CRS.\n"
         "• Never (planar): measured in the native CRS units.",
-    " ⚠ CRS geografico: GeoSort applica automaticamente la misura"
+    "CRS geografico: GeoSort applica automaticamente la misura"
     " ellissoidica (geodetica) per area/lunghezza/distanze (m²/m).":
-        " ⚠ Geographic CRS: GeoSort automatically applies ellipsoidal"
+        "Geographic CRS: GeoSort automatically applies ellipsoidal"
         " (geodesic) measurement for area/length/distances (m²/m).",
     "Nessuna feature selezionata sul layer (è attivo 'Ordina solo le feature selezionate').":
         "No features selected on the layer ('Sort only selected features' is enabled).",
