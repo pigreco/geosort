@@ -236,21 +236,21 @@ Core sorting logic tests do not require QGIS:
 ```bash
 cd geosort
 python -m unittest tests.test_sorting -v
-# 160 tests on core logic (sort_by_attribute, sort_by_centroid, sort_multi, NULL geometry robustness, geodesic measurement, etc.)
+# 173 tests on core logic (sort_by_attribute, sort_by_centroid, sort_multi, NULL geometry robustness, geodesic measurement, etc.)
 ```
 
 Dialog and Processing algorithm tests require QGIS in PATH:
 
 ```bash
 python -m unittest tests.test_dialog -v     # UI tests (29 tests)
-python -m unittest tests.test_algorithm -v  # Processing Toolbox tests (32 tests)
+python -m unittest tests.test_algorithm -v  # Processing Toolbox tests, all 16 criteria (45 tests)
 ```
 
 Run all tests:
 
 ```bash
 python -m unittest discover tests -p "test_*.py" -v
-# Output: 221 tests (160 ok, 61 skipped that require QGIS)
+# Output: 247 tests (173 ok, 74 skipped that require QGIS)
 ```
 
 Every push and pull request automatically runs the whole suite on GitHub Actions:

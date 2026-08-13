@@ -374,6 +374,287 @@ class TestGeoSortAlgorithm(unittest.TestCase):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Copertura end-to-end di TUTTI i 16 criteri via processing.run()
+# ──────────────────────────────────────────────────────────────────────────────
+# TestGeoSortAlgorithm sopra esercita solo gli indici 0 (attribute), 1
+# (centroid_x) e 3 (centroid_dist) attraverso l'algoritmo Processing reale.
+# Questa classe copre i restanti: centroid_y, i criteri geometrici (area,
+# perimeter, length, n_vertices, i 5 bbox_*), line_position, line_distance ed
+# expression — con geometrie scelte apposta perché ogni sotto-criterio dia un
+# ordine diverso dagli altri, in modo da smascherare eventuali scambi (es.
+# area/perimeter o xmin/ymin invertiti) invece di limitarsi a verificare che
+# l'algoritmo non vada in crash.
+
+@unittest.skipUnless(_qgis_available(), "QGIS non disponibile in questo ambiente di test")
+@unittest.skipUnless(_processing_available(), "Processing module non disponibile in questo ambiente di test")
+class TestGeoSortAlgorithmAllCriteria(unittest.TestCase):
+    """Copertura end-to-end (processing.run) dei criteri non testati altrove."""
+
+    @classmethod
+    def setUpClass(cls):
+        from qgis.testing import start_app
+        cls.qgis_app = start_app()
+        from qgis.core import QgsApplication
+        from processing.core.Processing import Processing
+        Processing.initialize()
+        registry = QgsApplication.processingRegistry()
+        if registry.providerById("geosort") is None:
+            from geosort.geosort_provider import GeoSortProvider
+            cls._provider = GeoSortProvider()
+            registry.addProvider(cls._provider)
+
+    def _make_layer(self, uri, name, features):
+        """Crea un layer in memoria con le feature (geometria, attributi) date."""
+        from qgis.core import QgsVectorLayer, QgsFeature, QgsProject
+        layer = QgsVectorLayer(uri, name, "memory")
+        layer.startEditing()
+        for geom, attrs in features:
+            feat = QgsFeature()
+            feat.setGeometry(geom)
+            if attrs:
+                feat.setAttributes(attrs)
+            layer.addFeature(feat)
+        layer.commitChanges()
+        QgsProject.instance().addMapLayer(layer)
+        self._layers.append(layer)
+        return layer
+
+    def setUp(self):
+        self._layers = []  # rimossi in tearDown
+
+    def tearDown(self):
+        from qgis.core import QgsProject
+        for layer in self._layers:
+            QgsProject.instance().removeMapLayer(layer.id())
+
+    def _order_by_id(self, out_layer, id_field="id", order_field="sort_order"):
+        return {f[id_field]: f[order_field] for f in out_layer.getFeatures()}
+
+    # ── centroid_y (indice 2) ───────────────────────────────────────────────
+
+    def test_centroid_y(self):
+        """CRITERION=2: ordina per la coordinata Y del centroide, non per X."""
+        import processing
+        from qgis.core import QgsGeometry, QgsPointXY, QgsFields, QgsField
+        from qgis.PyQt.QtCore import QMetaType
+        fields = QgsFields()
+        fields.append(QgsField("id", QMetaType.Type.Int))
+        # Punti con X e Y "scambiati" rispetto all'id: se il codice usasse per
+        # errore la X invece della Y, l'ordine risultante sarebbe diverso.
+        layer = self._make_layer(
+            "Point?crs=EPSG:4326&field=id:integer", "xy_layer",
+            [
+                (QgsGeometry.fromPointXY(QgsPointXY(0, 5)), [0]),
+                (QgsGeometry.fromPointXY(QgsPointXY(1, 3)), [1]),
+                (QgsGeometry.fromPointXY(QgsPointXY(2, 8)), [2]),
+            ],
+        )
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": layer, "CRITERION": 2, "DIRECTION": True, "OUTPUT": "memory:",
+        })
+        order_by_id = self._order_by_id(result["OUTPUT"])
+        # Ascendente per Y: id1 (y=3) < id0 (y=5) < id2 (y=8)
+        self.assertEqual(order_by_id, {1: 1, 0: 2, 2: 3})
+
+    # ── area / perimeter (indici 4 / 5) ─────────────────────────────────────
+
+    def _poly_layer(self):
+        from qgis.core import QgsGeometry, QgsPointXY, QgsFields, QgsField
+        from qgis.PyQt.QtCore import QMetaType
+        # E: rettangolo molto sottile e lungo → area piccola, perimetro grande.
+        # F: quadrato compatto → area grande, perimetro piccolo.
+        # L'ordine di area e perimetro è quindi OPPOSTO: un eventuale scambio
+        # fra i due criteri nel codice produrrebbe l'ordine sbagliato.
+        e = QgsGeometry.fromPolygonXY([[
+            QgsPointXY(0, 0), QgsPointXY(100, 0), QgsPointXY(100, 0.01),
+            QgsPointXY(0, 0.01), QgsPointXY(0, 0),
+        ]])  # area = 1, perimetro ≈ 200.02
+        f = QgsGeometry.fromPolygonXY([[
+            QgsPointXY(0, 0), QgsPointXY(5, 0), QgsPointXY(5, 5),
+            QgsPointXY(0, 5), QgsPointXY(0, 0),
+        ]])  # area = 25, perimetro = 20
+        return self._make_layer(
+            "Polygon?crs=EPSG:32633&field=id:integer", "poly_layer",
+            [(e, [0]), (f, [1])],
+        )
+
+    def test_area(self):
+        """CRITERION=4: area ascendente → rettangolo sottile (E) prima del quadrato (F)."""
+        import processing
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": self._poly_layer(), "CRITERION": 4, "DIRECTION": True, "OUTPUT": "memory:",
+        })
+        self.assertEqual(self._order_by_id(result["OUTPUT"]), {0: 1, 1: 2})
+
+    def test_perimeter(self):
+        """CRITERION=5: perimetro ascendente → ordine OPPOSTO a quello dell'area."""
+        import processing
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": self._poly_layer(), "CRITERION": 5, "DIRECTION": True, "OUTPUT": "memory:",
+        })
+        self.assertEqual(self._order_by_id(result["OUTPUT"]), {1: 1, 0: 2})
+
+    # ── length (indice 6) ────────────────────────────────────────────────────
+
+    def test_length(self):
+        """CRITERION=6: ordina le linee per lunghezza."""
+        import processing
+        from qgis.core import QgsGeometry, QgsPointXY
+        # CRS proiettato (metri): "length" è in GEODESIC_CRITERIA, un CRS
+        # geografico userebbe la misura ellissoidica invece dei metri piani
+        # calcolati a mano qui sotto.
+        short = QgsGeometry.fromPolylineXY([QgsPointXY(0, 0), QgsPointXY(3, 0)])   # lunghezza 3
+        long_ = QgsGeometry.fromPolylineXY([QgsPointXY(0, 0), QgsPointXY(0, 7)])   # lunghezza 7
+        layer = self._make_layer(
+            "LineString?crs=EPSG:32633&field=id:integer", "lines_layer",
+            [(short, [0]), (long_, [1])],
+        )
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": layer, "CRITERION": 6, "DIRECTION": True, "OUTPUT": "memory:",
+        })
+        self.assertEqual(self._order_by_id(result["OUTPUT"]), {0: 1, 1: 2})
+
+    # ── n_vertices (indice 7) ────────────────────────────────────────────────
+
+    def test_n_vertices(self):
+        """CRITERION=7: ordina per numero di vertici, non per lunghezza."""
+        import processing
+        from qgis.core import QgsGeometry, QgsPointXY
+        # 'straight' è più corta ma ha meno vertici; 'zigzag' è più lunga con
+        # più vertici: se il criterio usasse la lunghezza invece del conteggio
+        # vertici, l'ordine risultante sarebbe l'opposto.
+        straight = QgsGeometry.fromPolylineXY([QgsPointXY(0, 0), QgsPointXY(1, 0)])
+        zigzag = QgsGeometry.fromPolylineXY([
+            QgsPointXY(0, 0), QgsPointXY(1, 1), QgsPointXY(2, 0), QgsPointXY(3, 1),
+        ])
+        layer = self._make_layer(
+            "LineString?crs=EPSG:4326&field=id:integer", "vertices_layer",
+            [(straight, [0]), (zigzag, [1])],
+        )
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": layer, "CRITERION": 7, "DIRECTION": True, "OUTPUT": "memory:",
+        })
+        self.assertEqual(self._order_by_id(result["OUTPUT"]), {0: 1, 1: 2})
+
+    # ── bounding box: width, height, area, xmin, ymin (indici 8-12) ─────────
+
+    def _bbox_layer(self):
+        from qgis.core import QgsGeometry, QgsPointXY
+        # P: bbox largo e basso, xmin piccolo, ymin grande.
+        # Q: bbox stretto e alto, xmin grande, ymin piccolo.
+        # Ogni sotto-criterio bbox_* dà quindi un ordine diverso dagli altri.
+        p = QgsGeometry.fromPolygonXY([[
+            QgsPointXY(0, 5), QgsPointXY(3, 5), QgsPointXY(3, 7),
+            QgsPointXY(0, 7), QgsPointXY(0, 5),
+        ]])  # width=3, height=2, area=6, xmin=0, ymin=5
+        q = QgsGeometry.fromPolygonXY([[
+            QgsPointXY(10, 1), QgsPointXY(15, 1), QgsPointXY(15, 2),
+            QgsPointXY(10, 2), QgsPointXY(10, 1),
+        ]])  # width=5, height=1, area=5, xmin=10, ymin=1
+        return self._make_layer(
+            "Polygon?crs=EPSG:32633&field=id:integer", "bbox_layer",
+            [(p, [0]), (q, [1])],
+        )
+
+    def _run_bbox(self, criterion_idx):
+        import processing
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": self._bbox_layer(), "CRITERION": criterion_idx,
+            "DIRECTION": True, "OUTPUT": "memory:",
+        })
+        return self._order_by_id(result["OUTPUT"])
+
+    def test_bbox_width(self):
+        """CRITERION=8: bbox_width ascendente → P (3) prima di Q (5)."""
+        self.assertEqual(self._run_bbox(8), {0: 1, 1: 2})
+
+    def test_bbox_height(self):
+        """CRITERION=9: bbox_height ascendente → ordine opposto a bbox_width."""
+        self.assertEqual(self._run_bbox(9), {1: 1, 0: 2})
+
+    def test_bbox_area(self):
+        """CRITERION=10: bbox_area ascendente → Q (5) prima di P (6)."""
+        self.assertEqual(self._run_bbox(10), {1: 1, 0: 2})
+
+    def test_bbox_xmin(self):
+        """CRITERION=11: bbox_xmin ascendente → P (0) prima di Q (10)."""
+        self.assertEqual(self._run_bbox(11), {0: 1, 1: 2})
+
+    def test_bbox_ymin(self):
+        """CRITERION=12: bbox_ymin ascendente → ordine opposto a bbox_xmin."""
+        self.assertEqual(self._run_bbox(12), {1: 1, 0: 2})
+
+    # ── line_position / line_distance (indici 13 / 14) ──────────────────────
+
+    def _line_ref_and_points(self):
+        from qgis.core import QgsGeometry, QgsPointXY
+        # CRS proiettato (metri): line_distance è in GEODESIC_CRITERIA, quindi
+        # su un CRS geografico userebbe la misura ellissoidica e i valori
+        # calcolati a mano qui sotto non coinciderebbero più esattamente.
+        # Linea di riferimento orizzontale (0,0)-(10,0).
+        ref_line = self._make_layer(
+            "LineString?crs=EPSG:32633", "ref_line",
+            [(QgsGeometry.fromPolylineXY([QgsPointXY(0, 0), QgsPointXY(10, 0)]), [])],
+        )
+        # Punti fuori dalla linea: proiezione e distanza perpendicolare danno
+        # ordini diversi, così i due criteri non si confondono a vicenda.
+        # id0: proiezione=2, distanza=3   id1: proiezione=5, distanza=1   id2: proiezione=8, distanza=5
+        pts_layer = self._make_layer(
+            "Point?crs=EPSG:32633&field=id:integer", "offset_points",
+            [
+                (QgsGeometry.fromPointXY(QgsPointXY(2, 3)), [0]),
+                (QgsGeometry.fromPointXY(QgsPointXY(5, 1)), [1]),
+                (QgsGeometry.fromPointXY(QgsPointXY(8, 5)), [2]),
+            ],
+        )
+        return ref_line, pts_layer
+
+    def test_line_position(self):
+        """CRITERION=13: posizione (proiezione) lungo la linea di riferimento."""
+        import processing
+        ref_line, pts_layer = self._line_ref_and_points()
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": pts_layer, "CRITERION": 13, "REF_LAYER": ref_line,
+            "DIRECTION": True, "OUTPUT": "memory:",
+        })
+        # Proiezione crescente: id0 (2) < id1 (5) < id2 (8)
+        self.assertEqual(self._order_by_id(result["OUTPUT"]), {0: 1, 1: 2, 2: 3})
+
+    def test_line_distance(self):
+        """CRITERION=14: distanza perpendicolare dalla linea — ordine diverso da line_position."""
+        import processing
+        ref_line, pts_layer = self._line_ref_and_points()
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": pts_layer, "CRITERION": 14, "REF_LAYER": ref_line,
+            "DIRECTION": True, "OUTPUT": "memory:",
+        })
+        # Distanza crescente: id1 (1) < id0 (3) < id2 (5)
+        self.assertEqual(self._order_by_id(result["OUTPUT"]), {1: 1, 0: 2, 2: 3})
+
+    # ── expression (indice 15) ──────────────────────────────────────────────
+
+    def test_expression(self):
+        """CRITERION=15: ordina per il risultato di un'espressione QGIS."""
+        import processing
+        from qgis.core import QgsGeometry, QgsPointXY
+        layer = self._make_layer(
+            "Point?crs=EPSG:4326&field=id:integer", "expr_layer",
+            [
+                (QgsGeometry.fromPointXY(QgsPointXY(0, 0)), [0]),
+                (QgsGeometry.fromPointXY(QgsPointXY(1, 1)), [1]),
+                (QgsGeometry.fromPointXY(QgsPointXY(2, 2)), [2]),
+            ],
+        )
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": layer, "CRITERION": 15,
+            "EXPRESSION": "10 - \"id\"",  # inverte l'ordine naturale degli id
+            "DIRECTION": True, "OUTPUT": "memory:",
+        })
+        # 10-id ascendente → id decrescente: id2 (8) < id1 (9) < id0 (10)
+        self.assertEqual(self._order_by_id(result["OUTPUT"]), {2: 1, 1: 2, 0: 3})
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Entry point
 
 if __name__ == "__main__":
