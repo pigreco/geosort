@@ -3,10 +3,6 @@
   <context>
     <name>GeoSort</name>
     <message>
-      <source> ⚠ CRS geografico: GeoSort applica automaticamente la misura ellissoidica (geodetica) per area/lunghezza/distanze (m²/m).</source>
-      <translation> ⚠ Geographic CRS: GeoSort automatically applies ellipsoidal (geodesic) measurement for area/length/distances (m²/m).</translation>
-    </message>
-    <message>
       <source>(nessuno)</source>
       <translation>(none)</translation>
     </message>
@@ -115,6 +111,10 @@ E.g.: "area_kmq" / "popolazione"   or   length($geometry)</translation>
     <message>
       <source>CRS geografico ({authid}): misura ellissoidica (geodetica) applicata automaticamente. I valori del criterio sono in metri/m² sull'ellissoide {ellipsoid}, non in gradi.</source>
       <translation>Geographic CRS ({authid}): ellipsoidal (geodesic) measurement applied automatically. Criterion values are in meters/m² on the {ellipsoid} ellipsoid, not in degrees.</translation>
+    </message>
+    <message>
+      <source>CRS geografico: GeoSort applica automaticamente la misura ellissoidica (geodetica) per area/lunghezza/distanze (m²/m).</source>
+      <translation>Geographic CRS: GeoSort automatically applies ellipsoidal (geodesic) measurement for area/length/distances (m²/m).</translation>
     </message>
     <message>
       <source>Campo attributo (solo per criterio 'Attributo tabellare')</source>

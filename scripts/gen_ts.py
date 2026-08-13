@@ -119,8 +119,6 @@ EN = {
     "Misura geodetica: mai (planare)": "Geodesic measurement: never (planar)",
     "Su CRS geografico (gradi, es. EPSG:4326), area/lunghezza/distanze\n":
         "On a geographic CRS (degrees, e.g. EPSG:4326), area/length/distances\n",
-    " ⚠ CRS geografico: GeoSort applica automaticamente la misura":
-        " ⚠ Geographic CRS: GeoSort automatically applies ellipsoidal (geodesic) measurement",
 }
 
 # Stringhe complete (multilinea) e nuove voci: algoritmo Processing, core,
@@ -190,9 +188,9 @@ EN.update({
         "• Automatic: geodesic only if the CRS is geographic (recommended).\n"
         "• Always: geodesic even on projected CRS.\n"
         "• Never (planar): measured in the native CRS units.",
-    " ⚠ CRS geografico: GeoSort applica automaticamente la misura"
+    "CRS geografico: GeoSort applica automaticamente la misura"
     " ellissoidica (geodetica) per area/lunghezza/distanze (m²/m).":
-        " ⚠ Geographic CRS: GeoSort automatically applies ellipsoidal"
+        "Geographic CRS: GeoSort automatically applies ellipsoidal"
         " (geodesic) measurement for area/length/distances (m²/m).",
     "Nessuna feature selezionata sul layer (è attivo 'Ordina solo le feature selezionate').":
         "No features selected on the layer ('Sort only selected features' is enabled).",

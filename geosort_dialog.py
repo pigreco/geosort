@@ -99,7 +99,6 @@ class GeoSortDialog(QDialog):
         main.addWidget(self._build_criterion_group())
         main.addWidget(self._build_options_group())
         main.addWidget(self._build_output_group())
-        main.addLayout(self._build_preview_group())
         main.addLayout(self._build_buttons())
 
         self.setLayout(main)
@@ -123,6 +122,11 @@ class GeoSortDialog(QDialog):
         self.lbl_crs = QLabel("–")
         self.lbl_crs.setStyleSheet("color: gray; font-size: 10px;")
         layout.addRow(self.tr("CRS / Units:"), self.lbl_crs)
+
+        # Il gruppo non deve cambiare altezza/larghezza in base al layer scelto
+        # (es. il testo di lbl_crs si allungherebbe per i CRS geografici):
+        # policy verticale Fixed lo blocca al sizeHint calcolato qui.
+        grp.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         return grp
 
@@ -465,18 +469,6 @@ class GeoSortDialog(QDialog):
 
         return grp
 
-    def _build_preview_group(self):
-        """Riga compatta con un solo pulsante: l'anteprima vera e propria vive
-        in un popup costruito on-demand da ``_show_preview_popup`` (non occupa
-        altezza nella finestra principale finché non viene richiesta).
-        """
-        row = QHBoxLayout()
-        self.btn_preview = QPushButton(self.tr("Anteprima…"))
-        self.btn_preview.setToolTip(self.tr("Mostra le prime feature ordinate con il criterio corrente"))
-        row.addWidget(self.btn_preview)
-        row.addStretch()
-        return row
-
     def _build_preview_popup(self):
         """Costruisce (una sola volta) il dialog popup con la tabella di anteprima."""
         dlg = QDialog(self)
@@ -517,12 +509,15 @@ class GeoSortDialog(QDialog):
     def _build_buttons(self):
         row = QHBoxLayout()
         self.btn_help = QPushButton(self.tr("Help"))
+        self.btn_preview = QPushButton(self.tr("Anteprima…"))
+        self.btn_preview.setToolTip(self.tr("Mostra le prime feature ordinate con il criterio corrente"))
         self.btn_apply = QPushButton(self.tr("Applica"))
         self.btn_ok = QPushButton("OK")
         self.btn_cancel = QPushButton(self.tr("Annulla"))
         self.btn_close = QPushButton(self.tr("Chiudi"))
         self.btn_ok.setDefault(True)
         row.addWidget(self.btn_help)
+        row.addWidget(self.btn_preview)
         row.addStretch()
         row.addWidget(self.btn_apply)
         row.addWidget(self.btn_ok)
@@ -568,18 +563,20 @@ class GeoSortDialog(QDialog):
             # versioni QGIS e già tradotto nella lingua dell'interfaccia.
             unit_str = QgsUnitTypes.toString(crs.mapUnits())
             is_geographic = crs.isGeographic()
-            self.lbl_crs.setText(f"{crs.authid()} – unità: {unit_str}")
+            # Testo visibile sempre breve e su una riga (il gruppo Input Layer è a
+            # dimensione fissa): il dettaglio esteso sul CRS geografico va in
+            # tooltip, non più concatenato al testo, per non farlo allungare.
             if is_geographic:
+                self.lbl_crs.setText(f"{crs.authid()} – unità: {unit_str} ⚠")
                 self.lbl_crs.setStyleSheet("color: #e67e22; font-size: 10px; font-weight: bold;")
-                self.lbl_crs.setText(
-                    self.lbl_crs.text()
-                    + self.tr(
-                        " ⚠ CRS geografico: GeoSort applica automaticamente la misura"
-                        " ellissoidica (geodetica) per area/lunghezza/distanze (m²/m)."
-                    )
-                )
+                self.lbl_crs.setToolTip(self.tr(
+                    "CRS geografico: GeoSort applica automaticamente la misura"
+                    " ellissoidica (geodetica) per area/lunghezza/distanze (m²/m)."
+                ))
             else:
+                self.lbl_crs.setText(f"{crs.authid()} – unità: {unit_str}")
                 self.lbl_crs.setStyleSheet("color: gray; font-size: 10px;")
+                self.lbl_crs.setToolTip("")
         self._on_criterion_changed()
 
     def _on_criterion_changed(self):
