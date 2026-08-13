@@ -1168,6 +1168,9 @@ def apply_sort_order(
     criterion_values=None,
     criterion_field_name="sort_value",
     progress_callback=None,
+    start=1,
+    step=1,
+    order_field_name="sort_order",
 ):
     """Scrive il campo sort_order (e opzionalmente il campo criterio) sul layer.
 
@@ -1180,6 +1183,9 @@ def apply_sort_order(
         criterion_values (list | None): valori numerici corrispondenti a sorted_features.
         criterion_field_name (str): nome del campo criterio aggiuntivo.
         progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
+        start (int): valore iniziale della numerazione (default 1).
+        step (int): incremento fra feature consecutive (default 1).
+        order_field_name (str): nome del campo progressivo (default "sort_order").
 
     Returns:
         bool: True se riuscito, False in caso di errore.
@@ -1194,11 +1200,11 @@ def apply_sort_order(
                 return False
 
         # ── Campo sort_order ──────────────────────────────────────────────────
-        sort_idx = layer.fields().indexOf("sort_order")
+        sort_idx = layer.fields().indexOf(order_field_name)
         if sort_idx == -1:
-            layer.addAttribute(QgsField("sort_order", QMetaType.Type.Int))
+            layer.addAttribute(QgsField(order_field_name, QMetaType.Type.Int))
             layer.updateFields()
-            sort_idx = layer.fields().indexOf("sort_order")
+            sort_idx = layer.fields().indexOf(order_field_name)
 
         # ── Campo criterio (opzionale) ────────────────────────────────────────
         crit_idx = -1
@@ -1222,7 +1228,7 @@ def apply_sort_order(
         layer.beginEditCommand("GeoSort")
         try:
             for i, feat in enumerate(sorted_features):
-                changes = {sort_idx: i + 1}
+                changes = {sort_idx: start + i * step}
                 if write_crit:
                     changes[crit_idx] = _coerce_value(criterion_values[i], crit_field_type)
                 layer.changeAttributeValues(feat.id(), changes)
@@ -1263,8 +1269,15 @@ def create_memory_layer(
     criterion_values=None,
     criterion_field_name="sort_value",
     progress_callback=None,
+    start=1,
+    step=1,
+    order_field_name="sort_order",
 ):
     """Crea un nuovo layer in memoria con le feature ordinate e il campo sort_order.
+
+    Se il layer sorgente contiene già un campo ``order_field_name``, il campo
+    esistente viene riutilizzato (i valori sono sovrascritti) invece di
+    aggiungerne un duplicato.
 
     Args:
         source_layer (QgsVectorLayer): layer sorgente (per CRS, tipo geometria, campi).
@@ -1273,6 +1286,9 @@ def create_memory_layer(
         criterion_values (list | None): valori numerici corrispondenti a sorted_features.
         criterion_field_name (str): nome del campo criterio aggiuntivo.
         progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
+        start (int): valore iniziale della numerazione (default 1).
+        step (int): incremento fra feature consecutive (default 1).
+        order_field_name (str): nome del campo progressivo (default "sort_order").
 
     Returns:
         QgsVectorLayer: nuovo layer in memoria con 'sort_order' aggiunto.
@@ -1285,7 +1301,10 @@ def create_memory_layer(
     provider = mem_layer.dataProvider()
 
     original_fields = source_layer.fields().toList()
-    new_fields = original_fields + [QgsField("sort_order", QMetaType.Type.Int)]
+    order_idx = source_layer.fields().indexOf(order_field_name)
+    new_fields = list(original_fields)
+    if order_idx == -1:
+        new_fields.append(QgsField(order_field_name, QMetaType.Type.Int))
     crit_field_type = QMetaType.Type.Double
     if add_criterion_field and criterion_values:
         crit_field_type = _infer_field_type(criterion_values)
@@ -1301,7 +1320,12 @@ def create_memory_layer(
         new_feat = QgsFeature(mem_layer.fields())
         new_feat.setGeometry(feat.geometry())
         # setAttributes: una sola chiamata invece di un lookup per nome per campo
-        attrs = feat.attributes() + [i + 1]
+        order_value = start + i * step
+        attrs = list(feat.attributes())
+        if order_idx == -1:
+            attrs.append(order_value)
+        else:
+            attrs[order_idx] = order_value
         if write_crit:
             attrs.append(_coerce_value(criterion_values[i], crit_field_type))
         new_feat.setAttributes(attrs)

@@ -1,3 +1,8 @@
 __pycache__/
 *.pyc
 *.pyo
+
+# Dati vettoriali empirici per test manuali/esplorativi con qgis-headless
+# (rigenerabili con scripts/gen_test_empirici.py). Non fanno parte della
+# suite automatica: vedi CLAUDE.md, sezione "Test empirici".
+test_empirici/

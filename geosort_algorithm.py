@@ -14,6 +14,9 @@ from qgis.core import (
     QgsProcessingParameterField,
     QgsProcessingParameterFeatureSink,
     QgsProcessingParameterExpression,
+    QgsProcessingParameterPoint,
+    QgsProcessingParameterNumber,
+    QgsProcessingParameterString,
     QgsProcessingParameterDefinition,
     QgsProcessingOutputNumber,
     QgsFeatureSink,
@@ -25,6 +28,8 @@ from qgis.core import (
     QgsFields,
     QgsGeometry,
     QgsPointXY,
+    QgsCoordinateTransform,
+    QgsCsException,
     QgsMessageLog,
     Qgis,
     NULL,
@@ -44,16 +49,25 @@ try:
 except AttributeError:
     _FLAG_ADVANCED = QgsProcessingParameterDefinition.FlagAdvanced
 
+# Stessa compatibilità per il tipo numerico intero dei parametri Processing
+# (QGIS 3.36+/4.x: ``Qgis.ProcessingNumberParameterType``; 3.16-3.34:
+# ``QgsProcessingParameterNumber.Integer``).
+try:
+    _NUMBER_INTEGER = Qgis.ProcessingNumberParameterType.Integer
+except AttributeError:
+    _NUMBER_INTEGER = QgsProcessingParameterNumber.Integer
+
 
 class _Canceled(Exception):
     """Segnala che l'utente ha annullato l'esecuzione dal feedback di Processing."""
 
 
-def _spec_from(key, field, expression, ascending, nulls_last, natural_sort):
+def _spec_from(key, field, expression, ascending, nulls_last, natural_sort,
+               ref_point=None):
     """Costruisce un descrittore di criterio per ``geosort_core.sort_multi``.
 
     Supporta solo i criteri "semplici" (senza geometria di riferimento esterna):
-    attributo, espressione, centroide X/Y/distanza-da-origine, proprietà geometriche.
+    attributo, espressione, centroide X/Y/distanza-da-punto, proprietà geometriche.
     """
     spec = {
         "key": key,
@@ -66,7 +80,7 @@ def _spec_from(key, field, expression, ascending, nulls_last, natural_sort):
     elif key == "expression":
         spec["expression"] = expression
     elif key == "centroid_dist":
-        spec["ref_point"] = QgsPointXY(0, 0)  # distanza dall'origine (0,0)
+        spec["ref_point"] = ref_point if ref_point is not None else QgsPointXY(0, 0)
     return spec
 
 
@@ -82,7 +96,11 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     NATURAL_SORT = "NATURAL_SORT"
     GEODESIC = "GEODESIC"
     REF_LAYER = "REF_LAYER"
+    REF_POINT = "REF_POINT"
     ADD_VALUE_FIELD = "ADD_VALUE_FIELD"
+    START = "START"
+    STEP = "STEP"
+    ORDER_FIELD = "ORDER_FIELD"
     OUTPUT = "OUTPUT"
 
     # Indici criterio → chiave interna
@@ -141,7 +159,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         "Attributo tabellare",
         "Centroide – coordinata X",
         "Centroide – coordinata Y",
-        "Centroide – distanza da origine (0,0)",
+        "Centroide – distanza da punto di riferimento (default 0,0)",
         "Area (poligoni)",
         "Perimetro (poligoni)",
         "Lunghezza (linee)",
@@ -193,6 +211,16 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             "<b>Ordinamento multi-criterio:</b> imposta un <b>criterio secondario</b> "
             "per spezzare i pareggi del criterio primario (es. primario = regione, "
             "secondario = area decrescente). Disponibile per i criteri non basati su linea.\n\n"
+            "<b>Punto di riferimento:</b> per il criterio «Centroide – distanza» è possibile "
+            "indicare un punto di riferimento (anche col pulsante «... sulla mappa»); "
+            "se lasciato vuoto si usa l'origine (0,0) come nelle versioni precedenti.\n\n"
+            "<b>Layer di riferimento (posizione/distanza lungo linea):</b> se il layer di "
+            "riferimento ha un CRS diverso da quello del layer di input, viene riproiettato "
+            "automaticamente prima del calcolo (con un avviso non bloccante).\n\n"
+            "<b>Numerazione personalizzata (parametri avanzati):</b> valore iniziale "
+            "(es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo "
+            "(default <b>sort_order</b>). Se il campo esiste già nel layer di input, "
+            "i suoi valori vengono sovrascritti invece di creare un duplicato.\n\n"
             "<b>Misura geodetica (ellissoidale):</b> quando il CRS del layer è geografico "
             "(coordinate in gradi, es. EPSG:4326), le misure planari di area, lunghezza, "
             "perimetro e distanza sarebbero in gradi — metricamente prive di senso. "
@@ -259,7 +287,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             self.tr("Ordinamento naturale – Natural Sort (solo per criterio attributo/espressione)"),
             defaultValue=False,
         )
-        param_natural_sort.setFlags(_FLAG_ADVANCED)
+        param_natural_sort.setFlags(param_natural_sort.flags() | _FLAG_ADVANCED)
         self.addParameter(param_natural_sort)
 
         param_geodesic = QgsProcessingParameterEnum(
@@ -272,7 +300,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             ],
             defaultValue=0,
         )
-        param_geodesic.setFlags(_FLAG_ADVANCED)
+        param_geodesic.setFlags(param_geodesic.flags() | _FLAG_ADVANCED)
         self.addParameter(param_geodesic)
 
         param_ref = QgsProcessingParameterFeatureSource(
@@ -282,6 +310,15 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             optional=True,
         )
         self.addParameter(param_ref)
+
+        # Punto di riferimento per il criterio "Centroide – distanza da punto".
+        # Se non impostato si usa l'origine (0,0), come nelle versioni precedenti.
+        param_ref_point = QgsProcessingParameterPoint(
+            self.REF_POINT,
+            self.tr("Punto di riferimento (solo per criterio 'Centroide – distanza'; vuoto = origine 0,0)"),
+            optional=True,
+        )
+        self.addParameter(param_ref_point)
 
         # Modalità di calcolo per il criterio "Posizione lungo linea" (condizionale)
         param_line_mode = QgsProcessingParameterEnum(
@@ -294,7 +331,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             ],
             defaultValue=0,
         )
-        param_line_mode.setFlags(_FLAG_ADVANCED)
+        param_line_mode.setFlags(param_line_mode.flags() | _FLAG_ADVANCED)
         self.addParameter(param_line_mode)
 
         # Modalità di calcolo per il criterio "Distanza dalla linea" (condizionale)
@@ -307,7 +344,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             ],
             defaultValue=1,
         )
-        param_line_dist_mode.setFlags(_FLAG_ADVANCED)
+        param_line_dist_mode.setFlags(param_line_dist_mode.flags() | _FLAG_ADVANCED)
         self.addParameter(param_line_dist_mode)
 
         self.addParameter(
@@ -328,7 +365,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             options=[self.tr(s) for s in self._SECONDARY_LABELS],
             defaultValue=0,
         )
-        param_sec_crit.setFlags(_FLAG_ADVANCED)
+        param_sec_crit.setFlags(param_sec_crit.flags() | _FLAG_ADVANCED)
         self.addParameter(param_sec_crit)
 
         param_sec_field = QgsProcessingParameterField(
@@ -337,7 +374,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             parentLayerParameterName=self.INPUT,
             optional=True,
         )
-        param_sec_field.setFlags(_FLAG_ADVANCED)
+        param_sec_field.setFlags(param_sec_field.flags() | _FLAG_ADVANCED)
         self.addParameter(param_sec_field)
 
         param_sec_expr = QgsProcessingParameterExpression(
@@ -347,7 +384,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             parentLayerParameterName=self.INPUT,
             optional=True,
         )
-        param_sec_expr.setFlags(_FLAG_ADVANCED)
+        param_sec_expr.setFlags(param_sec_expr.flags() | _FLAG_ADVANCED)
         self.addParameter(param_sec_expr)
 
         param_sec_dir = QgsProcessingParameterBoolean(
@@ -355,7 +392,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             self.tr("Criterio secondario: ordine ascendente"),
             defaultValue=True,
         )
-        param_sec_dir.setFlags(_FLAG_ADVANCED)
+        param_sec_dir.setFlags(param_sec_dir.flags() | _FLAG_ADVANCED)
         self.addParameter(param_sec_dir)
 
         self.addParameter(
@@ -365,6 +402,36 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 defaultValue=False,
             )
         )
+
+        # ── Numerazione del campo progressivo (avanzati) ──────────────────────
+        param_start = QgsProcessingParameterNumber(
+            self.START,
+            self.tr("Numerazione: valore iniziale"),
+            type=_NUMBER_INTEGER,
+            defaultValue=1,
+        )
+        param_start.setFlags(param_start.flags() | _FLAG_ADVANCED)
+        self.addParameter(param_start)
+
+        param_step = QgsProcessingParameterNumber(
+            self.STEP,
+            self.tr("Numerazione: passo (incremento fra feature)"),
+            type=_NUMBER_INTEGER,
+            defaultValue=1,
+            minValue=1,
+        )
+        param_step.setFlags(param_step.flags() | _FLAG_ADVANCED)
+        self.addParameter(param_step)
+
+        param_order_field = QgsProcessingParameterString(
+            self.ORDER_FIELD,
+            self.tr("Nome del campo progressivo"),
+            defaultValue="sort_order",
+            optional=True,
+        )
+        param_order_field.setFlags(param_order_field.flags() | _FLAG_ADVANCED)
+        self.addParameter(param_order_field)
+
         self.addParameter(
             QgsProcessingParameterFeatureSink(self.OUTPUT, self.tr("Layer ordinato"))
         )
@@ -372,6 +439,58 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     # ──────────────────────────────────────────────────────────────────────────
     # Esecuzione
     # ──────────────────────────────────────────────────────────────────────────
+
+    def _ref_point_from(self, parameters, context, crs):
+        """Punto di riferimento per 'centroid_dist': REF_POINT o origine (0,0).
+
+        Il punto è riproiettato nel CRS della sorgente da ``parameterAsPoint``.
+        """
+        raw = parameters.get(self.REF_POINT)
+        if raw is None or (isinstance(raw, str) and not raw.strip()):
+            return QgsPointXY(0, 0)
+        return self.parameterAsPoint(parameters, self.REF_POINT, context, crs)
+
+    def _ref_line_geom(self, parameters, context, feedback, target_crs, no_layer_message):
+        """Geometria unificata del REF_LAYER (line_position / line_distance),
+        riproiettata nel CRS ``target_crs`` (quello del layer di input) se il
+        layer di riferimento ha un CRS diverso.
+
+        A differenza di REF_POINT — dove ``parameterAsPoint(..., crs)`` riproietta
+        automaticamente — QgsProcessingParameterFeatureSource non offre un
+        equivalente: la trasformazione va applicata esplicitamente, altrimenti
+        geometrie in CRS differenti verrebbero confrontate come se fossero nello
+        stesso sistema di coordinate (risultati silenziosamente sbagliati, fino a
+        NaN se i due CRS divergono molto, es. gradi vs proiezione metrica).
+
+        Args:
+            no_layer_message (str): messaggio d'errore (già tradotto) se
+                REF_LAYER non è impostato — specifico per criterio, per un
+                messaggio d'errore più chiaro.
+        """
+        ref_source = self.parameterAsSource(parameters, self.REF_LAYER, context)
+        if ref_source is None:
+            raise QgsProcessingException(no_layer_message)
+        ref_feats = list(ref_source.getFeatures())
+        if not ref_feats:
+            raise QgsProcessingException(self.tr("Il layer di riferimento non contiene feature."))
+        line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+
+        ref_crs = ref_source.sourceCrs()
+        if ref_crs.isValid() and target_crs.isValid() and ref_crs != target_crs:
+            transform = QgsCoordinateTransform(ref_crs, target_crs, context.transformContext())
+            try:
+                line_geom.transform(transform)
+            except QgsCsException as exc:
+                raise QgsProcessingException(self.tr(
+                    "Impossibile riproiettare il layer di riferimento dal CRS {ref} "
+                    "al CRS {target} del layer di input: {error}"
+                ).format(ref=ref_crs.authid(), target=target_crs.authid(), error=str(exc)))
+            feedback.pushInfo(self.tr(
+                "GeoSort: layer di riferimento riproiettato da {ref} a {target} "
+                "(CRS del layer di input)."
+            ).format(ref=ref_crs.authid(), target=target_crs.authid()))
+
+        return line_geom
 
     def _run_multi(self, parameters, context, feedback, crs, expr_layer, features,
                    primary_key, sec_key, ascending, nulls_last, natural_sort,
@@ -401,7 +520,8 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 self.tr("Specificare un'espressione per il criterio primario.")
             )
         primary_spec = _spec_from(
-            primary_key, primary_field, primary_expr, ascending, nulls_last, natural_sort
+            primary_key, primary_field, primary_expr, ascending, nulls_last, natural_sort,
+            ref_point=self._ref_point_from(parameters, context, crs),
         )
 
         sec_field = self.parameterAsString(parameters, self.SECONDARY_FIELD, context)
@@ -529,7 +649,10 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                     "centroid_dist": "dist",
                 }
                 axis = axis_map[criterion]
-                ref_point = QgsPointXY(0, 0) if axis == "dist" else None
+                ref_point = (
+                    self._ref_point_from(parameters, context, crs)
+                    if axis == "dist" else None
+                )
                 # Geodesica solo per centroid_dist (distanza euclidea sull'ellissoide)
                 da = None
                 if resolve_geodesic(crs, criterion, geodesic_mode):
@@ -544,15 +667,10 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 excluded = []
 
             elif criterion == "line_position":
-                ref_source = self.parameterAsSource(parameters, self.REF_LAYER, context)
-                if ref_source is None:
-                    raise QgsProcessingException(
-                        self.tr("Specificare un layer di riferimento per il criterio 'Posizione lungo linea'.")
-                    )
-                ref_feats = list(ref_source.getFeatures())
-                if not ref_feats:
-                    raise QgsProcessingException(self.tr("Il layer di riferimento non contiene feature."))
-                line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+                line_geom = self._ref_line_geom(
+                    parameters, context, feedback, crs,
+                    self.tr("Specificare un layer di riferimento per il criterio 'Posizione lungo linea'."),
+                )
                 line_mode_keys = ["centroid_projection", "intersecting_projection", "intersecting_first_pt"]
                 line_mode_idx = self.parameterAsEnum(parameters, "LINE_MODE", context)
                 line_mode = line_mode_keys[line_mode_idx]
@@ -565,15 +683,10 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                     ).format(n=len(excluded)))
 
             elif criterion == "line_distance":
-                ref_source = self.parameterAsSource(parameters, self.REF_LAYER, context)
-                if ref_source is None:
-                    raise QgsProcessingException(
-                        self.tr("Specificare un layer di riferimento per il criterio 'Distanza dalla linea'.")
-                    )
-                ref_feats = list(ref_source.getFeatures())
-                if not ref_feats:
-                    raise QgsProcessingException(self.tr("Il layer di riferimento non contiene feature."))
-                line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+                line_geom = self._ref_line_geom(
+                    parameters, context, feedback, crs,
+                    self.tr("Specificare un layer di riferimento per il criterio 'Distanza dalla linea'."),
+                )
                 dist_mode_keys = ["centroid", "element"]
                 dist_mode_idx = self.parameterAsEnum(parameters, "LINE_DISTANCE_MODE", context)
                 dist_mode = dist_mode_keys[dist_mode_idx]
@@ -634,10 +747,28 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         # ── Costruzione layer output ─────────────────────────────────────────
         feedback.setProgressText(self.tr("Scrittura output..."))
 
+        start = self.parameterAsInt(parameters, self.START, context)
+        step = self.parameterAsInt(parameters, self.STEP, context)
+        order_field = self.parameterAsString(parameters, self.ORDER_FIELD, context)
+        order_field = (order_field or "").strip() or "sort_order"
+        if add_value and order_field == "sort_value":
+            raise QgsProcessingException(self.tr(
+                "Il nome del campo progressivo non può essere 'sort_value' "
+                "quando è attivo il campo con il valore del criterio."
+            ))
+
         out_fields = QgsFields()
         for field in source_fields:
             out_fields.append(field)
-        out_fields.append(QgsField("sort_order", QMetaType.Type.Int))
+        # Se il campo progressivo esiste già nella sorgente lo si riutilizza
+        # (valori sovrascritti) invece di aggiungerne un duplicato.
+        order_idx = source_fields.indexOf(order_field)
+        if order_idx == -1:
+            out_fields.append(QgsField(order_field, QMetaType.Type.Int))
+        else:
+            feedback.pushInfo(self.tr(
+                "GeoSort: il campo '{name}' esiste già, i valori saranno sovrascritti."
+            ).format(name=order_field))
         value_field_type = QMetaType.Type.Double
         if add_value and values:
             value_field_type = _infer_field_type(values)
@@ -662,7 +793,12 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             new_feat = QgsFeature(out_fields)
             new_feat.setGeometry(feat.geometry())
             # setAttributes: una sola chiamata invece di un lookup per nome per campo
-            attrs = feat.attributes() + [i + 1]
+            order_value = start + i * step
+            attrs = list(feat.attributes())
+            if order_idx == -1:
+                attrs.append(order_value)
+            else:
+                attrs[order_idx] = order_value
             if has_value_field:
                 attrs.append(
                     _coerce_value(values[i], value_field_type)

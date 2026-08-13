@@ -56,15 +56,38 @@ class MockGeometryResult:
         return self._pt
 
 
+class MockBoundingBox:
+    """Mock minimale di QgsRectangle (restituito da geometry().boundingBox())."""
+    def __init__(self, xmin, ymin, width, height):
+        self._xmin = xmin
+        self._ymin = ymin
+        self._width = width
+        self._height = height
+
+    def width(self):
+        return self._width
+
+    def height(self):
+        return self._height
+
+    def xMinimum(self):
+        return self._xmin
+
+    def yMinimum(self):
+        return self._ymin
+
+
 class MockGeometry:
     """Mock minimale di QgsGeometry."""
-    def __init__(self, geom_type, cx=0.0, cy=0.0, area=0.0, length=0.0, n_vertices=4):
+    def __init__(self, geom_type, cx=0.0, cy=0.0, area=0.0, length=0.0, n_vertices=4,
+                 bbox_xmin=0.0, bbox_ymin=0.0, bbox_width=0.0, bbox_height=0.0):
         self._type = geom_type  # "point" | "line" | "polygon"
         self._cx = cx
         self._cy = cy
         self._area = area
         self._length = length
         self._n_vertices = n_vertices
+        self._bbox = MockBoundingBox(bbox_xmin, bbox_ymin, bbox_width, bbox_height)
 
     def isMultipart(self):
         return False
@@ -82,6 +105,12 @@ class MockGeometry:
 
     def length(self):
         return self._length
+
+    def boundingBox(self):
+        # A differenza di area()/length(), boundingBox() è definito per
+        # qualunque tipo di geometria (replica _geom_value: bbox_* non
+        # solleva mai ValueError sul tipo).
+        return self._bbox
 
 
 class MockFeature:
@@ -351,6 +380,17 @@ def _mock_sort_by_geometry_property(features, criterion, ascending=True):
             return geom._length
         if criterion == "n_vertices":
             return geom._n_vertices
+        if criterion == "bbox_width":
+            return geom.boundingBox().width()
+        if criterion == "bbox_height":
+            return geom.boundingBox().height()
+        if criterion == "bbox_area":
+            bb = geom.boundingBox()
+            return bb.width() * bb.height()
+        if criterion == "bbox_xmin":
+            return geom.boundingBox().xMinimum()
+        if criterion == "bbox_ymin":
+            return geom.boundingBox().yMinimum()
         return 0.0
 
     sorted_feats = sorted(features, key=_geom_val, reverse=not ascending)
@@ -424,6 +464,136 @@ class TestSortByGeometryPropertyValidation(unittest.TestCase):
         _, values = _mock_sort_by_geometry_property(feats, "area", ascending=False)
         self.assertEqual(values, [300, 100])
 
+    # ── Ordine effettivo: perimeter, length, n_vertices ───────────────────────
+    # (in precedenza solo la compatibilità di tipo era testata per questi tre
+    # criteri; qui si verifica che i VALORI siano effettivamente ordinati,
+    # come già avveniva per "area".)
+
+    def test_sort_perimeter_ascending(self):
+        feats = [
+            MockFeature(0, geometry=MockGeometry("polygon", area=1, length=300)),
+            MockFeature(1, geometry=MockGeometry("polygon", area=1, length=100)),
+            MockFeature(2, geometry=MockGeometry("polygon", area=1, length=200)),
+        ]
+        _, values = _mock_sort_by_geometry_property(feats, "perimeter", ascending=True)
+        self.assertEqual(values, [100, 200, 300])
+
+    def test_sort_perimeter_descending(self):
+        feats = [
+            MockFeature(0, geometry=MockGeometry("polygon", area=1, length=100)),
+            MockFeature(1, geometry=MockGeometry("polygon", area=1, length=300)),
+        ]
+        _, values = _mock_sort_by_geometry_property(feats, "perimeter", ascending=False)
+        self.assertEqual(values, [300, 100])
+
+    def test_sort_length_ascending(self):
+        feats = [
+            MockFeature(0, geometry=MockGeometry("line", length=30)),
+            MockFeature(1, geometry=MockGeometry("line", length=10)),
+            MockFeature(2, geometry=MockGeometry("line", length=20)),
+        ]
+        _, values = _mock_sort_by_geometry_property(feats, "length", ascending=True)
+        self.assertEqual(values, [10, 20, 30])
+
+    def test_sort_length_descending(self):
+        feats = [
+            MockFeature(0, geometry=MockGeometry("line", length=10)),
+            MockFeature(1, geometry=MockGeometry("line", length=30)),
+        ]
+        _, values = _mock_sort_by_geometry_property(feats, "length", ascending=False)
+        self.assertEqual(values, [30, 10])
+
+    def test_sort_n_vertices_ascending(self):
+        feats = [
+            MockFeature(0, geometry=MockGeometry("line", n_vertices=8)),
+            MockFeature(1, geometry=MockGeometry("line", n_vertices=2)),
+            MockFeature(2, geometry=MockGeometry("line", n_vertices=5)),
+        ]
+        _, values = _mock_sort_by_geometry_property(feats, "n_vertices", ascending=True)
+        self.assertEqual(values, [2, 5, 8])
+
+    def test_sort_n_vertices_descending(self):
+        feats = [
+            MockFeature(0, geometry=MockGeometry("line", n_vertices=2)),
+            MockFeature(1, geometry=MockGeometry("line", n_vertices=8)),
+        ]
+        _, values = _mock_sort_by_geometry_property(feats, "n_vertices", ascending=False)
+        self.assertEqual(values, [8, 2])
+        # Nota: la compatibilità di tipo di n_vertices su point/line/polygon è
+        # già verificata da test_n_vertices_any_type() più sopra.
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Test: sort_by_geometry_property – criteri bounding box (bbox_*)
+# ──────────────────────────────────────────────────────────────────────────────
+# In precedenza NESSUN test esercitava questi 5 criteri: né la validazione
+# (che in realtà non esiste: bbox_* è ammesso su qualunque tipo di geometria,
+# a differenza di area/perimeter/length) né l'ordine dei valori risultanti.
+
+class TestSortByBoundingBox(unittest.TestCase):
+    """Testa bbox_width, bbox_height, bbox_area, bbox_xmin, bbox_ymin."""
+
+    def _rect(self, fid, xmin, ymin, width, height):
+        return MockFeature(fid, geometry=MockGeometry(
+            "polygon", bbox_xmin=xmin, bbox_ymin=ymin,
+            bbox_width=width, bbox_height=height,
+        ))
+
+    def _two_rects(self):
+        # P: bbox largo e basso, xmin piccolo, ymin grande.
+        # Q: bbox stretto e alto, xmin grande, ymin piccolo.
+        # Scelti apposta perché ciascun sotto-criterio dia un ordine diverso,
+        # cosa che smaschera eventuali scambi (es. xmin/ymin invertiti).
+        p = self._rect(0, xmin=0, ymin=5, width=3, height=2)   # area=6
+        q = self._rect(1, xmin=10, ymin=1, width=5, height=1)  # area=5
+        return [p, q]
+
+    def test_bbox_width_ascending(self):
+        _, values = _mock_sort_by_geometry_property(self._two_rects(), "bbox_width", ascending=True)
+        self.assertEqual(values, [3, 5])
+
+    def test_bbox_height_ascending(self):
+        sorted_feats, values = _mock_sort_by_geometry_property(
+            self._two_rects(), "bbox_height", ascending=True
+        )
+        self.assertEqual(values, [1, 2])
+        self.assertEqual([f.id() for f in sorted_feats], [1, 0])  # ordine opposto a width
+
+    def test_bbox_area_ascending(self):
+        sorted_feats, values = _mock_sort_by_geometry_property(
+            self._two_rects(), "bbox_area", ascending=True
+        )
+        self.assertEqual(values, [5, 6])
+        self.assertEqual([f.id() for f in sorted_feats], [1, 0])
+
+    def test_bbox_xmin_ascending(self):
+        sorted_feats, values = _mock_sort_by_geometry_property(
+            self._two_rects(), "bbox_xmin", ascending=True
+        )
+        self.assertEqual(values, [0, 10])
+        self.assertEqual([f.id() for f in sorted_feats], [0, 1])
+
+    def test_bbox_ymin_ascending(self):
+        sorted_feats, values = _mock_sort_by_geometry_property(
+            self._two_rects(), "bbox_ymin", ascending=True
+        )
+        self.assertEqual(values, [1, 5])
+        self.assertEqual([f.id() for f in sorted_feats], [1, 0])  # ordine opposto a xmin
+
+    def test_bbox_descending(self):
+        _, values = _mock_sort_by_geometry_property(self._two_rects(), "bbox_width", ascending=False)
+        self.assertEqual(values, [5, 3])
+
+    def test_bbox_any_geometry_type_no_error(self):
+        # bbox_* è ammesso su qualunque tipo di geometria (a differenza di
+        # area/perimeter/length): non deve mai sollevare ValueError.
+        for geom_type in ("point", "line", "polygon"):
+            feats = [MockFeature(0, geometry=MockGeometry(
+                geom_type, bbox_xmin=1, bbox_ymin=2, bbox_width=3, bbox_height=4,
+            ))]
+            for criterion in ("bbox_width", "bbox_height", "bbox_area", "bbox_xmin", "bbox_ymin"):
+                _mock_sort_by_geometry_property(feats, criterion)
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Mock layer per testare apply_sort_order standalone
@@ -478,17 +648,18 @@ class MockLayer:
 
 
 def _mock_apply_sort_order(layer, sorted_features, add_criterion_field=False,
-                           criterion_values=None, criterion_field_name="sort_value"):
+                           criterion_values=None, criterion_field_name="sort_value",
+                           start=1, step=1, order_field_name="sort_order"):
     """Mock standalone di apply_sort_order – senza QgsField/QMetaType."""
     try:
         if not layer.isEditable():
             if not layer.startEditing():
                 return False
 
-        sort_idx = layer.indexOf("sort_order")
+        sort_idx = layer.indexOf(order_field_name)
         if sort_idx == -1:
-            layer.addAttribute("sort_order")
-            sort_idx = layer.indexOf("sort_order")
+            layer.addAttribute(order_field_name)
+            sort_idx = layer.indexOf(order_field_name)
 
         crit_idx = -1
         if add_criterion_field and criterion_values:
@@ -498,7 +669,7 @@ def _mock_apply_sort_order(layer, sorted_features, add_criterion_field=False,
                 crit_idx = layer.indexOf(criterion_field_name)
 
         for i, feat in enumerate(sorted_features):
-            changes = {sort_idx: i + 1}
+            changes = {sort_idx: start + i * step}
             if add_criterion_field and criterion_values and crit_idx != -1:
                 try:
                     changes[crit_idx] = float(criterion_values[i])
@@ -579,6 +750,48 @@ class TestApplySortOrder(unittest.TestCase):
         layer = MockLayer(field_names=[])
         _mock_apply_sort_order(layer, self._feats(2))
         self.assertTrue(layer._committed)
+
+    # ── Numerazione personalizzata (start / step / nome campo) ───────────────
+
+    def test_custom_start(self):
+        layer = MockLayer(field_names=[])
+        feats = self._feats(3)
+        _mock_apply_sort_order(layer, feats, start=0)
+        sort_idx = layer.indexOf("sort_order")
+        values = [layer._changes[(f.id(), sort_idx)] for f in feats]
+        self.assertEqual(values, [0, 1, 2])
+
+    def test_custom_step(self):
+        layer = MockLayer(field_names=[])
+        feats = self._feats(3)
+        _mock_apply_sort_order(layer, feats, start=10, step=10)
+        sort_idx = layer.indexOf("sort_order")
+        values = [layer._changes[(f.id(), sort_idx)] for f in feats]
+        self.assertEqual(values, [10, 20, 30])
+
+    def test_negative_start(self):
+        layer = MockLayer(field_names=[])
+        feats = self._feats(3)
+        _mock_apply_sort_order(layer, feats, start=-5, step=5)
+        sort_idx = layer.indexOf("sort_order")
+        values = [layer._changes[(f.id(), sort_idx)] for f in feats]
+        self.assertEqual(values, [-5, 0, 5])
+
+    def test_custom_field_name(self):
+        layer = MockLayer(field_names=["nome"])
+        feats = self._feats(2)
+        ok = _mock_apply_sort_order(layer, feats, order_field_name="rank")
+        self.assertTrue(ok)
+        self.assertIn("rank", layer._field_names)
+        self.assertNotIn("sort_order", layer._field_names)
+
+    def test_custom_field_name_existing_not_duplicated(self):
+        layer = MockLayer(field_names=["nome", "rank"])
+        feats = self._feats(2)
+        _mock_apply_sort_order(layer, feats, order_field_name="rank")
+        self.assertEqual(layer._field_names.count("rank"), 1)
+        sort_idx = layer.indexOf("rank")
+        self.assertEqual(layer._changes[(feats[0].id(), sort_idx)], 1)
 
 
 class TestSortByCentroid(unittest.TestCase):

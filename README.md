@@ -2,7 +2,7 @@
 
 🇮🇹 **Italiano** | [🇬🇧 English](README.en.md)
 
-[![Version](https://img.shields.io/badge/version-1.8.1-blue.svg)](https://github.com/pigreco/geosort/releases)
+[![Version](https://img.shields.io/badge/version-1.9.0-blue.svg)](https://github.com/pigreco/geosort/releases)
 [![Languages](https://img.shields.io/badge/languages-IT%20%7C%20EN-green.svg)](#lingue--languages)
 [![QGIS](https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg)](#requisiti)
 [![License](https://img.shields.io/badge/license-GPLv2-red.svg)](LICENSE)
@@ -11,8 +11,8 @@
 ---
 
 Plugin QGIS per ordinare le feature di un layer vettoriale in base a criteri
-geometrici e attributivi, con assegnazione automatica del campo progressivo
-`sort_order`.
+geometrici e attributivi, con assegnazione automatica di un campo progressivo
+(default `sort_order`, nome/valore iniziale/passo personalizzabili).
 
 Compatibile con **QGIS 3.16+** (Qt5 / PyQt5) e **QGIS 4.x** (Qt6 / PyQt6).
 
@@ -26,7 +26,7 @@ Compatibile con **QGIS 3.16+** (Qt5 / PyQt5) e **QGIS 4.x** (Qt6 / PyQt6).
 |---|---|---|
 | Attributo tabellare | Tutti | Ordina per il valore di qualsiasi campo (String, Int, Double, Date) |
 | Coordinata centroide X / Y | Tutti | Ordina per la posizione geografica del centroide |
-| Distanza da origine | Tutti | Distanza euclidea del centroide dall'origine (0, 0) |
+| Distanza da punto di riferimento | Tutti | Distanza euclidea del centroide da un punto configurabile (default origine 0, 0) |
 | Area | Poligoni | Superficie della geometria |
 | Perimetro | Poligoni | Lunghezza del perimetro |
 | Lunghezza | Linee | Lunghezza totale della linea |
@@ -82,6 +82,16 @@ Per i criteri **Attributo tabellare** ed **Espressione QGIS** è possibile scegl
 Il Natural Sort è utile con espressioni di concatenazione (es. `"fid" || "id_poly"`)
 o con campi alfanumerici come `FILE1`, `FILE2`, `FILE10`.
 
+### Numerazione personalizzata
+
+Il campo progressivo è configurabile su tre assi, sia nel dialogo che nel Processing:
+
+| Parametro | Default | Esempio |
+|---|---|---|
+| Nome del campo | `sort_order` | `rank`, `ordine` — se il campo esiste già sul layer, viene sovrascritto invece di duplicato |
+| Valore iniziale | `1` | `0` per una numerazione da zero |
+| Passo | `1` | `10` → `10, 20, 30…`, per lasciare spazio a inserimenti futuri |
+
 ---
 
 ## Installazione
@@ -102,7 +112,8 @@ o con campi alfanumerici come `FILE1`, `FILE2`, `FILE10`.
 5. Usa il pulsante **Anteprima** per verificare il risultato
 6. Premi **OK** per applicare o **Applica** per mantenere il dialogo aperto
 
-Il campo `sort_order` viene aggiunto/aggiornato sul layer (o su un nuovo layer
+Il campo progressivo (default `sort_order`, personalizzabile — nome, valore
+iniziale, passo) viene aggiunto/aggiornato sul layer (o su un nuovo layer
 in memoria, se selezionata l'opzione corrispondente).
 
 ---
@@ -128,6 +139,10 @@ result = processing.run("geosort:geosort_sort", {
     'SECONDARY_CRITERION': 5,    # 5 = Area (poligoni)
     'SECONDARY_DIRECTION': False,  # False = Discendente
     'ADD_VALUE_FIELD': False,
+    # Numerazione personalizzata (parametri avanzati, tutti opzionali):
+    'START': 0,               # default 1
+    'STEP': 10,                # default 1 → 0, 10, 20, 30...
+    'ORDER_FIELD': 'rank',    # default 'sort_order'
     'OUTPUT': 'memory:'
 })
 output_layer = result['OUTPUT']
@@ -135,6 +150,20 @@ output_layer = result['OUTPUT']
 
 > Il criterio secondario è ignorato se il criterio primario è basato su una linea
 > (`line_position` / `line_distance`).
+
+Per il criterio `centroid_dist` (indice `3`, distanza dal centroide) è possibile
+indicare un punto di riferimento diverso dall'origine con il parametro
+`REF_POINT` (opzionale, formato `"x,y [EPSG:xxxx]"` o `QgsPointXY`):
+
+```python
+result = processing.run("geosort:geosort_sort", {
+    'INPUT': layer,
+    'CRITERION': 3,                          # centroide – distanza
+    'REF_POINT': '500000,4649776 [EPSG:32633]',
+    'DIRECTION': True,
+    'OUTPUT': 'memory:'
+})
+```
 
 Per ordinare solo le feature selezionate da PyQGIS:
 
@@ -210,21 +239,21 @@ I test della logica di ordinamento non richiedono QGIS:
 ```bash
 cd geosort
 python -m unittest tests.test_sorting -v
-# 155 test sulla logica core (sort_by_attribute, sort_by_centroid, sort_multi, robustezza geometrie NULL, misura geodetica, ecc.)
+# 173 test sulla logica core (sort_by_attribute, sort_by_centroid, sort_multi, robustezza geometrie NULL, misura geodetica, ecc.)
 ```
 
 I test del dialog e dell'algoritmo Processing richiedono QGIS nel PATH:
 
 ```bash
-python -m unittest tests.test_dialog -v     # Test UI (27 test)
-python -m unittest tests.test_algorithm -v  # Test Processing Toolbox (25 test)
+python -m unittest tests.test_dialog -v     # Test UI (29 test)
+python -m unittest tests.test_algorithm -v  # Test Processing Toolbox, tutti e 16 i criteri (46 test)
 ```
 
 Eseguire tutti i test:
 
 ```bash
 python -m unittest discover tests -p "test_*.py" -v
-# Output: 207 tests (155 ok, 52 skipped che richiedono QGIS)
+# Output: 248 tests (173 ok, 75 skipped che richiedono QGIS)
 ```
 
 Ogni push e pull request esegue automaticamente l'intera suite su GitHub Actions:
