@@ -3,7 +3,7 @@ name=GeoSort
 qgisMinimumVersion=3.16
 qgisMaximumVersion=4.99
 description=Sort vector layer features by geometric and attribute criteria | Ordina le feature di un layer vettoriale per criteri geometrici e attributivi
-version=1.8.0
+version=1.8.1
 author=Salvatore Fiandaca
 email=pigrecoinfinito@gmail.com
 about=GeoSort sorts points, lines and polygons by centroid coordinates, area, length,
@@ -39,6 +39,7 @@ deprecated=False
 server=False
 supportsQt6=True
 changelog=
+    1.8.1 Performance: undo atomico per l'ordinamento (beginEditCommand/endEditCommand, un solo blocco Ctrl+Z anche su migliaia di feature); riuso del motore GEOS preparato anche per il criterio "primo punto di intersezione" lungo linea, con distanza curvilinea valutata solo sugli estremi di ogni parte invece di tutti i vertici; lookup del campo per indice invece che per nome nell'ordinamento per attributo. Processing: barra di progresso e cancellazione effettive durante la fase di ordinamento (non solo a inizio/fine); parametri condizionali (Natural Sort, misura geodetica, modalità linea, criterio secondario) spostati in "Avanzate" per una finestra più pulita; rimossa import duplicata
     1.8.0 Ordinamento delle sole feature selezionate (dialogo e Processing, con parametri FeatureSource e layer di riferimento limitato alle linee); correzioni: crash sui pareggi di distanza lungo linea, ordinamento di valori a tipo misto (numeri+testo) senza errori, NULL sempre in fondo anche con ordine discendente; performance: motore GEOS preparato per i criteri su linea (fino a 2x su linee complesse) e scritture batch degli attributi; i18n: algoritmo Processing e messaggi del core tradotti, tooltip multilinea ora tradotti in inglese; supportsQt6=True per il repository plugin; CI GitHub Actions (test senza QGIS + QGIS LTR/latest)
     1.7.0 Misura geodetica su CRS geografici: area, perimetro, lunghezza e distanze misurati sull'ellissoide (m²/m) con modalità Auto/Sempre/Mai; avviso non bloccante su attivazione automatica; bounding box e posizione lungo linea restano planari
     1.6.0 Ordinamento gerarchico multi-criterio: criterio secondario per spezzare i pareggi del primario (es. regione poi area), nel dialogo e nel Processing; robustezza: feature con geometria NULL/vuota e layer a geometria mista non causano più crash (relegate in fondo); ottimizzazione performance (chiave geometrica calcolata una sola volta per centroide e proprietà geometriche); fix distanza centroide-origine nel Processing; deduplicazione coercizione valori; 100 test sulla logica core

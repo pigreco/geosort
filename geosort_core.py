@@ -334,9 +334,14 @@ def sort_by_attribute(features: List[QgsFeature], field: str, ascending: bool = 
     """
     null_priority = _null_priority(nulls_last, ascending)
     total = len(features)
+    # Risolve l'indice del campo una sola volta: f[idx] evita di ririsolvere
+    # il nome ad ogni accesso durante l'ordinamento (misurabile su layer grandi).
+    # Se il campo non esiste, ricade su f[field] cosi' l'errore resta lo stesso.
+    idx = features[0].fields().indexOf(field) if features else -1
+    use_idx = idx != -1
 
     def key(f):
-        val = f[field]
+        val = f[idx] if use_idx else f[field]
         is_null = val is None or val == NULL
         if is_null:
             return (null_priority, [])
@@ -684,26 +689,81 @@ def _extract_points_from_geometry(geom):
     return pts
 
 
-def _first_intersection_distance(line_geom, feature_geom):
+def _intersection_extremal_points(geom):
+    """Punti candidati per la distanza curvilinea minima di un'intersezione con una linea.
+
+    L'intersezione fra la linea di riferimento e una feature giace, per
+    costruzione, sulla linea stessa: lungo ciascuna parte lineare
+    dell'intersezione la distanza curvilinea è quindi monotona, e basta
+    valutarne i due estremi invece di tutti i vertici intermedi (a differenza
+    di :func:`_extract_points_from_geometry`, pensata per geometrie qualsiasi).
+    """
+    geom_type = QgsWkbTypes.geometryType(geom.wkbType())
+    pts = []
+
+    if geom_type == QgsWkbTypes.GeometryType.PointGeometry:
+        if geom.isMultipart():
+            for p in geom.asMultiPoint():
+                pts.append(QgsGeometry.fromPointXY(QgsPointXY(p.x(), p.y())))
+        else:
+            pts.append(geom)
+
+    elif geom_type == QgsWkbTypes.GeometryType.LineGeometry:
+        parts = geom.asMultiPolyline() if geom.isMultipart() else [geom.asPolyline()]
+        for part in parts:
+            if not part:
+                continue
+            pts.append(QgsGeometry.fromPointXY(QgsPointXY(part[0].x(), part[0].y())))
+            if len(part) > 1:
+                last = part[-1]
+                pts.append(QgsGeometry.fromPointXY(QgsPointXY(last.x(), last.y())))
+
+    elif geom_type == QgsWkbTypes.GeometryType.PolygonGeometry:
+        pts.append(geom.centroid())
+
+    else:
+        for i in range(geom.constGet().numGeometries()):
+            sub = QgsGeometry(geom.constGet().geometryN(i).clone())
+            pts.extend(_intersection_extremal_points(sub))
+
+    return pts
+
+
+def _first_intersection_distance(line_geom, feature_geom, line_engine=None, locate=None):
     """Distanza lungo ``line_geom`` del *primo* punto di intersezione con ``feature_geom``.
 
     "Primo" = minore distanza curvilinea dall'inizio della linea.
 
+    Args:
+        line_geom (QgsGeometry): linea di riferimento.
+        feature_geom (QgsGeometry): geometria della feature.
+        line_engine (QgsGeometryEngine | None): motore GEOS preparato su
+            ``line_geom`` (vedi :func:`sort_by_line_position`); se fornito,
+            evita di riconvertire la linea in GEOS ad ogni chiamata.
+        locate (callable | None): funzione ``pt_geom -> float`` (vedi
+            :func:`_make_line_locator`); se assente, ricade su
+            ``line_geom.lineLocatePoint``.
+
     Returns:
         float | None: distanza in unità mappa, o None se non c'è intersezione.
     """
-    intersection = line_geom.intersection(feature_geom)
+    if line_engine is not None:
+        raw = line_engine.intersection(feature_geom.constGet())
+        intersection = QgsGeometry(raw) if raw is not None else None
+    else:
+        intersection = line_geom.intersection(feature_geom)
     if intersection is None or intersection.isEmpty():
         return None
 
-    points = _extract_points_from_geometry(intersection)
+    points = _intersection_extremal_points(intersection)
     if not points:
         return None
 
+    _locate = locate or line_geom.lineLocatePoint
     distances = []
     for pt in points:
         try:
-            distances.append(line_geom.lineLocatePoint(pt))
+            distances.append(_locate(pt))
         except Exception:
             pass
 
@@ -807,7 +867,7 @@ def sort_by_line_position(features, line_geometry, ascending=True,
             # Solo feature che intersecano; usa il primo punto di intersezione.
             # Il predicato preparato evita l'intersezione GEOS (costosa) per le
             # feature che non toccano la linea.
-            dist = (_first_intersection_distance(line_geometry, geom)
+            dist = (_first_intersection_distance(line_geometry, geom, line_engine, _locate)
                     if line_engine.intersects(geom.constGet()) else None)
             if dist is None:
                 excluded.append(f)
@@ -959,7 +1019,7 @@ def _numeric_extractor(key, spec, distance_area=None):
             if mode == "intersecting_first_pt":
                 if not line_engine.intersects(geom.constGet()):
                     return None
-                return _first_intersection_distance(line, geom)
+                return _first_intersection_distance(line, geom, line_engine, _locate)
             if mode == "intersecting_projection" and not line_engine.intersects(geom.constGet()):
                 return None
             gt = QgsWkbTypes.geometryType(geom.wkbType())
@@ -1023,10 +1083,13 @@ def _multi_level(features, spec, layer, distance_area=None):
                 )
             ctx = _expression_context(layer)
         field = spec.get("field")
+        # Vedi sort_by_attribute: risolve l'indice del campo una sola volta.
+        idx = features[0].fields().indexOf(field) if (key == "attribute" and features) else -1
+        use_idx = idx != -1
 
         for i, f in enumerate(features):
             if key == "attribute":
-                val = f[field]
+                val = f[idx] if use_idx else f[field]
             else:
                 ctx.setFeature(f)
                 val = expr.evaluate(ctx)
@@ -1151,13 +1214,24 @@ def apply_sort_order(
         # ── Assegnazione valori ───────────────────────────────────────────────
         total = len(sorted_features)
         write_crit = add_criterion_field and criterion_values and crit_idx != -1
-        for i, feat in enumerate(sorted_features):
-            changes = {sort_idx: i + 1}
-            if write_crit:
-                changes[crit_idx] = _coerce_value(criterion_values[i], crit_field_type)
-            layer.changeAttributeValues(feat.id(), changes)
-            if progress_callback and i % 50 == 0:
-                progress_callback(i * 100.0 / total)
+        # beginEditCommand/endEditCommand raggruppa tutte le changeAttributeValues
+        # in un unico blocco di undo (altrimenti ogni feature sarebbe uno step
+        # separato: su layer grandi, migliaia di Ctrl+Z per annullare l'ordinamento).
+        # "GeoSort" è il nome del plugin (compare nel menu Undo di QGIS): un nome
+        # proprio, identico in ogni lingua, non va tradotto con _tr().
+        layer.beginEditCommand("GeoSort")
+        try:
+            for i, feat in enumerate(sorted_features):
+                changes = {sort_idx: i + 1}
+                if write_crit:
+                    changes[crit_idx] = _coerce_value(criterion_values[i], crit_field_type)
+                layer.changeAttributeValues(feat.id(), changes)
+                if progress_callback and i % 50 == 0:
+                    progress_callback(i * 100.0 / total)
+        except Exception:
+            layer.destroyEditCommand()
+            raise
+        layer.endEditCommand()
 
         if not layer.commitChanges():
             layer.rollBack()
