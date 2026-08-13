@@ -2,7 +2,7 @@
 
 [🇮🇹 Italiano](README.md) | 🇬🇧 **English**
 
-[![Version](https://img.shields.io/badge/version-1.9.0-blue.svg)](https://github.com/pigreco/geosort/releases)
+[![Version](https://img.shields.io/badge/version-1.10.0-blue.svg)](https://github.com/pigreco/geosort/releases)
 [![Languages](https://img.shields.io/badge/languages-IT%20%7C%20EN-green.svg)](#languageslingue)
 [![QGIS](https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg)](#requirements)
 [![License](https://img.shields.io/badge/license-GPLv2-red.svg)](LICENSE)
