@@ -100,6 +100,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     HILBERT_ORDER = "HILBERT_ORDER"
     BAND_SIZE = "BAND_SIZE"
     BAND_AXIS = "BAND_AXIS"
+    CROSS_ASCENDING = "CROSS_ASCENDING"
     ADD_VALUE_FIELD = "ADD_VALUE_FIELD"
     START = "START"
     STEP = "STEP"
@@ -244,8 +245,12 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             "(per Y, X alternato — default) o verticali (per X, Y alternato). Il parametro "
             "avanzato <code>BAND_SIZE</code> imposta la dimensione di banda nelle unità del "
             "CRS — altezza per bande orizzontali, larghezza per verticali (0/vuoto = "
-            "automatica, dalla dimensione media delle bounding box delle feature); "
-            "non è disponibile come criterio primario in modalità multi-criterio.\n\n"
+            "automatica, dalla dimensione media delle bounding box delle feature). Il "
+            "parametro avanzato <code>CROSS_ASCENDING</code> sceglie l'angolo di partenza: "
+            "con <code>DIRECTION</code> (quale banda è la prima) e <code>CROSS_ASCENDING</code> "
+            "(verso dell'asse trasversale nella prima banda) sono raggiungibili tutti e "
+            "quattro gli angoli della griglia. Non disponibile come criterio primario in "
+            "modalità multi-criterio.\n\n"
             "<b>Numerazione personalizzata (parametri avanzati):</b> valore iniziale "
             "(es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo "
             "(default <b>sort_order</b>). Se il campo esiste già nel layer di input, "
@@ -416,6 +421,18 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         )
         param_band_size.setFlags(param_band_size.flags() | _FLAG_ADVANCED)
         self.addParameter(param_band_size)
+
+        # Verso dell'asse trasversale nella prima banda percorsa (condizionale,
+        # solo per il criterio "Serpentina"): combinato con DIRECTION (quale
+        # banda è la prima) permette di scegliere uno qualunque dei quattro
+        # angoli di partenza della griglia.
+        param_cross_ascending = QgsProcessingParameterBoolean(
+            self.CROSS_ASCENDING,
+            self.tr("Serpentina – prima banda in verso crescente (altrimenti decrescente)"),
+            defaultValue=True,
+        )
+        param_cross_ascending.setFlags(param_cross_ascending.flags() | _FLAG_ADVANCED)
+        self.addParameter(param_cross_ascending)
 
         self.addParameter(
             QgsProcessingParameterExpression(
@@ -786,9 +803,11 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 band_size = self.parameterAsDouble(parameters, self.BAND_SIZE, context)
                 axis_keys = ["horizontal", "vertical"]
                 band_axis = axis_keys[self.parameterAsEnum(parameters, self.BAND_AXIS, context)]
+                cross_ascending = self.parameterAsBoolean(parameters, self.CROSS_ASCENDING, context)
                 sorted_feats, values = sort_by_serpentine(
                     features, band_size=band_size or None, ascending=ascending,
-                    axis=band_axis, progress_callback=_progress_cb,
+                    axis=band_axis, cross_ascending=cross_ascending,
+                    progress_callback=_progress_cb,
                 )
                 excluded = []
 

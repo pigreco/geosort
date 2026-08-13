@@ -314,6 +314,19 @@ class GeoSortDialog(QDialog):
         self.spin_band_size.setFixedHeight(self.combo_band_axis.sizeHint().height())
         grid.addWidget(self.spin_band_size, 9, 2)
 
+        # Verso dell'asse trasversale nella prima banda percorsa: combinato con
+        # la Direzione generale (quale banda è la prima, in "Opzioni") permette
+        # di scegliere uno qualunque dei quattro angoli di partenza della griglia.
+        self.chk_cross_ascending = QCheckBox(self.tr("Prima banda in verso crescente"))
+        self.chk_cross_ascending.setChecked(True)
+        self.chk_cross_ascending.setToolTip(self.tr(
+            "Verso dell'asse trasversale nella prima banda percorsa (X per bande\n"
+            "orizzontali, Y per verticali): crescente (default) o decrescente.\n"
+            "Combinato con la Direzione generale (quale banda è la prima),\n"
+            "sceglie l'angolo di partenza del percorso a serpentina."
+        ))
+        grid.addWidget(self.chk_cross_ascending, 10, 1, 1, 2)
+
         outer.addLayout(grid)
 
         return grp
@@ -546,6 +559,7 @@ class GeoSortDialog(QDialog):
 
         self.combo_band_axis.setEnabled(is_serpentine)
         self.spin_band_size.setEnabled(is_serpentine)
+        self.chk_cross_ascending.setEnabled(is_serpentine)
         self.combo_field.setEnabled(is_attr)
         self.btn_expression_builder.setEnabled(is_attr)
         self.chk_nulls_last.setEnabled(is_attr)
@@ -1028,8 +1042,10 @@ class GeoSortDialog(QDialog):
         if self.rb_serpentine.isChecked():
             band_size = self.spin_band_size.value() or None
             band_axis = self.combo_band_axis.currentData()
+            cross_ascending = self.chk_cross_ascending.isChecked()
             sorted_feats, values = sort_by_serpentine(
                 features, band_size=band_size, ascending=ascending, axis=band_axis,
+                cross_ascending=cross_ascending,
                 progress_callback=progress_callback,
             )
             return sorted_feats, values, "sort_band", []

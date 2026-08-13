@@ -251,7 +251,7 @@ def _sort_by_hilbert(features, ascending=True, order=16, progress_callback=None)
 
 
 def _sort_by_serpentine(features, band_size=None, ascending=True, axis="horizontal",
-                        progress_callback=None):
+                        cross_ascending=True, progress_callback=None):
     """Replica di geosort_core.sort_by_serpentine."""
     pts = []
     invalid = []
@@ -300,7 +300,9 @@ def _sort_by_serpentine(features, band_size=None, ascending=True, axis="horizont
     def sort_key(item):
         _, band, cval = item
         rank = rank_of_band[band]
-        c_key = cval if rank % 2 == 0 else -cval
+        rank_is_even = (rank % 2 == 0)
+        eff_ascending = cross_ascending if rank_is_even else not cross_ascending
+        c_key = cval if eff_ascending else -cval
         return (rank, c_key)
 
     raw.sort(key=sort_key)
@@ -1215,6 +1217,42 @@ class TestSortBySerpentine(unittest.TestCase):
         # banda 1 (x=2, rank dispari): Y decrescente → id3 (y=1) prima di id2 (y=0).
         self.assertEqual([f.id() for f in result], [0, 1, 3, 2])
         self.assertEqual(values, [0, 0, 1, 1])
+
+    # ── cross_ascending (angolo di partenza) ────────────────────────────────────
+
+    def test_cross_ascending_false_reverses_first_band_direction(self):
+        # Stessa griglia 4×3 di test_basic_serpentine_order_ascending, ma con
+        # cross_ascending=False: la prima banda (rank 0) percorre X
+        # decrescente invece di crescente, e l'alternanza si inverte di
+        # conseguenza per tutte le bande successive.
+        feats = self._grid_3x4()
+        result, _ = _sort_by_serpentine(feats, band_size=1, ascending=True, cross_ascending=False)
+        ids = [f.id() for f in result]
+        self.assertEqual(ids, [3, 2, 1, 0, 4, 5, 6, 7, 11, 10, 9, 8])
+
+    def test_cross_ascending_true_is_default(self):
+        # cross_ascending=True (default) deve dare lo stesso risultato di non
+        # passarlo affatto — nessuna regressione sul comportamento esistente.
+        feats = self._grid_3x4()
+        explicit, _ = _sort_by_serpentine(feats, band_size=1, ascending=True, cross_ascending=True)
+        default, _ = _sort_by_serpentine(feats, band_size=1, ascending=True)
+        self.assertEqual([f.id() for f in explicit], [f.id() for f in default])
+
+    def test_all_four_starting_corners_are_reachable(self):
+        # Le quattro combinazioni di ascending (quale banda è la prima) e
+        # cross_ascending (verso della prima banda) devono produrre quattro
+        # feature di partenza diverse: i quattro angoli della griglia 4×3
+        # (colonne x=0..3, righe y=0..2). fid = riga*4 + colonna.
+        feats = self._grid_3x4()
+        starts = set()
+        for ascending in (True, False):
+            for cross_ascending in (True, False):
+                result, _ = _sort_by_serpentine(
+                    feats, band_size=1, ascending=ascending, cross_ascending=cross_ascending,
+                )
+                starts.add(result[0].id())
+        # basso-sinistra (id0), basso-destra (id3), alto-sinistra (id8), alto-destra (id11)
+        self.assertEqual(starts, {0, 3, 8, 11})
 
 
 # ──────────────────────────────────────────────────────────────────────────────

@@ -252,6 +252,11 @@ class TestGeoSortAlgorithm(unittest.TestCase):
         param_names = [p.name() for p in self.algo.parameterDefinitions()]
         self.assertIn("BAND_AXIS", param_names)
 
+    def test_algorithm_has_cross_ascending_parameter(self):
+        """L'algoritmo deve esporre il parametro avanzato CROSS_ASCENDING."""
+        param_names = [p.name() for p in self.algo.parameterDefinitions()]
+        self.assertIn("CROSS_ASCENDING", param_names)
+
     # ── Criterio secondario (multi-criterio) ──────────────────────────────────
 
     def test_algorithm_has_secondary_criterion_parameter(self):
@@ -841,6 +846,27 @@ class TestGeoSortAlgorithmAllCriteria(unittest.TestCase):
         self.assertEqual(
             self._order_by_id(result["OUTPUT"]),
             {0: 1, 4: 2, 5: 3, 1: 4, 2: 5, 6: 6, 7: 7, 3: 8},
+        )
+
+    def test_serpentine_cross_ascending_false(self):
+        """CRITERION=17 con CROSS_ASCENDING=False: la prima banda parte da X
+        decrescente invece che crescente (angolo di partenza opposto)."""
+        import processing
+        from qgis.core import QgsGeometry, QgsPointXY
+        layer = self._make_layer(
+            "Point?crs=EPSG:4326&field=id:integer", "serpentine_cross_layer",
+            [
+                (QgsGeometry.fromPointXY(QgsPointXY(x, y)), [y * 4 + x])
+                for y in range(2) for x in range(4)
+            ],
+        )
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": layer, "CRITERION": 17, "BAND_SIZE": 1,
+            "DIRECTION": True, "CROSS_ASCENDING": False, "OUTPUT": "memory:",
+        })
+        self.assertEqual(
+            self._order_by_id(result["OUTPUT"]),
+            {3: 1, 2: 2, 1: 3, 0: 4, 4: 5, 5: 6, 6: 7, 7: 8},
         )
 
     def test_serpentine_auto_band_size(self):

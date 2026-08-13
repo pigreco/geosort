@@ -485,7 +485,7 @@ Criteri disponibili: attributo tabellare, coordinate del centroide, area, lunghe
 
 &lt;b&gt;Curva di Hilbert:&lt;/b&gt; ordina le feature lungo una curva di Hilbert calcolata sui centroidi, normalizzati sull'extent complessivo del layer — le feature vicine nello spazio diventano vicine nell'ordine. Utile per atlanti a percorso continuo e per scrivere GeoPackage con feature spazialmente coerenti (letture più veloci). Il parametro avanzato &lt;code&gt;HILBERT_ORDER&lt;/code&gt; regola la risoluzione della griglia (default 16, lato 2^16); non è disponibile come criterio primario in modalità multi-criterio.
 
-&lt;b&gt;Serpentina (boustrophedon):&lt;/b&gt; ordina le feature a bande, con l'asse trasversale alternato crescente/decrescente da una banda alla successiva — l'ordine classico per numerare le tavole di una serie cartografica a taglio regolare o un percorso di volo fotogrammetrico, senza il salto lungo da fine banda a inizio banda successiva tipico di un ordinamento a righe semplice. Il parametro &lt;code&gt;BAND_AXIS&lt;/code&gt; sceglie l'orientamento: bande orizzontali (per Y, X alternato — default) o verticali (per X, Y alternato). Il parametro avanzato &lt;code&gt;BAND_SIZE&lt;/code&gt; imposta la dimensione di banda nelle unità del CRS — altezza per bande orizzontali, larghezza per verticali (0/vuoto = automatica, dalla dimensione media delle bounding box delle feature); non è disponibile come criterio primario in modalità multi-criterio.
+&lt;b&gt;Serpentina (boustrophedon):&lt;/b&gt; ordina le feature a bande, con l'asse trasversale alternato crescente/decrescente da una banda alla successiva — l'ordine classico per numerare le tavole di una serie cartografica a taglio regolare o un percorso di volo fotogrammetrico, senza il salto lungo da fine banda a inizio banda successiva tipico di un ordinamento a righe semplice. Il parametro &lt;code&gt;BAND_AXIS&lt;/code&gt; sceglie l'orientamento: bande orizzontali (per Y, X alternato — default) o verticali (per X, Y alternato). Il parametro avanzato &lt;code&gt;BAND_SIZE&lt;/code&gt; imposta la dimensione di banda nelle unità del CRS — altezza per bande orizzontali, larghezza per verticali (0/vuoto = automatica, dalla dimensione media delle bounding box delle feature). Il parametro avanzato &lt;code&gt;CROSS_ASCENDING&lt;/code&gt; sceglie l'angolo di partenza: con &lt;code&gt;DIRECTION&lt;/code&gt; (quale banda è la prima) e &lt;code&gt;CROSS_ASCENDING&lt;/code&gt; (verso dell'asse trasversale nella prima banda) sono raggiungibili tutti e quattro gli angoli della griglia. Non disponibile come criterio primario in modalità multi-criterio.
 
 &lt;b&gt;Numerazione personalizzata (parametri avanzati):&lt;/b&gt; valore iniziale (es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo (default &lt;b&gt;sort_order&lt;/b&gt;). Se il campo esiste già nel layer di input, i suoi valori vengono sovrascritti invece di creare un duplicato.
 
@@ -508,7 +508,7 @@ Available criteria: table attribute, centroid coordinates, area, length, perimet
 
 &lt;b&gt;Hilbert curve:&lt;/b&gt; sorts features along a Hilbert curve calculated on the centroids, normalized over the layer's overall extent — features near each other in space become near each other in the order. Useful for continuous-path atlases and for writing GeoPackage files with spatially coherent features (faster reads). The advanced &lt;code&gt;HILBERT_ORDER&lt;/code&gt; parameter controls the grid resolution (default 16, side 2^16); not available as the primary criterion in multi-criteria mode.
 
-&lt;b&gt;Serpentine (boustrophedon):&lt;/b&gt; sorts features into bands, with the cross axis alternating ascending/descending from one band to the next — the classic order for numbering the sheets of a regular-grid map series or a photogrammetric flight path, without the long jump from the end of a band to the start of the next one typical of a plain row-by-row sort. The &lt;code&gt;BAND_AXIS&lt;/code&gt; parameter chooses the orientation: horizontal bands (by Y, X alternating — default) or vertical bands (by X, Y alternating). The advanced &lt;code&gt;BAND_SIZE&lt;/code&gt; parameter sets the band size in CRS units — height for horizontal bands, width for vertical ones (0/empty = automatic, from the average bounding box size of the features); not available as the primary criterion in multi-criteria mode.
+&lt;b&gt;Serpentine (boustrophedon):&lt;/b&gt; sorts features into bands, with the cross axis alternating ascending/descending from one band to the next — the classic order for numbering the sheets of a regular-grid map series or a photogrammetric flight path, without the long jump from the end of a band to the start of the next one typical of a plain row-by-row sort. The &lt;code&gt;BAND_AXIS&lt;/code&gt; parameter chooses the orientation: horizontal bands (by Y, X alternating — default) or vertical bands (by X, Y alternating). The advanced &lt;code&gt;BAND_SIZE&lt;/code&gt; parameter sets the band size in CRS units — height for horizontal bands, width for vertical ones (0/empty = automatic, from the average bounding box size of the features). The advanced &lt;code&gt;CROSS_ASCENDING&lt;/code&gt; parameter chooses the starting corner: combining &lt;code&gt;DIRECTION&lt;/code&gt; (which band comes first) and &lt;code&gt;CROSS_ASCENDING&lt;/code&gt; (the cross axis direction in the first band) reaches any of the four corners of the grid. Not available as the primary criterion in multi-criteria mode.
 
 &lt;b&gt;Custom numbering (advanced parameters):&lt;/b&gt; starting value (e.g. 0), step (e.g. 10 → 10, 20, 30...) and the name of the progressive field (default &lt;b&gt;sort_order&lt;/b&gt;). If the field already exists in the input layer, its values are overwritten instead of creating a duplicate.
 
@@ -603,6 +603,10 @@ Vertical: groups by X, alternates the Y reading direction.</translation>
       <translation>Position along reference line</translation>
     </message>
     <message>
+      <source>Prima banda in verso crescente</source>
+      <translation>First band in ascending direction</translation>
+    </message>
+    <message>
       <source>Proiezione centroide  –  tutte le feature</source>
       <translation>Centroid projection  –  all features</translation>
     </message>
@@ -661,6 +665,10 @@ sort_order field is written only for those features.</translation>
     <message>
       <source>Serpentina – orientamento bande</source>
       <translation>Serpentine – band orientation</translation>
+    </message>
+    <message>
+      <source>Serpentina – prima banda in verso crescente (altrimenti decrescente)</source>
+      <translation>Serpentine – first band in ascending direction (otherwise descending)</translation>
     </message>
     <message>
       <source>Solo intersecanti  –  primo punto di intersezione</source>
@@ -741,6 +749,16 @@ are measured on the ellipsoid (m²/m) instead of degrees.
     <message>
       <source>Valori NULL in fondo (solo per criterio attributo)</source>
       <translation>NULL values last (attribute criterion only)</translation>
+    </message>
+    <message>
+      <source>Verso dell'asse trasversale nella prima banda percorsa (X per bande
+orizzontali, Y per verticali): crescente (default) o decrescente.
+Combinato con la Direzione generale (quale banda è la prima),
+sceglie l'angolo di partenza del percorso a serpentina.</source>
+      <translation>Direction of the cross axis in the first band visited (X for
+horizontal bands, Y for vertical): ascending (default) or descending.
+Combined with the general Direction (which band comes first),
+it chooses the starting corner of the serpentine path.</translation>
     </message>
     <message>
       <source>Verticali (bande per X, Y alternato)</source>

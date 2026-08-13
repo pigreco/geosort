@@ -299,8 +299,12 @@ EN.update({
     "(per Y, X alternato — default) o verticali (per X, Y alternato). Il parametro "
     "avanzato <code>BAND_SIZE</code> imposta la dimensione di banda nelle unità del "
     "CRS — altezza per bande orizzontali, larghezza per verticali (0/vuoto = "
-    "automatica, dalla dimensione media delle bounding box delle feature); "
-    "non è disponibile come criterio primario in modalità multi-criterio.\n\n"
+    "automatica, dalla dimensione media delle bounding box delle feature). Il "
+    "parametro avanzato <code>CROSS_ASCENDING</code> sceglie l'angolo di partenza: "
+    "con <code>DIRECTION</code> (quale banda è la prima) e <code>CROSS_ASCENDING</code> "
+    "(verso dell'asse trasversale nella prima banda) sono raggiungibili tutti e "
+    "quattro gli angoli della griglia. Non disponibile come criterio primario in "
+    "modalità multi-criterio.\n\n"
     "<b>Numerazione personalizzata (parametri avanzati):</b> valore iniziale "
     "(es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo "
     "(default <b>sort_order</b>). Se il campo esiste già nel layer di input, "
@@ -351,8 +355,12 @@ EN.update({
         "bands (by Y, X alternating — default) or vertical bands (by X, Y "
         "alternating). The advanced <code>BAND_SIZE</code> parameter sets the band "
         "size in CRS units — height for horizontal bands, width for vertical ones "
-        "(0/empty = automatic, from the average bounding box size of the features); "
-        "not available as the primary criterion in multi-criteria mode.\n\n"
+        "(0/empty = automatic, from the average bounding box size of the features). "
+        "The advanced <code>CROSS_ASCENDING</code> parameter chooses the starting "
+        "corner: combining <code>DIRECTION</code> (which band comes first) and "
+        "<code>CROSS_ASCENDING</code> (the cross axis direction in the first band) "
+        "reaches any of the four corners of the grid. Not available as the primary "
+        "criterion in multi-criteria mode.\n\n"
         "<b>Custom numbering (advanced parameters):</b> starting value "
         "(e.g. 0), step (e.g. 10 → 10, 20, 30...) and the name of the progressive "
         "field (default <b>sort_order</b>). If the field already exists in the input "
@@ -458,6 +466,17 @@ EN.update({
     "da altezza/larghezza media delle feature)":
         "Serpentine – band size, CRS units (0 = automatic, "
         "from average feature height/width)",
+    "Prima banda in verso crescente": "First band in ascending direction",
+    "Verso dell'asse trasversale nella prima banda percorsa (X per bande\n"
+    "orizzontali, Y per verticali): crescente (default) o decrescente.\n"
+    "Combinato con la Direzione generale (quale banda è la prima),\n"
+    "sceglie l'angolo di partenza del percorso a serpentina.":
+        "Direction of the cross axis in the first band visited (X for\n"
+        "horizontal bands, Y for vertical): ascending (default) or descending.\n"
+        "Combined with the general Direction (which band comes first),\n"
+        "it chooses the starting corner of the serpentine path.",
+    "Serpentina – prima banda in verso crescente (altrimenti decrescente)":
+        "Serpentine – first band in ascending direction (otherwise descending)",
 })
 
 # Traduzioni italiane: identità tranne i source in inglese

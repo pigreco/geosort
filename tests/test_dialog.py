@@ -152,6 +152,21 @@ class TestGeoSortDialog(unittest.TestCase):
         """Di default l'orientamento bande deve essere 'horizontal'."""
         self.assertEqual(self.dialog.combo_band_axis.currentData(), "horizontal")
 
+    def test_serpentine_criterion_enables_cross_ascending_checkbox(self):
+        """Con criterio 'Serpentina', il checkbox 'prima banda crescente' deve essere abilitato."""
+        self.dialog.rb_serpentine.setChecked(True)
+        self.assertTrue(self.dialog.chk_cross_ascending.isEnabled())
+
+    def test_other_criterion_disables_cross_ascending_checkbox(self):
+        """Con un criterio diverso da 'Serpentina', il checkbox è disabilitato."""
+        self.dialog.rb_attribute.setChecked(True)
+        self.assertFalse(self.dialog.chk_cross_ascending.isEnabled())
+
+    def test_cross_ascending_default_is_checked(self):
+        """Di default 'prima banda in verso crescente' deve essere spuntato
+        (comportamento retrocompatibile, angolo di partenza invariato)."""
+        self.assertTrue(self.dialog.chk_cross_ascending.isChecked())
+
     # ── Selettore layer di riferimento ────────────────────────────────────────
 
     def test_ref_layer_enabled_for_spatial(self):

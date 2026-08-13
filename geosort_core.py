@@ -616,7 +616,7 @@ def sort_by_hilbert(features, ascending=True, order=16, progress_callback=None):
 
 
 def sort_by_serpentine(features, band_size=None, ascending=True, axis="horizontal",
-                       progress_callback=None):
+                       cross_ascending=True, progress_callback=None):
     """Ordina le feature "a serpentina" (boustrophedon): bande per Y (o per X),
     con l'asse trasversale alternato crescente/decrescente da una banda alla
     successiva.
@@ -638,7 +638,14 @@ def sort_by_serpentine(features, band_size=None, ascending=True, axis="horizonta
     raggruppamento se ``ascending``, dal massimo altrimenti); l'indice di
     percorrenza (non l'indice di banda "grezzo", per restare continuo anche se
     qualche banda risulta vuota) determina il verso di lettura dell'asse
-    trasversale: pari → crescente, dispari → decrescente.
+    trasversale, alternato da una banda alla successiva a partire dal verso
+    scelto per la prima banda (``cross_ascending``).
+
+    Combinando ``ascending`` (quale banda è la prima) e ``cross_ascending``
+    (verso dell'asse trasversale nella prima banda) si sceglie liberamente
+    l'angolo di partenza del percorso — i quattro angoli della bounding box
+    complessiva sono tutti raggiungibili con le quattro combinazioni dei due
+    booleani, per qualunque ``axis``.
 
     Args:
         features (list[QgsFeature]): feature da ordinare.
@@ -654,6 +661,10 @@ def sort_by_serpentine(features, band_size=None, ascending=True, axis="horizonta
             per verticale), si procede verso il massimo; False = viceversa.
         axis (str): ``"horizontal"`` (bande per Y, default) o ``"vertical"``
             (bande per X).
+        cross_ascending (bool): True (default) = nella prima banda percorsa
+            l'asse trasversale va dal valore minimo al massimo (X crescente
+            per bande orizzontali, Y crescente per verticali); False =
+            viceversa. Le bande successive alternano rispetto a questo verso.
         progress_callback (callable | None): se fornita, chiamata con percentuale 0-100.
 
     Returns:
@@ -718,7 +729,9 @@ def sort_by_serpentine(features, band_size=None, ascending=True, axis="horizonta
     def sort_key(item):
         _, band, cval = item
         rank = rank_of_band[band]
-        c_key = cval if rank % 2 == 0 else -cval
+        rank_is_even = (rank % 2 == 0)
+        eff_ascending = cross_ascending if rank_is_even else not cross_ascending
+        c_key = cval if eff_ascending else -cval
         return (rank, c_key)
 
     raw.sort(key=sort_key)
