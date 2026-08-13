@@ -308,6 +308,10 @@ class GeoSortDialog(QDialog):
             "(altezza se orizzontali, larghezza se verticali).\n"
             "0 = automatica (dimensione media delle bounding box delle feature)."
         ))
+        # QDoubleSpinBox ha un sizeHint più alto di QComboBox su alcuni stili
+        # Qt (frecce su/giù impilate): allinea l'altezza a quella della combo
+        # accanto, così la riga resta visivamente uniforme.
+        self.spin_band_size.setFixedHeight(self.combo_band_axis.sizeHint().height())
         grid.addWidget(self.spin_band_size, 9, 2)
 
         outer.addLayout(grid)
