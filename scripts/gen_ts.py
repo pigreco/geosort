@@ -85,7 +85,10 @@ EN = {
     "Crea nuovo layer in memoria": "Create new memory layer",
     "Aggiungi campo con il valore del criterio usato (es. sort_area, sort_dist)":
         "Add a field with the used criterion value (e.g. sort_area, sort_dist)",
-    "Anteprima (prime 10 feature ordinate)": "Preview (first 10 sorted features)",
+    "Anteprima…": "Preview…",
+    "Mostra le prime feature ordinate con il criterio corrente":
+        "Show the first sorted features for the current criterion",
+    "GeoSort – Anteprima": "GeoSort – Preview",
     "FID": "FID",
     "sort_order": "sort_order",
     "Valore criterio": "Criterion value",
@@ -103,6 +106,7 @@ EN = {
     "Area (poligoni)": "Area (polygons)",
     "Perimetro (poligoni)": "Perimeter (polygons)",
     "Lunghezza (linee)": "Length (lines)",
+    "discendente ↓": "descending ↓",
     "Criterio secondario discendente ↓": "Secondary criterion descending ↓",
     "Spezza i pareggi del criterio primario (es. primario = Regione, secondario = Area). Non disponibile se il criterio primario è basato su linea.":
         "Breaks ties of the primary criterion (e.g. primary = Region, secondary = Area). "

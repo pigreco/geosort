@@ -57,8 +57,8 @@ o espressioni di concatenazione come "fid" || "id_poly".</translation>
       <translation>Annulla</translation>
     </message>
     <message>
-      <source>Anteprima (prime 10 feature ordinate)</source>
-      <translation>Anteprima (prime 10 feature ordinate)</translation>
+      <source>Anteprima…</source>
+      <translation>Anteprima…</translation>
     </message>
     <message>
       <source>Applica</source>
@@ -277,6 +277,10 @@ Espressione: {expr}</translation>
       <translation>GeoSort – Ordinamento Avanzato delle Geometrie</translation>
     </message>
     <message>
+      <source>GeoSort – Anteprima</source>
+      <translation>GeoSort – Anteprima</translation>
+    </message>
+    <message>
       <source>GeoSort: criterio secondario ignorato perché il criterio primario non supporta l'ordinamento multi-criterio (linea di riferimento, curva di Hilbert o serpentina).</source>
       <translation>GeoSort: criterio secondario ignorato perché il criterio primario non supporta l'ordinamento multi-criterio (linea di riferimento, curva di Hilbert o serpentina).</translation>
     </message>
@@ -413,6 +417,10 @@ Sovrascriverlo con il nuovo ordinamento?</translation>
     <message>
       <source>Modalità sconosciuta: '{mode}'. Valori ammessi: {valid}</source>
       <translation>Modalità sconosciuta: '{mode}'. Valori ammessi: {valid}</translation>
+    </message>
+    <message>
+      <source>Mostra le prime feature ordinate con il criterio corrente</source>
+      <translation>Mostra le prime feature ordinate con il criterio corrente</translation>
     </message>
     <message>
       <source>Nessuna feature selezionata sul layer (è attivo 'Ordina solo le feature selezionate').</source>
@@ -771,6 +779,10 @@ sceglie l'angolo di partenza del percorso a serpentina.</translation>
     <message>
       <source>Ymin Bounding Box</source>
       <translation>Ymin Bounding Box</translation>
+    </message>
+    <message>
+      <source>discendente ↓</source>
+      <translation>discendente ↓</translation>
     </message>
     <message>
       <source>sort_order</source>
