@@ -97,6 +97,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     GEODESIC = "GEODESIC"
     REF_LAYER = "REF_LAYER"
     REF_POINT = "REF_POINT"
+    HILBERT_ORDER = "HILBERT_ORDER"
     ADD_VALUE_FIELD = "ADD_VALUE_FIELD"
     START = "START"
     STEP = "STEP"
@@ -120,6 +121,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         "bbox_ymin",
         "line_position",
         "line_distance",
+        "hilbert",
         "expression",
     ]
 
@@ -130,7 +132,9 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
     SECONDARY_DIRECTION = "SECONDARY_DIRECTION"
 
     # Criteri ammessi come primario in modalità multi-criterio (no linea: niente
-    # geometria di riferimento esterna né semantica di esclusione).
+    # geometria di riferimento esterna né semantica di esclusione; niente Hilbert:
+    # richiede l'extent calcolato su tutte le feature, non un valore per-feature
+    # indipendente come richiesto da _numeric_extractor).
     _MULTI_PRIMARY_KEYS = frozenset({
         "attribute", "expression",
         "centroid_x", "centroid_y", "centroid_dist",
@@ -171,6 +175,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         "Ymin Bounding Box",
         "Posizione lungo linea di riferimento",
         "Distanza dalla linea di riferimento",
+        "Curva di Hilbert (ordinamento spaziale)",
         "Espressione QGIS",
     ]
 
@@ -200,7 +205,8 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             "e aggiunge il campo <b>sort_order</b> (numero progressivo, 1 = prima feature).\n\n"
             "Criteri disponibili: attributo tabellare, coordinate del centroide, "
             "area, lunghezza, perimetro, numero di vertici, bounding box, "
-            "posizione lungo una linea di riferimento, distanza dalla linea di riferimento, espressione QGIS.\n\n"
+            "posizione lungo una linea di riferimento, distanza dalla linea di riferimento, "
+            "curva di Hilbert (ordinamento spaziale), espressione QGIS.\n\n"
             "<b>Modalità di ordinamento testuale (attributo/espressione):</b>\n"
             "• <b>Lessicografico</b> (default): confronto carattere per carattere. "
             "Esempio: «1010» &lt; «11» &lt; «1111».\n"
@@ -217,6 +223,13 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             "<b>Layer di riferimento (posizione/distanza lungo linea):</b> se il layer di "
             "riferimento ha un CRS diverso da quello del layer di input, viene riproiettato "
             "automaticamente prima del calcolo (con un avviso non bloccante).\n\n"
+            "<b>Curva di Hilbert:</b> ordina le feature lungo una curva di Hilbert calcolata "
+            "sui centroidi, normalizzati sull'extent complessivo del layer — le feature "
+            "vicine nello spazio diventano vicine nell'ordine. Utile per atlanti a percorso "
+            "continuo e per scrivere GeoPackage con feature spazialmente coerenti (letture "
+            "più veloci). Il parametro avanzato <code>HILBERT_ORDER</code> regola la "
+            "risoluzione della griglia (default 16, lato 2^16); non è disponibile come "
+            "criterio primario in modalità multi-criterio.\n\n"
             "<b>Numerazione personalizzata (parametri avanzati):</b> valore iniziale "
             "(es. 0), passo (es. 10 → 10, 20, 30...) e nome del campo progressivo "
             "(default <b>sort_order</b>). Se il campo esiste già nel layer di input, "
@@ -346,6 +359,18 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         )
         param_line_dist_mode.setFlags(param_line_dist_mode.flags() | _FLAG_ADVANCED)
         self.addParameter(param_line_dist_mode)
+
+        # Ordine della curva (condizionale, solo per il criterio "Curva di Hilbert")
+        param_hilbert_order = QgsProcessingParameterNumber(
+            self.HILBERT_ORDER,
+            self.tr("Curva di Hilbert – ordine (risoluzione griglia = 2^ordine)"),
+            type=_NUMBER_INTEGER,
+            defaultValue=16,
+            minValue=1,
+            maxValue=24,
+        )
+        param_hilbert_order.setFlags(param_hilbert_order.flags() | _FLAG_ADVANCED)
+        self.addParameter(param_hilbert_order)
 
         self.addParameter(
             QgsProcessingParameterExpression(
@@ -561,6 +586,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
             sort_by_geometry_property,
             sort_by_line_position,
             sort_by_line_distance,
+            sort_by_hilbert,
             _infer_field_type,
             _coerce_value,
             build_distance_area,
@@ -613,7 +639,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
         if sec_key is not None and not multi_active:
             feedback.pushWarning(self.tr(
                 "GeoSort: criterio secondario ignorato perché il criterio primario "
-                "è basato su una linea di riferimento."
+                "non supporta l'ordinamento multi-criterio (linea di riferimento o curva di Hilbert)."
             ))
 
         try:
@@ -699,6 +725,13 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                 sorted_feats, values = sort_by_line_distance(
                     features, line_geom, ascending, mode=dist_mode, distance_area=da,
                     progress_callback=_progress_cb,
+                )
+                excluded = []
+
+            elif criterion == "hilbert":
+                hilbert_order = self.parameterAsInt(parameters, self.HILBERT_ORDER, context)
+                sorted_feats, values = sort_by_hilbert(
+                    features, ascending, order=hilbert_order, progress_callback=_progress_cb,
                 )
                 excluded = []
 

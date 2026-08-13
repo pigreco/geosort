@@ -191,6 +191,65 @@ def _sort_by_centroid(features, axis="x", ascending=True, ref_point=None):
     return sorted_feats, values
 
 
+def _hilbert_index(order, x, y):
+    """Replica di geosort_core._hilbert_index (algoritmo xy2d standard)."""
+    n = 1 << order
+    d = 0
+    s = n >> 1
+    while s > 0:
+        rx = 1 if (x & s) > 0 else 0
+        ry = 1 if (y & s) > 0 else 0
+        d += s * s * ((3 * rx) ^ ry)
+        if ry == 0:
+            if rx == 1:
+                x = n - 1 - x
+                y = n - 1 - y
+            x, y = y, x
+        s >>= 1
+    return d
+
+
+def _sort_by_hilbert(features, ascending=True, order=16, progress_callback=None):
+    """Replica di geosort_core.sort_by_hilbert."""
+    pts = []
+    invalid = []
+    for f in features:
+        geom = f.geometry()
+        if geom is None:
+            invalid.append(f)
+            continue
+        pt = geom.centroid().asPoint()
+        pts.append((f, pt.x(), pt.y()))
+
+    if not pts:
+        if progress_callback:
+            progress_callback(100)
+        return invalid, [None] * len(invalid)
+
+    xs = [p[1] for p in pts]
+    ys = [p[2] for p in pts]
+    xmin, xmax = min(xs), max(xs)
+    ymin, ymax = min(ys), max(ys)
+    xspan = (xmax - xmin) or 1.0
+    yspan = (ymax - ymin) or 1.0
+
+    side = (1 << order) - 1
+    valid = []
+    for f, x, y in pts:
+        gx = int((x - xmin) / xspan * side)
+        gy = int((y - ymin) / yspan * side)
+        valid.append((f, _hilbert_index(order, gx, gy)))
+
+    valid.sort(key=lambda p: p[1], reverse=not ascending)
+    sorted_feats = [p[0] for p in valid] + invalid
+    values = [p[1] for p in valid] + [None] * len(invalid)
+
+    if progress_callback:
+        progress_callback(100)
+
+    return sorted_feats, values
+
+
 def _check_criterion_compatibility(geom_type, criterion):
     """Replica la validazione di geosort_core._geom_value()."""
     if criterion == "area" and geom_type != "polygon":
@@ -838,6 +897,117 @@ class TestSortByCentroid(unittest.TestCase):
         feats = self._point_feats([(i, 0) for i in range(5)])
         result, values = _sort_by_centroid(feats, axis="x", ascending=True)
         self.assertEqual(len(result), len(values))
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Test: ordinamento per curva di Hilbert
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestHilbertIndex(unittest.TestCase):
+    """B: _hilbert_index — algoritmo xy2d di base (ordine 1: griglia 2×2)."""
+
+    def test_order1_corners(self):
+        # Curva di Hilbert di ordine 1: (0,0)->0, (0,1)->1, (1,1)->2, (1,0)->3
+        # (forma a "U", punto di partenza in basso a sinistra).
+        self.assertEqual(_hilbert_index(1, 0, 0), 0)
+        self.assertEqual(_hilbert_index(1, 0, 1), 1)
+        self.assertEqual(_hilbert_index(1, 1, 1), 2)
+        self.assertEqual(_hilbert_index(1, 1, 0), 3)
+
+    def test_index_range_is_bijective(self):
+        # Su una griglia N×N l'indice deve coprire esattamente [0, N²) senza ripetizioni.
+        order = 3
+        side = 1 << order
+        indices = {_hilbert_index(order, x, y) for x in range(side) for y in range(side)}
+        self.assertEqual(indices, set(range(side * side)))
+
+    def test_locality_adjacent_cells_have_close_indices(self):
+        # Proprietà chiave della curva di Hilbert: celle a griglia adiacenti hanno
+        # indici relativamente vicini (a differenza, es., di un ordinamento riga per riga).
+        order = 4
+        d1 = _hilbert_index(order, 5, 5)
+        d2 = _hilbert_index(order, 5, 6)  # cella immediatamente adiacente
+        self.assertLess(abs(d1 - d2), 4 ** order // 4)
+
+
+class TestSortByHilbert(unittest.TestCase):
+
+    def _point_feats(self, coords):
+        return [
+            MockFeature(i, geometry=MockGeometry("point", cx=x, cy=y))
+            for i, (x, y) in enumerate(coords)
+        ]
+
+    def test_returns_all_features(self):
+        feats = self._point_feats([(0, 0), (1, 1), (2, 2), (3, 0)])
+        result, values = _sort_by_hilbert(feats)
+        self.assertEqual(len(result), 4)
+        self.assertEqual(len(values), 4)
+
+    def test_values_are_monotone(self):
+        feats = self._point_feats([(3, 1), (0, 0), (2, 3), (1, 2)])
+        _, values = _sort_by_hilbert(feats, ascending=True)
+        self.assertTrue(all(values[i] <= values[i + 1] for i in range(len(values) - 1)))
+
+    def test_descending_reverses_order(self):
+        feats = self._point_feats([(0, 0), (1, 1), (2, 2), (3, 3)])
+        asc, _ = _sort_by_hilbert(feats, ascending=True)
+        desc, _ = _sort_by_hilbert(feats, ascending=False)
+        self.assertEqual([f.id() for f in asc], [f.id() for f in reversed(desc)])
+
+    def test_nearby_points_end_up_close_in_order(self):
+        # Due punti quasi coincidenti devono restare vicini nell'ordine anche in
+        # mezzo a punti sparsi altrove nell'extent — proprietà distintiva di
+        # Hilbert rispetto a un ordinamento per sola X o per sola Y.
+        # (30, 70) evita deliberatamente il centro esatto dell'extent: lì la
+        # curva attraversa un confine di quadrante e due punti vicinissimi
+        # possono finire in "bracci" diversi della curva — caso limite noto
+        # della curva di Hilbert, non un bug della funzione.
+        feats = self._point_feats([
+            (0, 0), (100, 100), (30.0, 70.0), (30.001, 70.001), (100, 0), (0, 100),
+        ])
+        result, _ = _sort_by_hilbert(feats)
+        ids = [f.id() for f in result]
+        pos_a = ids.index(2)  # (30.0, 70.0)
+        pos_b = ids.index(3)  # (30.001, 70.001)
+        self.assertEqual(abs(pos_a - pos_b), 1)
+
+    def test_null_geometry_relegated_last(self):
+        feats = [
+            MockFeature(0, geometry=MockGeometry("point", cx=3.0, cy=3.0)),
+            MockFeature(1, geometry=None),
+            MockFeature(2, geometry=MockGeometry("point", cx=1.0, cy=1.0)),
+        ]
+        sorted_feats, values = _sort_by_hilbert(feats)
+        self.assertEqual(sorted_feats[-1].id(), 1)
+        self.assertIsNone(values[-1])
+
+    def test_degenerate_extent_all_same_point(self):
+        # Tutti i punti coincidenti: xspan/yspan collassano a 0, non deve
+        # sollevare ZeroDivisionError (fallback a 1.0 nello span).
+        feats = self._point_feats([(5, 5), (5, 5), (5, 5)])
+        result, values = _sort_by_hilbert(feats)
+        self.assertEqual(len(result), 3)
+        self.assertEqual(values, [0, 0, 0])
+
+    def test_all_points_collinear(self):
+        # Extent degenere su un solo asse (yspan collassa a 0): non deve
+        # sollevare eccezioni, e l'ordine lungo X resta rispettato.
+        feats = self._point_feats([(3, 0), (1, 0), (2, 0)])
+        result, _ = _sort_by_hilbert(feats)
+        xs = [f.geometry().centroid().asPoint().x() for f in result]
+        self.assertEqual(xs, [1.0, 2.0, 3.0])
+
+    def test_progress_callback_reaches_100(self):
+        feats = self._point_feats([(i, i) for i in range(5)])
+        called = []
+        _sort_by_hilbert(feats, progress_callback=lambda pct: called.append(pct))
+        self.assertEqual(called[-1], 100)
+
+    def test_empty_features_list(self):
+        result, values = _sort_by_hilbert([])
+        self.assertEqual(result, [])
+        self.assertEqual(values, [])
 
 
 # ──────────────────────────────────────────────────────────────────────────────

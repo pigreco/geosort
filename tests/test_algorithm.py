@@ -182,16 +182,20 @@ class TestGeoSortAlgorithm(unittest.TestCase):
     # ── Criteri ───────────────────────────────────────────────────────────────
 
     def test_algorithm_criteria_keys_count(self):
-        """Deve avere 16 criteri (15 originali + 1 nuovo line_distance)."""
-        self.assertEqual(len(self.algo._CRITERIA_KEYS), 16)
+        """Deve avere 17 criteri (16 + 1 nuovo hilbert)."""
+        self.assertEqual(len(self.algo._CRITERIA_KEYS), 17)
 
     def test_algorithm_criteria_keys_include_line_distance(self):
         """Deve includere 'line_distance' nei criteri."""
         self.assertIn("line_distance", self.algo._CRITERIA_KEYS)
 
+    def test_algorithm_criteria_keys_include_hilbert(self):
+        """Deve includere 'hilbert' nei criteri."""
+        self.assertIn("hilbert", self.algo._CRITERIA_KEYS)
+
     def test_algorithm_criteria_labels_count(self):
-        """Deve avere 16 etichette (una per criterio)."""
-        self.assertEqual(len(self.algo._CRITERIA_LABELS), 16)
+        """Deve avere 17 etichette (una per criterio)."""
+        self.assertEqual(len(self.algo._CRITERIA_LABELS), 17)
 
     def test_algorithm_criteria_keys_and_labels_match(self):
         """Numero di chiavi e etichette deve coincidere."""
@@ -214,6 +218,15 @@ class TestGeoSortAlgorithm(unittest.TestCase):
     def test_line_distance_index(self):
         """'line_distance' deve essere al corretto indice (14)."""
         self.assertEqual(self.algo._CRITERIA_KEYS[14], "line_distance")
+
+    def test_hilbert_index_position(self):
+        """'hilbert' deve essere al corretto indice (15), subito prima di 'expression'."""
+        self.assertEqual(self.algo._CRITERIA_KEYS[15], "hilbert")
+
+    def test_algorithm_has_hilbert_order_parameter(self):
+        """L'algoritmo deve esporre il parametro avanzato HILBERT_ORDER."""
+        param_names = [p.name() for p in self.algo.parameterDefinitions()]
+        self.assertIn("HILBERT_ORDER", param_names)
 
     def test_expression_is_last_criterion(self):
         """'expression' deve essere l'ultimo criterio."""
@@ -248,6 +261,11 @@ class TestGeoSortAlgorithm(unittest.TestCase):
         """I criteri basati su linea non sono ammessi come primario in multi-criterio."""
         self.assertNotIn("line_position", self.algo._MULTI_PRIMARY_KEYS)
         self.assertNotIn("line_distance", self.algo._MULTI_PRIMARY_KEYS)
+
+    def test_multi_primary_keys_excludes_hilbert(self):
+        """'hilbert' richiede l'extent globale: non ammesso come primario in multi-criterio."""
+        self.assertNotIn("hilbert", self.algo._MULTI_PRIMARY_KEYS)
+        self.assertNotIn("hilbert", self.algo._SECONDARY_KEYS)
 
     def test_end_to_end_selected_features_only(self):
         """Con QgsProcessingFeatureSourceDefinition vengono ordinate solo le selezionate."""
@@ -375,16 +393,16 @@ class TestGeoSortAlgorithm(unittest.TestCase):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Copertura end-to-end di TUTTI i 16 criteri via processing.run()
+# Copertura end-to-end di TUTTI i 17 criteri via processing.run()
 # ──────────────────────────────────────────────────────────────────────────────
 # TestGeoSortAlgorithm sopra esercita solo gli indici 0 (attribute), 1
 # (centroid_x) e 3 (centroid_dist) attraverso l'algoritmo Processing reale.
 # Questa classe copre i restanti: centroid_y, i criteri geometrici (area,
-# perimeter, length, n_vertices, i 5 bbox_*), line_position, line_distance ed
-# expression — con geometrie scelte apposta perché ogni sotto-criterio dia un
-# ordine diverso dagli altri, in modo da smascherare eventuali scambi (es.
-# area/perimeter o xmin/ymin invertiti) invece di limitarsi a verificare che
-# l'algoritmo non vada in crash.
+# perimeter, length, n_vertices, i 5 bbox_*), line_position, line_distance,
+# hilbert ed expression — con geometrie scelte apposta perché ogni
+# sotto-criterio dia un ordine diverso dagli altri, in modo da smascherare
+# eventuali scambi (es. area/perimeter o xmin/ymin invertiti) invece di
+# limitarsi a verificare che l'algoritmo non vada in crash.
 
 @unittest.skipUnless(_qgis_available(), "QGIS non disponibile in questo ambiente di test")
 @unittest.skipUnless(_processing_available(), "Processing module non disponibile in questo ambiente di test")
@@ -672,10 +690,59 @@ class TestGeoSortAlgorithmAllCriteria(unittest.TestCase):
             self.assertFalse(math.isnan(value_b))
             self.assertAlmostEqual(value_a, value_b, delta=0.5)  # metri, tolleranza riproiezione
 
-    # ── expression (indice 15) ──────────────────────────────────────────────
+    # ── hilbert (indice 15) ──────────────────────────────────────────────────
+
+    def test_hilbert(self):
+        """CRITERION=15: ordina lungo la curva di Hilbert calcolata sui centroidi.
+
+        I quattro punti formano un quadrato percorso in senso orario
+        (0,0)→(1,0)→(1,1)→(0,1): l'ordine di Hilbert atteso è invece
+        (0,0)→(0,1)→(1,1)→(1,0) — diverso sia da una scansione per sola X
+        sia per sola Y, così un'implementazione sbagliata (es. che ordinasse
+        per X o Y anziché per indice di Hilbert) verrebbe smascherata.
+        """
+        import processing
+        from qgis.core import QgsGeometry, QgsPointXY
+        layer = self._make_layer(
+            "Point?crs=EPSG:4326&field=id:integer", "hilbert_layer",
+            [
+                (QgsGeometry.fromPointXY(QgsPointXY(0, 0)), [0]),
+                (QgsGeometry.fromPointXY(QgsPointXY(1, 0)), [1]),
+                (QgsGeometry.fromPointXY(QgsPointXY(1, 1)), [2]),
+                (QgsGeometry.fromPointXY(QgsPointXY(0, 1)), [3]),
+            ],
+        )
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": layer, "CRITERION": 15, "DIRECTION": True, "OUTPUT": "memory:",
+        })
+        self.assertEqual(self._order_by_id(result["OUTPUT"]), {0: 1, 3: 2, 2: 3, 1: 4})
+
+    def test_hilbert_order_parameter_changes_precision(self):
+        """HILBERT_ORDER più basso non deve far crashare l'algoritmo (griglia più grezza)."""
+        import processing
+        from qgis.core import QgsGeometry, QgsPointXY
+        layer = self._make_layer(
+            "Point?crs=EPSG:4326&field=id:integer", "hilbert_order_layer",
+            [
+                (QgsGeometry.fromPointXY(QgsPointXY(0, 0)), [0]),
+                (QgsGeometry.fromPointXY(QgsPointXY(1, 0)), [1]),
+                (QgsGeometry.fromPointXY(QgsPointXY(1, 1)), [2]),
+                (QgsGeometry.fromPointXY(QgsPointXY(0, 1)), [3]),
+            ],
+        )
+        result = processing.run("geosort:geosort_sort", {
+            "INPUT": layer, "CRITERION": 15, "HILBERT_ORDER": 2,
+            "DIRECTION": True, "OUTPUT": "memory:",
+        })
+        out = result["OUTPUT"]
+        self.assertEqual(out.featureCount(), 4)
+        orders = sorted(f["sort_order"] for f in out.getFeatures())
+        self.assertEqual(orders, [1, 2, 3, 4])
+
+    # ── expression (indice 16) ──────────────────────────────────────────────
 
     def test_expression(self):
-        """CRITERION=15: ordina per il risultato di un'espressione QGIS."""
+        """CRITERION=16: ordina per il risultato di un'espressione QGIS."""
         import processing
         from qgis.core import QgsGeometry, QgsPointXY
         layer = self._make_layer(
@@ -687,7 +754,7 @@ class TestGeoSortAlgorithmAllCriteria(unittest.TestCase):
             ],
         )
         result = processing.run("geosort:geosort_sort", {
-            "INPUT": layer, "CRITERION": 15,
+            "INPUT": layer, "CRITERION": 16,
             "EXPRESSION": "10 - \"id\"",  # inverte l'ordine naturale degli id
             "DIRECTION": True, "OUTPUT": "memory:",
         })

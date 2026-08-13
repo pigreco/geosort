@@ -47,7 +47,7 @@ The plugin is split into four modules with a deliberate dependency boundary:
 
 - **`geosort_core.py`** — pure sorting logic with no UI dependency. Contains all sort functions (`sort_by_attribute`, `sort_by_centroid`, `sort_by_geometry_property`, `sort_by_line_position`, `sort_by_expression`) plus `apply_sort_order` and `create_memory_layer`. This is the only module with unit tests.
 
-- **`geosort_algorithm.py`** — `GeoSortAlgorithm(QgsProcessingAlgorithm)` that wraps `geosort_core` for use in the Processing Toolbox, the graphical modeler, and headless PyQGIS. Defines the 16 sort criteria as an enum (`_CRITERIA_KEYS` / `_CRITERIA_LABELS`).
+- **`geosort_algorithm.py`** — `GeoSortAlgorithm(QgsProcessingAlgorithm)` that wraps `geosort_core` for use in the Processing Toolbox, the graphical modeler, and headless PyQGIS. Defines the 17 sort criteria as an enum (`_CRITERIA_KEYS` / `_CRITERIA_LABELS`).
 
 - **`geosort_dialog.py`** — `GeoSortDialog(QDialog)` for the interactive UI. Built programmatically (no `.ui` file). The dialog is opened non-modally via `show()` (not `exec()`) so the QGIS canvas stays interactive for map-point picking. Contains `_PointPickerTool(QgsMapToolEmitPoint)` for reference-point selection.
 
