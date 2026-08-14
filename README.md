@@ -16,6 +16,8 @@ geometrici e attributivi, con assegnazione automatica di un campo progressivo
 
 Compatibile con **QGIS 3.16+** (Qt5 / PyQt5) e **QGIS 4.x** (Qt6 / PyQt6).
 
+📖 **[Guida completa con esempi e screenshot](https://pigreco.github.io/geosort/)** — ogni criterio spiegato, parametri, casi d'uso tipici.
+
 ![](gui.png)
 
 ---
