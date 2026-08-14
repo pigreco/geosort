@@ -1,0 +1,407 @@
+<title>GeoSort — Guida completa</title>
+<meta name="description" content="Guida completa a GeoSort: ogni criterio di ordinamento, i parametri, quando usarlo ed esempi con screenshot reali.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><text y=%2213%22 font-size=%2214%22>🧭</text></svg>">
+<link rel="stylesheet" href="assets/css/style.css">
+
+<header class="hero">
+  <div class="wrap">
+    <div class="langswitch">🇮🇹 <b>Italiano</b> | <a href="en/index.html">🇬🇧 English</a></div>
+    <h1>GeoSort — Guida completa</h1>
+    <p class="tagline">Ordina le feature di un layer vettoriale QGIS per criteri geometrici e attributivi — 18 criteri, ordinamento multi-criterio, esempi e casi d'uso.</p>
+    <div class="badges">
+      <img src="https://img.shields.io/badge/version-1.11.1-blue.svg" alt="Versione 1.11.1">
+      <img src="https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg" alt="QGIS 3.16+ | 4.x">
+      <img src="https://img.shields.io/badge/license-GPLv2-red.svg" alt="Licenza GPLv2">
+    </div>
+  </div>
+</header>
+
+<div class="wrap layout">
+<nav class="toc">
+  <h2>Guida</h2>
+  <ul>
+    <li><a href="#intro">Introduzione</a></li>
+    <li><a href="#installazione">Installazione</a></li>
+    <li><a href="#concetti">Concetti base</a></li>
+  </ul>
+  <h2>Criteri di ordinamento</h2>
+  <ul>
+    <li><a href="#attributo">Attributo / Espressione</a></li>
+    <li><a href="#centroide">Coordinate centroide</a></li>
+    <li><a href="#geometria">Proprietà geometrica</a></li>
+    <li><a href="#distanza-linea">Distanza dalla linea</a></li>
+    <li><a href="#posizione-linea">Posizione lungo linea</a></li>
+    <li><a href="#hilbert">Curva di Hilbert</a></li>
+    <li><a href="#serpentina">Serpentina (boustrophedon)</a></li>
+  </ul>
+  <h2>Funzionalità trasversali</h2>
+  <ul>
+    <li><a href="#multicriterio">Multi-criterio gerarchico</a></li>
+    <li><a href="#geodetica">Misura geodetica</a></li>
+    <li><a href="#numerazione">Numerazione personalizzata</a></li>
+    <li><a href="#selezione">Solo feature selezionate</a></li>
+    <li><a href="#output">Output</a></li>
+  </ul>
+  <h2>Riferimento</h2>
+  <ul>
+    <li><a href="#processing">Processing Toolbox &amp; PyQGIS</a></li>
+    <li><a href="#casi-uso">Casi d'uso tipici</a></li>
+    <li><a href="#faq">FAQ / Troubleshooting</a></li>
+  </ul>
+</nav>
+
+<main>
+
+<section id="intro">
+<h2>Introduzione</h2>
+<p>
+<b>GeoSort</b> è un plugin QGIS che ordina le feature di un layer vettoriale
+(punti, linee o poligoni) secondo un criterio geometrico o attributivo a
+scelta, e scrive un campo progressivo (default <code>sort_order</code>: 1 =
+prima feature nell'ordine scelto) sul layer o su una copia in memoria. È
+disponibile sia come dialogo interattivo (menu <b>Vettore → GeoSort</b>) sia
+come algoritmo nel <b>Processing Toolbox</b>, utilizzabile in batch, nel
+modellatore grafico e via PyQGIS headless.
+</p>
+<figure class="shot">
+  <img src="assets/img/dialog-overview.png" alt="Dialogo GeoSort con i criteri di ordinamento disponibili">
+  <figcaption>Il dialogo di GeoSort: layer di input, criterio di ordinamento, opzioni e output in un'unica finestra non modale.</figcaption>
+</figure>
+<p>
+Questa guida spiega <b>ogni</b> criterio disponibile, i relativi parametri
+(nel dialogo e nel Processing), quando conviene usarlo e un caso d'uso tipico
+con uno screenshot prima/dopo. Per la sintesi in forma di tabella vedi anche
+il <a href="https://github.com/pigreco/geosort#readme">README del progetto</a>.
+</p>
+</section>
+
+<section id="installazione">
+<h2>Installazione</h2>
+<ol>
+  <li>Scarica il file <code>.zip</code> del plugin dalla pagina delle <a href="https://github.com/pigreco/geosort/releases">release</a>.</li>
+  <li>In QGIS: <b>Plugin → Gestisci e Installa Plugin → Installa da ZIP</b>.</li>
+  <li>Seleziona il file <code>geosort.zip</code>.</li>
+  <li>Il plugin compare nel menu <b>Vettore → GeoSort</b> e nel Processing Toolbox sotto <b>GeoSort</b>.</li>
+</ol>
+<div class="tip">Nessuna dipendenza esterna: GeoSort usa solo API PyQGIS e libreria standard Python. Funziona sia su QGIS 3.16+ (Qt5) sia su QGIS 4.x (Qt6) con lo stesso file <code>.zip</code>.</div>
+</section>
+
+<section id="concetti">
+<h2>Concetti base</h2>
+<ul>
+  <li><b>Campo progressivo</b> — GeoSort scrive un campo intero (default <code>sort_order</code>, nome/valore iniziale/passo personalizzabili — vedi <a href="#numerazione">Numerazione</a>) con la posizione di ogni feature nell'ordine scelto: <code>1</code> = prima feature.</li>
+  <li><b>Direzione</b> — Ascendente o Discendente, si applica a qualunque criterio.</li>
+  <li><b>Valori <code>NULL</code></b> — per criteri attributo/espressione, scegli se le feature con valore <code>NULL</code> vanno in cima o in fondo all'ordine.</li>
+  <li><b>Geometrie NULL o incompatibili</b> — feature senza geometria, o con un tipo non compatibile col criterio scelto (es. punti con criterio "area"), non interrompono l'ordinamento: vengono relegate in fondo.</li>
+  <li><b>Anteprima</b> — il bottone <b>Anteprima…</b> apre un popup con le prime feature ordinate (FID, valore <code>sort_order</code>, valore del criterio) per verificare il risultato prima di applicare le modifiche.</li>
+</ul>
+</section>
+
+<section id="attributo">
+<h2>Attributo / Espressione</h2>
+
+<div class="criterion">
+<h3>Attributo tabellare <span class="pill">tutti i tipi</span></h3>
+<p>Ordina per il valore di un qualunque campo del layer (testo, intero, reale, data).</p>
+<p class="params"><b>Dialogo:</b> radio "Per attributo / espressione" + combo campo &nbsp;•&nbsp; <b>Processing:</b> <code>CRITERION=0</code>, <code>ATTRIBUTE_FIELD</code></p>
+<p><b>Quando usarlo:</b> è il criterio più diretto — nome via, codice catastale, categoria, data di rilievo, qualunque colonna già presente nella tabella attributi.</p>
+</div>
+
+<div class="criterion">
+<h3>Espressione QGIS <span class="pill">tutti i tipi</span></h3>
+<p>Ordina per il risultato di un'espressione QGIS arbitraria, la stessa sintassi del Field Calculator. Clicca il pulsante <b>ε</b> per aprire l'editor di espressioni; l'espressione attiva viene evidenziata in verde, con un bottone <b>Rimuovi</b> per tornare al campo singolo.</p>
+<p class="params"><b>Dialogo:</b> radio "Per attributo / espressione" + editor espressione &nbsp;•&nbsp; <b>Processing:</b> <code>CRITERION=16</code>, <code>EXPRESSION</code></p>
+<ul>
+  <li>Combinazione di campi: <code>"area_kmq" / "pop"</code></li>
+  <li>Funzioni geometriche: <code>length($geometry)</code>, <code>area($geometry)</code></li>
+  <li>Condizioni: <code>CASE WHEN "tipo"='A' THEN 1 ELSE 2 END</code></li>
+  <li>Concatenazione per chiavi composte: <code>"fid" || "id_poly"</code></li>
+</ul>
+<p><b>Quando usarlo:</b> quando il criterio non è un singolo campo ma una combinazione, un calcolo geometrico al volo, o una classificazione condizionale.</p>
+</div>
+
+<h3>Modalità di ordinamento testuale</h3>
+<p>Per entrambi i criteri sopra, un valore testuale può essere confrontato in due modi:</p>
+<table>
+<tr><th>Modalità</th><th>Comportamento</th><th>Esempio</th></tr>
+<tr><td><b>Lessicografico</b> (default)</td><td>confronto carattere per carattere</td><td><code>"1010"</code> &lt; <code>"11"</code> &lt; <code>"1111"</code></td></tr>
+<tr><td><b>Natural Sort</b></td><td>le sequenze di cifre incorporate sono confrontate come numeri interi</td><td><code>"11"</code> &lt; <code>"1010"</code> &lt; <code>"1111"</code></td></tr>
+</table>
+<p>Utile con campi alfanumerici come <code>FILE1</code>, <code>FILE2</code>, <code>FILE10</code> — con l'ordine lessicografico <code>FILE10</code> finirebbe prima di <code>FILE2</code>.</p>
+<div class="shot-pair">
+  <figure class="shot">
+    <img src="assets/img/shot-attribute-lexicographic.png" alt="Ordinamento lessicografico di codici FILE1, FILE2, FILE10">
+    <figcaption>Lessicografico: FILE1 → FILE10 → FILE2</figcaption>
+  </figure>
+  <figure class="shot">
+    <img src="assets/img/shot-attribute-natural.png" alt="Natural Sort di codici FILE1, FILE2, FILE10">
+    <figcaption>Natural Sort: FILE1 → FILE2 → FILE10</figcaption>
+  </figure>
+</div>
+<div class="usecase"><b>Caso d'uso:</b> un layer di tavole cartografiche con nomi <code>FOGLIO_1</code>…<code>FOGLIO_120</code>: senza Natural Sort, <code>FOGLIO_100</code> comparirebbe subito dopo <code>FOGLIO_1</code>.</div>
+</section>
+
+<section id="centroide">
+<h2>Coordinate centroide</h2>
+<div class="criterion">
+<h3>Centroide — coordinata X / Y <span class="pill">tutti i tipi</span></h3>
+<p>Ordina per la posizione geografica del centroide della geometria, lungo l'asse X (ovest→est) o Y (sud→nord).</p>
+<p class="params"><b>Processing:</b> <code>CRITERION=1</code> (X) / <code>CRITERION=2</code> (Y)</p>
+<p><b>Quando usarlo:</b> numerazione progressiva "da sinistra a destra" o "dal basso verso l'alto" — pali, pozzetti, alberi lungo un asse dominante.</p>
+</div>
+<div class="criterion">
+<h3>Centroide — distanza da punto di riferimento <span class="pill">tutti i tipi</span></h3>
+<p>Ordina per distanza euclidea (o geodetica, vedi <a href="#geodetica">Misura geodetica</a>) del centroide da un punto di riferimento configurabile. Nel dialogo il punto si imposta con le caselle X/Y oppure cliccando <b>Seleziona punto sulla mappa</b> — il dialogo si abbassa (senza chiudersi) e il primo click sulla mappa cattura le coordinate; <kbd>Esc</kbd> annulla la selezione.</p>
+<p class="params"><b>Dialogo:</b> spin box X/Y + picker sulla mappa &nbsp;•&nbsp; <b>Processing:</b> <code>CRITERION=3</code>, <code>REF_POINT</code> (opzionale, formato <code>"x,y [EPSG:xxxx]"</code>; vuoto = origine 0,0)</p>
+<div class="usecase"><b>Caso d'uso:</b> ordinare gli interventi di manutenzione per distanza crescente da una centrale operativa, o le stazioni di una rete radiale per distanza dal nodo centrale.</div>
+</div>
+<figure class="shot">
+  <img src="assets/img/shot-centroid.png" alt="Punti ordinati per distanza crescente da un punto di riferimento">
+  <figcaption>Ordinamento radiale: distanza crescente da un punto di riferimento scelto sulla mappa.</figcaption>
+</figure>
+</section>
+
+<section id="geometria">
+<h2>Proprietà geometrica</h2>
+<div class="criterion">
+<h3>Area / Perimetro <span class="pill">poligoni</span></h3>
+<p>Ordina i poligoni per superficie o lunghezza del perimetro.</p>
+<p class="params"><b>Processing:</b> <code>CRITERION=4</code> (area) / <code>CRITERION=5</code> (perimetro)</p>
+<div class="usecase"><b>Caso d'uso:</b> particelle catastali o comparti urbanistici ordinati per area decrescente per dare priorità alle unità più grandi in un report.</div>
+</div>
+<div class="criterion">
+<h3>Lunghezza <span class="pill">linee</span></h3>
+<p>Ordina le linee per lunghezza totale.</p>
+<p class="params"><b>Processing:</b> <code>CRITERION=6</code></p>
+<div class="usecase"><b>Caso d'uso:</b> tronchi stradali o canali ordinati dal più corto al più lungo prima di un'elaborazione batch di semplificazione geometrica.</div>
+</div>
+<div class="criterion">
+<h3>Numero di vertici <span class="pill">tutti i tipi</span></h3>
+<p>Ordina per conteggio dei vertici della geometria.</p>
+<p class="params"><b>Processing:</b> <code>CRITERION=7</code></p>
+<div class="usecase"><b>Caso d'uso:</b> individuare rapidamente le geometrie più complesse (candidate a una semplificazione) ordinandole per numero di vertici decrescente.</div>
+</div>
+<div class="criterion">
+<h3>Bounding Box — larghezza / altezza / area / Xmin / Ymin <span class="pill">tutti i tipi</span></h3>
+<p>Cinque varianti sulle dimensioni e la posizione del rettangolo di inviluppo (bounding box) della geometria: larghezza, altezza, area, coordinata minima X, coordinata minima Y.</p>
+<p class="params"><b>Processing:</b> <code>CRITERION=8</code> (larghezza), <code>9</code> (altezza), <code>10</code> (area), <code>11</code> (Xmin), <code>12</code> (Ymin)</p>
+<div class="usecase"><b>Caso d'uso:</b> ordinare riquadri di ritaglio o tessere di una griglia per Xmin/Ymin quando serve un ordine di scansione semplice riga per riga (per un ordine "a serpentina" più naturale vedi invece <a href="#serpentina">Serpentina</a>).</div>
+</div>
+<figure class="shot">
+  <img src="assets/img/shot-geometry-area.png" alt="Poligoni ordinati per area decrescente">
+  <figcaption>Particelle ordinate per area, dalla più grande alla più piccola.</figcaption>
+</figure>
+</section>
+
+<section id="distanza-linea">
+<h2>Distanza dalla linea</h2>
+<div class="criterion">
+<h3>Distanza dalla linea di riferimento <span class="pill">tutti i tipi</span></h3>
+<p>Ordina le feature per distanza perpendicolare da una linea di riferimento (un secondo layer di tipo linea), in due modalità:</p>
+<ul>
+  <li><b>Distanza dal centroide</b> — distanza tra il centroide della feature e la linea</li>
+  <li><b>Distanza dall'elemento</b> — distanza dal punto più vicino dell'intera geometria alla linea</li>
+</ul>
+<p class="params"><b>Dialogo:</b> combo layer linea + modalità &nbsp;•&nbsp; <b>Processing:</b> <code>CRITERION=14</code>, <code>REF_LAYER</code>, <code>LINE_DISTANCE_MODE</code> (avanzato). Il layer di riferimento viene riproiettato automaticamente se ha un CRS diverso dal layer di input.</p>
+<div class="usecase"><b>Caso d'uso:</b> edifici ordinati per distanza crescente da una strada o dalla linea di costa, per dare priorità alle unità più vicine in un sopralluogo.</div>
+</div>
+<figure class="shot">
+  <img src="assets/img/shot-line-distance.png" alt="Edifici ordinati per distanza crescente da una strada di riferimento">
+  <figcaption>Distanza dalla linea, modalità "elemento": ordine crescente dalla strada di riferimento.</figcaption>
+</figure>
+</section>
+
+<section id="posizione-linea">
+<h2>Posizione lungo linea</h2>
+<div class="criterion">
+<h3>Posizione lungo linea di riferimento <span class="pill">tutti i tipi</span></h3>
+<p>Ordina le feature secondo la loro posizione proiettata lungo una linea di riferimento (progressiva chilometrica), in tre modalità:</p>
+<ul>
+  <li><b>Proiezione centroide — tutte le feature</b> — ogni feature viene proiettata sulla linea e ordinata per la posizione risultante, anche se non la interseca</li>
+  <li><b>Solo intersecanti — via centroide proiettato</b> — come sopra, ma solo le feature che intersecano la linea; le altre sono escluse dall'ordinamento</li>
+  <li><b>Solo intersecanti — via primo punto di contatto</b> — come sopra, ma la posizione è quella del primo punto di intersezione, non del centroide proiettato</li>
+</ul>
+<p class="params"><b>Dialogo:</b> combo layer linea + modalità &nbsp;•&nbsp; <b>Processing:</b> <code>CRITERION=13</code>, <code>REF_LAYER</code>, <code>LINE_MODE</code> (avanzato)</p>
+<div class="usecase"><b>Caso d'uso:</b> pali della luce, cippi chilometrici o sostegni di un elettrodotto numerati progressivamente lungo il tracciato di una strada, ferrovia o linea elettrica.</div>
+</div>
+<figure class="shot">
+  <img src="assets/img/shot-line-position.png" alt="Pali numerati progressivamente lungo una linea di riferimento">
+  <figcaption>Posizione lungo linea: numerazione progressiva dei pali lungo il tracciato.</figcaption>
+</figure>
+</section>
+
+<section id="hilbert">
+<h2>Curva di Hilbert</h2>
+<div class="criterion">
+<h3>Curva di Hilbert (ordinamento spaziale) <span class="pill">tutti i tipi</span></h3>
+<p>Ordina le feature lungo una curva di Hilbert calcolata sui centroidi, normalizzati sull'extent complessivo del layer: le feature vicine nello spazio restano vicine anche nell'ordine risultante — a differenza di un ordinamento per riga (X o Y) che può produrre salti lunghi tra feature spazialmente vicine ma agli estremi opposti di una riga.</p>
+<p class="params"><b>Processing:</b> <code>CRITERION=15</code>, parametro avanzato <code>HILBERT_ORDER</code> (default 16, risoluzione della griglia — non serve quasi mai cambiarlo)</p>
+<div class="warn">Non disponibile come criterio <b>primario</b> in modalità multi-criterio: richiede l'extent calcolato su tutte le feature del layer prima di poter assegnare l'ordine.</div>
+<div class="usecase"><b>Caso d'uso:</b> scrivere un GeoPackage con feature spazialmente coerenti in lettura (letture più veloci per query di bounding box), oppure ordinare le tavole di un atlante "a percorso continuo" senza salti tra pagine consecutive.</div>
+</div>
+<figure class="shot">
+  <img src="assets/img/shot-hilbert.png" alt="Punti ordinati lungo una curva di Hilbert">
+  <figcaption>Curva di Hilbert: l'ordine segue un percorso spazialmente continuo, senza salti lunghi.</figcaption>
+</figure>
+</section>
+
+<section id="serpentina">
+<h2>Serpentina (boustrophedon)</h2>
+<div class="criterion">
+<h3>Serpentina <span class="pill">tutti i tipi</span></h3>
+<p>Ordina le feature a bande, con l'asse trasversale alternato crescente/decrescente da una banda alla successiva — l'ordine classico per numerare le tavole di una serie cartografica a taglio regolare o un percorso di volo fotogrammetrico, senza il salto lungo da fine banda a inizio banda successiva tipico di un ordinamento a righe semplice.</p>
+<ul>
+  <li><b>Orientamento bande</b> — <b>orizzontali</b> (per Y, X alternato — default) o <b>verticali</b> (per X, Y alternato)</li>
+  <li><b>Dimensione banda</b> — altezza (orizzontali) o larghezza (verticali) di ciascuna banda, nelle unità del CRS; 0/vuoto = automatica, dalla dimensione media delle bounding box delle feature</li>
+  <li><b>Angolo di partenza</b> — combinando la <b>Direzione</b> generale (quale banda è la prima) con <b>Prima banda in verso crescente</b> (quale verso ha l'asse trasversale nella prima banda) si sceglie liberamente uno qualunque dei quattro angoli della griglia come punto di partenza</li>
+</ul>
+<p class="params"><b>Dialogo:</b> combo orientamento + spin box dimensione banda + checkbox "Prima banda in verso crescente" &nbsp;•&nbsp; <b>Processing:</b> <code>CRITERION=17</code>, <code>BAND_AXIS</code>, <code>BAND_SIZE</code>, <code>CROSS_ASCENDING</code> (tutti avanzati)</p>
+<div class="warn">Non disponibile come criterio <b>primario</b> in modalità multi-criterio: richiede le bande calcolate su tutte le feature.</div>
+<div class="usecase"><b>Caso d'uso:</b> numerare le tavole di una cartografia a taglio regolare o pianificare l'ordine di acquisizione di un volo fotogrammetrico, seguendo il percorso reale del velivolo (avanti su una banda, indietro sulla successiva) invece di ripartire ogni volta dal bordo opposto.</div>
+</div>
+<figure class="shot">
+  <img src="assets/img/shot-serpentine.png" alt="Griglia di tavole ordinate a serpentina">
+  <figcaption>Serpentina orizzontale: bande per Y, X alternato — nessun salto tra fine banda e inizio della successiva.</figcaption>
+</figure>
+</section>
+
+<section id="multicriterio">
+<h2>Ordinamento multi-criterio (gerarchico)</h2>
+<p>Imposta un <b>criterio secondario</b> per spezzare i pareggi del criterio primario. Ogni livello ha la propria direzione (ascendente/discendente).</p>
+<div class="tip">Esempio: primario = <b>Regione</b> (ascendente), secondario = <b>Area</b> (discendente). Le feature vengono raggruppate per regione e, all'interno di ciascun gruppo, ordinate dall'area maggiore alla minore.</div>
+<figure class="shot">
+  <img src="assets/img/shot-multicriterio.png" alt="Poligoni raggruppati per regione e ordinati per area decrescente all'interno di ciascun gruppo">
+  <figcaption>Multi-criterio: regione (asc.) poi area (desc.) — ordine gerarchico a due livelli.</figcaption>
+</figure>
+<p class="params"><b>Dialogo:</b> combo "Criterio secondario" &nbsp;•&nbsp; <b>Processing:</b> <code>SECONDARY_CRITERION</code>, <code>SECONDARY_FIELD</code>, <code>SECONDARY_EXPRESSION</code>, <code>SECONDARY_DIRECTION</code> (tutti avanzati)</p>
+<div class="warn">Il criterio secondario è <b>ignorato</b> quando il criterio primario è basato su una linea di riferimento (posizione/distanza lungo linea), è la curva di Hilbert o la serpentina.</div>
+</section>
+
+<section id="geodetica">
+<h2>Misura geodetica (CRS geografici)</h2>
+<p>Su un layer con CRS in gradi (es. EPSG:4326) le misure planari di area e lunghezza sono espresse in gradi² o gradi — valori metricamente privi di significato, che possono alterare l'ordinamento in base alla latitudine. GeoSort può calcolare automaticamente <b>area, perimetro, lunghezza e distanze sull'ellissoide</b> (misura geodetica, in m² o m).</p>
+<table>
+<tr><th>Modalità</th><th>Comportamento</th></tr>
+<tr><td><b>Auto</b> (default)</td><td>geodetica attivata automaticamente se il CRS è in gradi; su CRS proiettati restano le misure planari. Un avviso non bloccante segnala l'attivazione.</td></tr>
+<tr><td><b>Sempre</b></td><td>geodetica sempre abilitata, indipendentemente dal CRS.</td></tr>
+<tr><td><b>Mai</b></td><td>misura sempre planare, indipendentemente dal CRS.</td></tr>
+</table>
+<p>Criteri interessati: area poligono, perimetro poligono, lunghezza linea, distanza centroide da punto di riferimento, distanza dalla linea di riferimento.</p>
+<div class="tip">I criteri <b>bounding box</b> e <b>posizione lungo linea</b> restano sempre planari: il bounding box è un concetto nelle coordinate native, e la posizione lungo linea è monotona e invariante rispetto alla scala.</div>
+<p class="params"><b>Dialogo:</b> combo "Misura su CRS geografico" &nbsp;•&nbsp; <b>Processing:</b> parametro avanzato <code>GEODESIC</code> (Auto/Sempre/Mai)</p>
+</section>
+
+<section id="numerazione">
+<h2>Numerazione personalizzata</h2>
+<p>Il campo progressivo è configurabile su tre assi, sia nel dialogo che nel Processing:</p>
+<table>
+<tr><th>Parametro</th><th>Default</th><th>Esempio</th></tr>
+<tr><td>Nome del campo</td><td><code>sort_order</code></td><td><code>rank</code>, <code>ordine</code> — se il campo esiste già sul layer, viene sovrascritto invece di duplicato</td></tr>
+<tr><td>Valore iniziale</td><td><code>1</code></td><td><code>0</code> per una numerazione da zero</td></tr>
+<tr><td>Passo</td><td><code>1</code></td><td><code>10</code> → <code>10, 20, 30…</code>, per lasciare spazio a inserimenti futuri</td></tr>
+</table>
+<p class="params"><b>Processing:</b> parametri avanzati <code>ORDER_FIELD</code>, <code>START</code>, <code>STEP</code></p>
+<p>Opzionalmente, GeoSort può aggiungere anche un campo <code>sort_value</code> con il valore grezzo del criterio usato (es. l'area, la distanza) — checkbox "Aggiungi campo con il valore del criterio usato" nel dialogo, <code>ADD_VALUE_FIELD</code> nel Processing.</p>
+</section>
+
+<section id="selezione">
+<h2>Solo feature selezionate</h2>
+<ul>
+  <li>Con la checkbox <b>Ordina solo le feature selezionate</b>, l'ordinamento considera esclusivamente le feature selezionate sul layer; in modalità <i>Aggiorna layer corrente</i> il campo <code>sort_order</code> viene scritto solo su di esse.</li>
+  <li>Nel Processing Toolbox la stessa funzione è offerta dalla spunta nativa di QGIS <i>Solo feature selezionate</i> sul layer di input (<code>QgsProcessingFeatureSourceDefinition(..., selectedFeaturesOnly=True)</code> da PyQGIS).</li>
+</ul>
+</section>
+
+<section id="output">
+<h2>Output</h2>
+<ul>
+  <li><b>Aggiorna il layer corrente</b> — aggiunge o aggiorna il campo progressivo (default <code>sort_order</code>). Se il campo esiste già, viene chiesta conferma prima di sovrascriverlo. La scrittura è racchiusa in un singolo comando di undo, annullabile con <kbd>Ctrl+Z</kbd> anche su migliaia di feature.</li>
+  <li><b>Crea nuovo layer in memoria</b> — crea una copia ordinata senza modificare l'originale.</li>
+</ul>
+</section>
+
+<section id="processing">
+<h2>Processing Toolbox &amp; PyQGIS</h2>
+<p>GeoSort è disponibile anche nel Processing Toolbox: <b>Toolbox → GeoSort → Ordina feature (GeoSort)</b>, utilizzabile in batch, nel modellatore grafico e via PyQGIS headless:</p>
+<pre><code>import processing
+result = processing.run("geosort:geosort_sort", {
+    'INPUT': layer,
+    'CRITERION': 0,          # 0 = Attributo tabellare (vedi elenco criteri sopra)
+    'ATTRIBUTE_FIELD': 'regione',
+    'DIRECTION': True,        # True = Ascendente
+    'NULLS_LAST': True,
+    'NATURAL_SORT': False,    # True = Natural Sort (cifre come numeri)
+    'SECONDARY_CRITERION': 5,     # 5 = Area (poligoni)
+    'SECONDARY_DIRECTION': False, # False = Discendente
+    'ADD_VALUE_FIELD': False,
+    'START': 0,                # default 1
+    'STEP': 10,                 # default 1 → 0, 10, 20, 30...
+    'ORDER_FIELD': 'rank',     # default 'sort_order'
+    'OUTPUT': 'memory:'
+})
+output_layer = result['OUTPUT']</code></pre>
+<p>Per il criterio <code>centroid_dist</code> (indice <code>3</code>) è possibile indicare un punto di riferimento diverso dall'origine:</p>
+<pre><code>result = processing.run("geosort:geosort_sort", {
+    'INPUT': layer,
+    'CRITERION': 3,
+    'REF_POINT': '500000,4649776 [EPSG:32633]',
+    'DIRECTION': True,
+    'OUTPUT': 'memory:'
+})</code></pre>
+<p>Per ordinare solo le feature selezionate da PyQGIS:</p>
+<pre><code>from qgis.core import QgsProcessingFeatureSourceDefinition
+result = processing.run("geosort:geosort_sort", {
+    'INPUT': QgsProcessingFeatureSourceDefinition(layer.id(), selectedFeaturesOnly=True),
+    'CRITERION': 1,
+    'OUTPUT': 'memory:'
+})</code></pre>
+</section>
+
+<section id="casi-uso">
+<h2>Casi d'uso tipici</h2>
+<table>
+<tr><th>Obiettivo</th><th>Criterio consigliato</th></tr>
+<tr><td>Numerare le tavole di una cartografia a taglio regolare o pianificare un volo fotogrammetrico</td><td><a href="#serpentina">Serpentina</a></td></tr>
+<tr><td>Scrivere un GeoPackage con letture spazialmente più veloci, o un atlante "a percorso continuo"</td><td><a href="#hilbert">Curva di Hilbert</a></td></tr>
+<tr><td>Ordinare particelle catastali per dimensione, dalla più grande alla più piccola</td><td><a href="#geometria">Area</a> (discendente)</td></tr>
+<tr><td>Numerare pali, cippi o sostegni lungo una strada/ferrovia/elettrodotto</td><td><a href="#posizione-linea">Posizione lungo linea</a></td></tr>
+<tr><td>Ordinare edifici per vicinanza a una strada o alla costa</td><td><a href="#distanza-linea">Distanza dalla linea</a></td></tr>
+<tr><td>Report ordinato per regione e, a parità di regione, per area</td><td><a href="#multicriterio">Multi-criterio</a> (regione → area)</td></tr>
+<tr><td>Ordinare codici alfanumerici tipo <code>FILE1</code>, <code>FILE2</code>, <code>FILE10</code> nell'ordine "naturale"</td><td><a href="#attributo">Attributo</a> + Natural Sort</td></tr>
+<tr><td>Ordinamento radiale da una centrale operativa o un nodo di rete</td><td><a href="#centroide">Centroide — distanza</a></td></tr>
+</table>
+</section>
+
+<section id="faq">
+<h2>FAQ / Troubleshooting</h2>
+<div class="criterion">
+<h4>Alcune feature finiscono sempre in fondo, perché?</h4>
+<p>Hanno geometria <code>NULL</code>/vuota, oppure un tipo non compatibile con il criterio scelto (es. punti con criterio "area" su un layer a geometria mista). GeoSort non genera errore in questi casi: relega semplicemente quelle feature in coda all'ordine.</p>
+</div>
+<div class="criterion">
+<h4>Perché l'ordine per area cambia se sposto il layer su un altro CRS?</h4>
+<p>Su CRS geografici (gradi) le misure planari non sono metricamente significative. Vedi <a href="#geodetica">Misura geodetica</a>: in modalità <b>Auto</b> (default) GeoSort passa automaticamente alla misura sull'ellissoide quando rileva un CRS geografico.</p>
+</div>
+<div class="criterion">
+<h4>Serpentina e Curva di Hilbert non compaiono come criterio secondario, perché?</h4>
+<p>Entrambi richiedono di calcolare bande o extent sull'<b>intero</b> layer prima di poter assegnare un ordine — un requisito incompatibile con il ruolo di "tie-break" del criterio secondario, che opera solo all'interno dei gruppi già ordinati dal primario. Lo stesso vale per i criteri basati su una linea di riferimento.</p>
+</div>
+<div class="criterion">
+<h4>Posso annullare l'ordinamento dopo averlo applicato?</h4>
+<p>Sì, con <kbd>Ctrl+Z</kbd>: la scrittura del campo <code>sort_order</code> è racchiusa in un unico comando di undo, anche su migliaia di feature.</p>
+</div>
+</section>
+
+</main>
+</div>
+
+<footer>
+<div class="wrap">
+  GeoSort è un plugin QGIS a licenza GPLv2+ di Salvatore Fiandaca —
+  <a href="https://github.com/pigreco/geosort">repository</a> ·
+  <a href="https://github.com/pigreco/geosort#readme">README completo</a> ·
+  <a href="https://github.com/pigreco/geosort/issues">segnala un problema</a>
+</div>
+</footer>
+
+<script src="assets/js/main.js"></script>

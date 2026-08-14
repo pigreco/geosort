@@ -16,6 +16,8 @@ starting value/step all customizable).
 
 Compatible with **QGIS 3.16+** (Qt5 / PyQt5) and **QGIS 4.x** (Qt6 / PyQt6).
 
+📖 **[Full guide with examples and screenshots](https://pigreco.github.io/geosort/en/index.html)** — every criterion explained, parameters, typical use cases.
+
 ![](gui.png)
 
 ---

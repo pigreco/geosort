@@ -1,0 +1,407 @@
+<title>GeoSort — Complete Guide</title>
+<meta name="description" content="Complete guide to GeoSort: every sort criterion, its parameters, when to use it, with real screenshots.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><text y=%2213%22 font-size=%2214%22>🧭</text></svg>">
+<link rel="stylesheet" href="../assets/css/style.css">
+
+<header class="hero">
+  <div class="wrap">
+    <div class="langswitch"><a href="../index.html">🇮🇹 Italiano</a> | 🇬🇧 <b>English</b></div>
+    <h1>GeoSort — Complete Guide</h1>
+    <p class="tagline">Sort features of a QGIS vector layer by geometric and attribute criteria — 18 criteria, hierarchical multi-criterion sorting, examples and use cases.</p>
+    <div class="badges">
+      <img src="https://img.shields.io/badge/version-1.11.1-blue.svg" alt="Version 1.11.1">
+      <img src="https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg" alt="QGIS 3.16+ | 4.x">
+      <img src="https://img.shields.io/badge/license-GPLv2-red.svg" alt="GPLv2 license">
+    </div>
+  </div>
+</header>
+
+<div class="wrap layout">
+<nav class="toc">
+  <h2>Guide</h2>
+  <ul>
+    <li><a href="#intro">Introduction</a></li>
+    <li><a href="#install">Installation</a></li>
+    <li><a href="#concepts">Basic concepts</a></li>
+  </ul>
+  <h2>Sort criteria</h2>
+  <ul>
+    <li><a href="#attribute">Attribute / Expression</a></li>
+    <li><a href="#centroid">Centroid coordinates</a></li>
+    <li><a href="#geometry">Geometric property</a></li>
+    <li><a href="#line-distance">Distance from line</a></li>
+    <li><a href="#line-position">Position along line</a></li>
+    <li><a href="#hilbert">Hilbert curve</a></li>
+    <li><a href="#serpentine">Serpentine (boustrophedon)</a></li>
+  </ul>
+  <h2>Cross-cutting features</h2>
+  <ul>
+    <li><a href="#multicriterion">Hierarchical multi-criterion</a></li>
+    <li><a href="#geodesic">Geodesic measurement</a></li>
+    <li><a href="#numbering">Custom numbering</a></li>
+    <li><a href="#selection">Selected features only</a></li>
+    <li><a href="#output">Output</a></li>
+  </ul>
+  <h2>Reference</h2>
+  <ul>
+    <li><a href="#processing">Processing Toolbox &amp; PyQGIS</a></li>
+    <li><a href="#use-cases">Typical use cases</a></li>
+    <li><a href="#faq">FAQ / Troubleshooting</a></li>
+  </ul>
+</nav>
+
+<main>
+
+<section id="intro">
+<h2>Introduction</h2>
+<p>
+<b>GeoSort</b> is a QGIS plugin that sorts the features of a vector layer
+(points, lines or polygons) by a chosen geometric or attribute criterion, and
+writes a progressive field (default <code>sort_order</code>: 1 = first
+feature in the chosen order) to the layer or to an in-memory copy. It is
+available both as an interactive dialog (<b>Vector → GeoSort</b> menu) and as
+a <b>Processing Toolbox</b> algorithm, usable in batch, in the graphical
+modeler and via headless PyQGIS.
+</p>
+<figure class="shot">
+  <img src="../assets/img/dialog-overview.png" alt="GeoSort dialog with the available sort criteria">
+  <figcaption>The GeoSort dialog: input layer, sort criterion, options and output in a single non-modal window.</figcaption>
+</figure>
+<p>
+This guide explains <b>every</b> available criterion, its parameters (in the
+dialog and in Processing), when it's worth using and a typical use case with
+a before/after screenshot. For a compact table summary see also the
+<a href="https://github.com/pigreco/geosort#readme">project README</a>.
+</p>
+</section>
+
+<section id="install">
+<h2>Installation</h2>
+<ol>
+  <li>Download the plugin <code>.zip</code> from the <a href="https://github.com/pigreco/geosort/releases">releases</a> page.</li>
+  <li>In QGIS: <b>Plugins → Manage and Install Plugins → Install from ZIP</b>.</li>
+  <li>Select the <code>geosort.zip</code> file.</li>
+  <li>The plugin appears under <b>Vector → GeoSort</b> and in the Processing Toolbox under <b>GeoSort</b>.</li>
+</ol>
+<div class="tip">No external dependencies: GeoSort only uses PyQGIS APIs and the Python standard library. It works on both QGIS 3.16+ (Qt5) and QGIS 4.x (Qt6) with the same <code>.zip</code> file.</div>
+</section>
+
+<section id="concepts">
+<h2>Basic concepts</h2>
+<ul>
+  <li><b>Progressive field</b> — GeoSort writes an integer field (default <code>sort_order</code>, name/start value/step all customizable — see <a href="#numbering">Custom numbering</a>) with each feature's position in the chosen order: <code>1</code> = first feature.</li>
+  <li><b>Direction</b> — Ascending or Descending, applies to any criterion.</li>
+  <li><b><code>NULL</code> values</b> — for attribute/expression criteria, choose whether features with a <code>NULL</code> value go first or last.</li>
+  <li><b>NULL or incompatible geometries</b> — features with no geometry, or with a type incompatible with the chosen criterion (e.g. points with an "area" criterion), don't break the sort: they are pushed to the bottom.</li>
+  <li><b>Preview</b> — the <b>Preview…</b> button opens a popup with the first sorted features (FID, <code>sort_order</code> value, criterion value) to check the result before applying changes.</li>
+</ul>
+</section>
+
+<section id="attribute">
+<h2>Attribute / Expression</h2>
+
+<div class="criterion">
+<h3>Table attribute <span class="pill">all types</span></h3>
+<p>Sorts by the value of any field on the layer (text, integer, float, date).</p>
+<p class="params"><b>Dialog:</b> "By attribute / expression" radio + field combo &nbsp;•&nbsp; <b>Processing:</b> <code>CRITERION=0</code>, <code>ATTRIBUTE_FIELD</code></p>
+<p><b>When to use it:</b> the most direct criterion — street name, cadastral code, category, survey date, any column already present in the attribute table.</p>
+</div>
+
+<div class="criterion">
+<h3>QGIS expression <span class="pill">all types</span></h3>
+<p>Sorts by the result of an arbitrary QGIS expression, the same syntax as the Field Calculator. Click the <b>ε</b> button to open the expression editor; the active expression is highlighted in green, with a <b>Remove</b> button to go back to a single field.</p>
+<p class="params"><b>Dialog:</b> "By attribute / expression" radio + expression editor &nbsp;•&nbsp; <b>Processing:</b> <code>CRITERION=16</code>, <code>EXPRESSION</code></p>
+<ul>
+  <li>Combining fields: <code>"area_kmq" / "pop"</code></li>
+  <li>Geometric functions: <code>length($geometry)</code>, <code>area($geometry)</code></li>
+  <li>Conditions: <code>CASE WHEN "type"='A' THEN 1 ELSE 2 END</code></li>
+  <li>Concatenation for composite keys: <code>"fid" || "id_poly"</code></li>
+</ul>
+<p><b>When to use it:</b> when the criterion isn't a single field but a combination, an on-the-fly geometric calculation, or a conditional classification.</p>
+</div>
+
+<h3>Text sort modes</h3>
+<p>For both criteria above, a text value can be compared in two ways:</p>
+<table>
+<tr><th>Mode</th><th>Behavior</th><th>Example</th></tr>
+<tr><td><b>Lexicographic</b> (default)</td><td>character-by-character comparison</td><td><code>"1010"</code> &lt; <code>"11"</code> &lt; <code>"1111"</code></td></tr>
+<tr><td><b>Natural Sort</b></td><td>embedded digit sequences are compared as integers</td><td><code>"11"</code> &lt; <code>"1010"</code> &lt; <code>"1111"</code></td></tr>
+</table>
+<p>Useful with alphanumeric fields like <code>FILE1</code>, <code>FILE2</code>, <code>FILE10</code> — with lexicographic order <code>FILE10</code> would end up before <code>FILE2</code>.</p>
+<div class="shot-pair">
+  <figure class="shot">
+    <img src="../assets/img/shot-attribute-lexicographic.png" alt="Lexicographic ordering of codes FILE1, FILE2, FILE10">
+    <figcaption>Lexicographic: FILE1 → FILE10 → FILE2</figcaption>
+  </figure>
+  <figure class="shot">
+    <img src="../assets/img/shot-attribute-natural.png" alt="Natural Sort of codes FILE1, FILE2, FILE10">
+    <figcaption>Natural Sort: FILE1 → FILE2 → FILE10</figcaption>
+  </figure>
+</div>
+<div class="usecase"><b>Use case:</b> a map-sheet layer named <code>SHEET_1</code>…<code>SHEET_120</code>: without Natural Sort, <code>SHEET_100</code> would appear right after <code>SHEET_1</code>.</div>
+</section>
+
+<section id="centroid">
+<h2>Centroid coordinates</h2>
+<div class="criterion">
+<h3>Centroid — X / Y coordinate <span class="pill">all types</span></h3>
+<p>Sorts by the geographic position of the geometry's centroid, along the X axis (west→east) or Y axis (south→north).</p>
+<p class="params"><b>Processing:</b> <code>CRITERION=1</code> (X) / <code>CRITERION=2</code> (Y)</p>
+<p><b>When to use it:</b> a progressive "left to right" or "bottom to top" numbering — poles, manholes, trees along a dominant axis.</p>
+</div>
+<div class="criterion">
+<h3>Centroid — distance from reference point <span class="pill">all types</span></h3>
+<p>Sorts by the Euclidean (or geodesic, see <a href="#geodesic">Geodesic measurement</a>) distance of the centroid from a configurable reference point. In the dialog the point is set via the X/Y spin boxes or by clicking <b>Pick point on map</b> — the dialog lowers (without closing) and the next click on the map canvas captures the coordinates; <kbd>Esc</kbd> cancels the pick.</p>
+<p class="params"><b>Dialog:</b> X/Y spin boxes + map picker &nbsp;•&nbsp; <b>Processing:</b> <code>CRITERION=3</code>, <code>REF_POINT</code> (optional, format <code>"x,y [EPSG:xxxx]"</code>; empty = origin 0,0)</p>
+<div class="usecase"><b>Use case:</b> sort maintenance interventions by increasing distance from an operations center, or the stations of a radial network by distance from the central node.</div>
+</div>
+<figure class="shot">
+  <img src="../assets/img/shot-centroid.png" alt="Points ordered by increasing distance from a reference point">
+  <figcaption>Radial ordering: increasing distance from a reference point picked on the map.</figcaption>
+</figure>
+</section>
+
+<section id="geometry">
+<h2>Geometric property</h2>
+<div class="criterion">
+<h3>Area / Perimeter <span class="pill">polygons</span></h3>
+<p>Sorts polygons by surface area or perimeter length.</p>
+<p class="params"><b>Processing:</b> <code>CRITERION=4</code> (area) / <code>CRITERION=5</code> (perimeter)</p>
+<div class="usecase"><b>Use case:</b> cadastral parcels or planning zones sorted by descending area, to prioritize the largest units in a report.</div>
+</div>
+<div class="criterion">
+<h3>Length <span class="pill">lines</span></h3>
+<p>Sorts lines by total length.</p>
+<p class="params"><b>Processing:</b> <code>CRITERION=6</code></p>
+<div class="usecase"><b>Use case:</b> road segments or channels sorted from shortest to longest before a batch geometry-simplification job.</div>
+</div>
+<div class="criterion">
+<h3>Vertex count <span class="pill">all types</span></h3>
+<p>Sorts by the number of vertices in the geometry.</p>
+<p class="params"><b>Processing:</b> <code>CRITERION=7</code></p>
+<div class="usecase"><b>Use case:</b> quickly spot the most complex geometries (candidates for simplification) by sorting by descending vertex count.</div>
+</div>
+<div class="criterion">
+<h3>Bounding Box — width / height / area / Xmin / Ymin <span class="pill">all types</span></h3>
+<p>Five variants on the size and position of the geometry's bounding box: width, height, area, minimum X coordinate, minimum Y coordinate.</p>
+<p class="params"><b>Processing:</b> <code>CRITERION=8</code> (width), <code>9</code> (height), <code>10</code> (area), <code>11</code> (Xmin), <code>12</code> (Ymin)</p>
+<div class="usecase"><b>Use case:</b> sort clip extents or grid tiles by Xmin/Ymin when a simple row-by-row scan order is needed (for a more natural "serpentine" order see <a href="#serpentine">Serpentine</a> instead).</div>
+</div>
+<figure class="shot">
+  <img src="../assets/img/shot-geometry-area.png" alt="Polygons ordered by descending area">
+  <figcaption>Parcels sorted by area, from largest to smallest.</figcaption>
+</figure>
+</section>
+
+<section id="line-distance">
+<h2>Distance from line</h2>
+<div class="criterion">
+<h3>Distance from reference line <span class="pill">all types</span></h3>
+<p>Sorts features by perpendicular distance from a reference line (a second, line-type layer), in two modes:</p>
+<ul>
+  <li><b>Distance from centroid</b> — distance between the feature's centroid and the line</li>
+  <li><b>Distance from element</b> — distance from the nearest point of the whole geometry to the line</li>
+</ul>
+<p class="params"><b>Dialog:</b> line-layer combo + mode &nbsp;•&nbsp; <b>Processing:</b> <code>CRITERION=14</code>, <code>REF_LAYER</code>, <code>LINE_DISTANCE_MODE</code> (advanced). The reference layer is automatically reprojected if its CRS differs from the input layer's.</p>
+<div class="usecase"><b>Use case:</b> buildings sorted by increasing distance from a road or from the coastline, to prioritize the closest units in a field survey.</div>
+</div>
+<figure class="shot">
+  <img src="../assets/img/shot-line-distance.png" alt="Buildings ordered by increasing distance from a reference road">
+  <figcaption>Distance from line, "element" mode: increasing order from the reference road.</figcaption>
+</figure>
+</section>
+
+<section id="line-position">
+<h2>Position along line</h2>
+<div class="criterion">
+<h3>Position along reference line <span class="pill">all types</span></h3>
+<p>Sorts features by their projected position along a reference line (a mileage-marker style progression), in three modes:</p>
+<ul>
+  <li><b>Centroid projection — all features</b> — every feature is projected onto the line and sorted by the resulting position, even if it doesn't intersect it</li>
+  <li><b>Intersecting only — via projected centroid</b> — as above, but only features that intersect the line; the others are excluded from the sort</li>
+  <li><b>Intersecting only — via first contact point</b> — as above, but the position used is that of the first intersection point, not the projected centroid</li>
+</ul>
+<p class="params"><b>Dialog:</b> line-layer combo + mode &nbsp;•&nbsp; <b>Processing:</b> <code>CRITERION=13</code>, <code>REF_LAYER</code>, <code>LINE_MODE</code> (advanced)</p>
+<div class="usecase"><b>Use case:</b> streetlights, mileage markers or power-line supports numbered progressively along the route of a road, railway or power line.</div>
+</div>
+<figure class="shot">
+  <img src="../assets/img/shot-line-position.png" alt="Poles numbered progressively along a reference line">
+  <figcaption>Position along line: progressive numbering of poles along the route.</figcaption>
+</figure>
+</section>
+
+<section id="hilbert">
+<h2>Hilbert curve</h2>
+<div class="criterion">
+<h3>Hilbert curve (spatial sorting) <span class="pill">all types</span></h3>
+<p>Sorts features along a Hilbert curve computed on centroids, normalized to the layer's overall extent: features that are close in space stay close in the resulting order too — unlike a row-based sort (X or Y) which can produce long jumps between features that are spatially close but at opposite ends of a row.</p>
+<p class="params"><b>Processing:</b> <code>CRITERION=15</code>, advanced parameter <code>HILBERT_ORDER</code> (default 16, grid resolution — you almost never need to change it)</p>
+<div class="warn">Not available as the <b>primary</b> criterion in multi-criterion mode: it requires the extent computed over all features of the layer before an order can be assigned.</div>
+<div class="usecase"><b>Use case:</b> writing a GeoPackage with spatially coherent features for faster reads (bounding-box queries), or ordering the plates of a "continuous path" atlas with no jumps between consecutive pages.</div>
+</div>
+<figure class="shot">
+  <img src="../assets/img/shot-hilbert.png" alt="Points ordered along a Hilbert curve">
+  <figcaption>Hilbert curve: the order follows a spatially continuous path, with no long jumps.</figcaption>
+</figure>
+</section>
+
+<section id="serpentine">
+<h2>Serpentine (boustrophedon)</h2>
+<div class="criterion">
+<h3>Serpentine <span class="pill">all types</span></h3>
+<p>Sorts features into bands, with the cross axis alternating ascending/descending from one band to the next — the classic ordering for numbering the plates of a regular map series or a photogrammetric flight path, without the long jump from the end of one band to the start of the next that a simple row-based sort produces.</p>
+<ul>
+  <li><b>Band orientation</b> — <b>horizontal</b> (by Y, X alternating — default) or <b>vertical</b> (by X, Y alternating)</li>
+  <li><b>Band size</b> — height (horizontal) or width (vertical) of each band, in the layer's CRS units; 0/empty = automatic, from the average bounding-box size of the features</li>
+  <li><b>Starting corner</b> — combining the general <b>Direction</b> (which band comes first) with <b>First band ascending</b> (which way the cross axis runs in the first band) freely selects any of the four corners of the grid as the starting point</li>
+</ul>
+<p class="params"><b>Dialog:</b> orientation combo + band-size spin box + "First band ascending" checkbox &nbsp;•&nbsp; <b>Processing:</b> <code>CRITERION=17</code>, <code>BAND_AXIS</code>, <code>BAND_SIZE</code>, <code>CROSS_ASCENDING</code> (all advanced)</p>
+<div class="warn">Not available as the <b>primary</b> criterion in multi-criterion mode: it requires the bands computed over all features.</div>
+<div class="usecase"><b>Use case:</b> numbering the plates of a regular map series, or planning the acquisition order of a photogrammetric flight, following the aircraft's real path (forward on one band, back on the next) instead of restarting from the opposite edge every time.</div>
+</div>
+<figure class="shot">
+  <img src="../assets/img/shot-serpentine.png" alt="Grid of plates ordered in a serpentine pattern">
+  <figcaption>Horizontal serpentine: bands by Y, X alternating — no jump between the end of one band and the start of the next.</figcaption>
+</figure>
+</section>
+
+<section id="multicriterion">
+<h2>Hierarchical multi-criterion sorting</h2>
+<p>Set a <b>secondary criterion</b> to break ties in the primary criterion. Each level has its own direction (ascending/descending).</p>
+<div class="tip">Example: primary = <b>Region</b> (ascending), secondary = <b>Area</b> (descending). Features are grouped by region and, within each group, sorted from largest to smallest area.</div>
+<figure class="shot">
+  <img src="../assets/img/shot-multicriterio.png" alt="Polygons grouped by region and sorted by descending area within each group">
+  <figcaption>Multi-criterion: region (asc.) then area (desc.) — two-level hierarchical order.</figcaption>
+</figure>
+<p class="params"><b>Dialog:</b> "Secondary criterion" combo &nbsp;•&nbsp; <b>Processing:</b> <code>SECONDARY_CRITERION</code>, <code>SECONDARY_FIELD</code>, <code>SECONDARY_EXPRESSION</code>, <code>SECONDARY_DIRECTION</code> (all advanced)</p>
+<div class="warn">The secondary criterion is <b>ignored</b> when the primary criterion is based on a reference line (position/distance along line), the Hilbert curve, or the serpentine.</div>
+</section>
+
+<section id="geodesic">
+<h2>Geodesic measurement (geographic CRS)</h2>
+<p>On a layer with a degree-based CRS (e.g. EPSG:4326), planar area and length measurements are expressed in degrees²/degrees — metrically meaningless values that can skew the sort order by latitude. GeoSort can automatically compute <b>area, perimeter, length and distances on the ellipsoid</b> (geodesic measurement, in m² or m).</p>
+<table>
+<tr><th>Mode</th><th>Behavior</th></tr>
+<tr><td><b>Auto</b> (default)</td><td>geodesic measurement is enabled automatically when the CRS is geographic; planar measurements are kept on projected CRS. A non-blocking warning signals the automatic activation.</td></tr>
+<tr><td><b>Always</b></td><td>geodesic measurement always enabled, regardless of the CRS.</td></tr>
+<tr><td><b>Never</b></td><td>always planar, regardless of the CRS.</td></tr>
+</table>
+<p>Criteria affected: polygon area, polygon perimeter, line length, centroid distance from reference point, distance from reference line.</p>
+<div class="tip"><b>Bounding box</b> criteria and <b>position along line</b> always stay planar: the bounding box is a concept expressed in native coordinates, and position along line is monotonic and scale-invariant.</div>
+<p class="params"><b>Dialog:</b> "Measurement on geographic CRS" combo &nbsp;•&nbsp; <b>Processing:</b> advanced parameter <code>GEODESIC</code> (Auto/Always/Never)</p>
+</section>
+
+<section id="numbering">
+<h2>Custom numbering</h2>
+<p>The progressive field is configurable along three axes, both in the dialog and in Processing:</p>
+<table>
+<tr><th>Parameter</th><th>Default</th><th>Example</th></tr>
+<tr><td>Field name</td><td><code>sort_order</code></td><td><code>rank</code>, <code>order</code> — if the field already exists on the layer, it's overwritten instead of duplicated</td></tr>
+<tr><td>Start value</td><td><code>1</code></td><td><code>0</code> for zero-based numbering</td></tr>
+<tr><td>Step</td><td><code>1</code></td><td><code>10</code> → <code>10, 20, 30…</code>, to leave room for future insertions</td></tr>
+</table>
+<p class="params"><b>Processing:</b> advanced parameters <code>ORDER_FIELD</code>, <code>START</code>, <code>STEP</code></p>
+<p>Optionally, GeoSort can also add a <code>sort_value</code> field with the raw value of the criterion used (e.g. the area, the distance) — "Add field with the criterion value used" checkbox in the dialog, <code>ADD_VALUE_FIELD</code> in Processing.</p>
+</section>
+
+<section id="selection">
+<h2>Selected features only</h2>
+<ul>
+  <li>With the <b>Sort selected features only</b> checkbox, the sort considers only the features currently selected on the layer; in <i>Update current layer</i> mode, the <code>sort_order</code> field is written only on those features.</li>
+  <li>In the Processing Toolbox, the same behavior is offered by QGIS's native <i>Selected features only</i> toggle on the input layer (<code>QgsProcessingFeatureSourceDefinition(..., selectedFeaturesOnly=True)</code> from PyQGIS).</li>
+</ul>
+</section>
+
+<section id="output">
+<h2>Output</h2>
+<ul>
+  <li><b>Update current layer</b> — adds or updates the progressive field (default <code>sort_order</code>). If the field already exists, confirmation is requested before overwriting it. The write is wrapped in a single undo command, undoable with <kbd>Ctrl+Z</kbd> even on thousands of features.</li>
+  <li><b>Create new in-memory layer</b> — creates a sorted copy without modifying the original.</li>
+</ul>
+</section>
+
+<section id="processing">
+<h2>Processing Toolbox &amp; PyQGIS</h2>
+<p>GeoSort is also available in the Processing Toolbox: <b>Toolbox → GeoSort → Sort features (GeoSort)</b>, usable in batch, in the graphical modeler and via headless PyQGIS:</p>
+<pre><code>import processing
+result = processing.run("geosort:geosort_sort", {
+    'INPUT': layer,
+    'CRITERION': 0,          # 0 = Table attribute (see criteria list above)
+    'ATTRIBUTE_FIELD': 'region',
+    'DIRECTION': True,        # True = Ascending
+    'NULLS_LAST': True,
+    'NATURAL_SORT': False,    # True = Natural Sort (digits as numbers)
+    'SECONDARY_CRITERION': 5,     # 5 = Area (polygons)
+    'SECONDARY_DIRECTION': False, # False = Descending
+    'ADD_VALUE_FIELD': False,
+    'START': 0,                # default 1
+    'STEP': 10,                 # default 1 → 0, 10, 20, 30...
+    'ORDER_FIELD': 'rank',     # default 'sort_order'
+    'OUTPUT': 'memory:'
+})
+output_layer = result['OUTPUT']</code></pre>
+<p>For the <code>centroid_dist</code> criterion (index <code>3</code>) you can specify a reference point other than the origin:</p>
+<pre><code>result = processing.run("geosort:geosort_sort", {
+    'INPUT': layer,
+    'CRITERION': 3,
+    'REF_POINT': '500000,4649776 [EPSG:32633]',
+    'DIRECTION': True,
+    'OUTPUT': 'memory:'
+})</code></pre>
+<p>To sort only the selected features from PyQGIS:</p>
+<pre><code>from qgis.core import QgsProcessingFeatureSourceDefinition
+result = processing.run("geosort:geosort_sort", {
+    'INPUT': QgsProcessingFeatureSourceDefinition(layer.id(), selectedFeaturesOnly=True),
+    'CRITERION': 1,
+    'OUTPUT': 'memory:'
+})</code></pre>
+</section>
+
+<section id="use-cases">
+<h2>Typical use cases</h2>
+<table>
+<tr><th>Goal</th><th>Recommended criterion</th></tr>
+<tr><td>Number the plates of a regular map series, or plan a photogrammetric flight</td><td><a href="#serpentine">Serpentine</a></td></tr>
+<tr><td>Write a GeoPackage with faster spatial reads, or a "continuous path" atlas</td><td><a href="#hilbert">Hilbert curve</a></td></tr>
+<tr><td>Sort cadastral parcels by size, largest to smallest</td><td><a href="#geometry">Area</a> (descending)</td></tr>
+<tr><td>Number poles, mileage markers or supports along a road/railway/power line</td><td><a href="#line-position">Position along line</a></td></tr>
+<tr><td>Sort buildings by proximity to a road or the coastline</td><td><a href="#line-distance">Distance from line</a></td></tr>
+<tr><td>Report sorted by region and, within each region, by area</td><td><a href="#multicriterion">Multi-criterion</a> (region → area)</td></tr>
+<tr><td>Sort alphanumeric codes like <code>FILE1</code>, <code>FILE2</code>, <code>FILE10</code> in "natural" order</td><td><a href="#attribute">Attribute</a> + Natural Sort</td></tr>
+<tr><td>Radial ordering from an operations center or network node</td><td><a href="#centroid">Centroid — distance</a></td></tr>
+</table>
+</section>
+
+<section id="faq">
+<h2>FAQ / Troubleshooting</h2>
+<div class="criterion">
+<h4>Some features always end up at the bottom — why?</h4>
+<p>They have a <code>NULL</code>/empty geometry, or a type incompatible with the chosen criterion (e.g. points with an "area" criterion on a mixed-geometry layer). GeoSort doesn't raise an error in these cases: it simply pushes those features to the end of the order.</p>
+</div>
+<div class="criterion">
+<h4>Why does the area order change when I reproject the layer to another CRS?</h4>
+<p>On geographic CRS (degrees) planar measurements aren't metrically meaningful. See <a href="#geodesic">Geodesic measurement</a>: in <b>Auto</b> mode (default) GeoSort automatically switches to measuring on the ellipsoid when it detects a geographic CRS.</p>
+</div>
+<div class="criterion">
+<h4>Why aren't Serpentine and Hilbert curve available as a secondary criterion?</h4>
+<p>Both require computing bands or extent over the <b>entire</b> layer before an order can be assigned — incompatible with the "tie-break" role of a secondary criterion, which only operates within groups already ordered by the primary one. The same applies to criteria based on a reference line.</p>
+</div>
+<div class="criterion">
+<h4>Can I undo the sort after applying it?</h4>
+<p>Yes, with <kbd>Ctrl+Z</kbd>: writing the <code>sort_order</code> field is wrapped in a single undo command, even on thousands of features.</p>
+</div>
+</section>
+
+</main>
+</div>
+
+<footer>
+<div class="wrap">
+  GeoSort is a GPLv2+ licensed QGIS plugin by Salvatore Fiandaca —
+  <a href="https://github.com/pigreco/geosort">repository</a> ·
+  <a href="https://github.com/pigreco/geosort#readme">full README</a> ·
+  <a href="https://github.com/pigreco/geosort/issues">report an issue</a>
+</div>
+</footer>
+
+<script src="../assets/js/main.js"></script>
