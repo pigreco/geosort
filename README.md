@@ -18,7 +18,7 @@ Compatibile con **QGIS 3.16+** (Qt5 / PyQt5) e **QGIS 4.x** (Qt6 / PyQt6).
 
 📖 **[Guida completa con esempi e screenshot](https://pigreco.github.io/geosort/)** — ogni criterio spiegato, parametri, casi d'uso tipici.
 
-![](gui.png)
+![Interfaccia di GeoSort](gui.png)
 
 ---
 
@@ -74,6 +74,10 @@ Esempio tipico: ordinare per *regione* (crescente) e, a parità di regione, per 
 (menu a tendina **Criterio secondario**) sia nel Processing (parametri `SECONDARY_*`).
 Non disponibile quando il criterio primario è basato su una linea di riferimento, è la
 curva di Hilbert o la serpentina.
+
+Se anche l'ultimo livello risulta in parità, l'ordine relativo delle feature coinvolte
+è quello di lettura dal layer sorgente: l'algoritmo usa ordinamenti stabili in cascata
+(nessun rimescolamento casuale sui pareggi residui).
 
 ### Modalità di ordinamento testuale
 
@@ -244,21 +248,21 @@ I test della logica di ordinamento non richiedono QGIS:
 ```bash
 cd geosort
 python -m unittest tests.test_sorting -v
-# 173 test sulla logica core (sort_by_attribute, sort_by_centroid, sort_multi, robustezza geometrie NULL, misura geodetica, ecc.)
+# 201 test sulla logica core (sort_by_attribute, sort_by_centroid, sort_multi, robustezza geometrie NULL, misura geodetica, ecc.)
 ```
 
 I test del dialog e dell'algoritmo Processing richiedono QGIS nel PATH:
 
 ```bash
-python -m unittest tests.test_dialog -v     # Test UI (32 test)
-python -m unittest tests.test_algorithm -v  # Test Processing Toolbox, tutti e 17 i criteri (52 test)
+python -m unittest tests.test_dialog -v     # Test UI (41 test)
+python -m unittest tests.test_algorithm -v  # Test Processing Toolbox, tutti e 18 i criteri (63 test)
 ```
 
 Eseguire tutti i test:
 
 ```bash
 python -m unittest discover tests -p "test_*.py" -v
-# Output: 248 tests (173 ok, 75 skipped che richiedono QGIS)
+# Output: 305 tests (201 ok, 104 skipped che richiedono QGIS)
 ```
 
 Ogni push e pull request esegue automaticamente l'intera suite su GitHub Actions:
@@ -295,8 +299,10 @@ python3 -m pytest tests/test_dialog.py -v
 
 ### Stile dei commit
 
-- Messaggi in italiano, presente indicativo: `Aggiunge`, `Corregge`, `Rimuove`
-- Prima riga ≤ 72 caratteri; dettagli nel corpo dopo una riga vuota
+- Prefisso Conventional Commits in inglese (`feat:`, `fix:`, `docs:`, `chore:`,
+  `refactor:`, `test:`...), con scope opzionale tra parentesi (`fix(qt6): ...`)
+- Descrizione in italiano, presente indicativo: `aggiunge`, `corregge`, `rimuove`
+- Prima riga ≤ 72 caratteri quando possibile; dettagli nel corpo dopo una riga vuota
 - Un commit per funzionalità/fix logicamente separata
 
 ### Convenzioni di naming
@@ -322,7 +328,7 @@ Il nome del file ZIP **non include** il numero di versione.
 
 ## Licenza
 
-GPL v2 o superiore – vedi file `LICENSE`.
+GPL v2 – vedi file `LICENSE`.
 
 ---
 
