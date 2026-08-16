@@ -1001,7 +1001,10 @@ def _first_intersection_distance(line_geom, feature_geom, line_engine=None, loca
         try:
             distances.append(_locate(pt))
         except Exception:
-            pass
+            # Punto degenere/non risolvibile (es. topologia limite): lo si
+            # scarta e si prosegue con gli altri punti d'intersezione; se
+            # tutti falliscono, min() sotto ritorna None più in basso.
+            pass  # nosec B110
 
     return min(distances) if distances else None
 

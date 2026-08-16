@@ -6,7 +6,10 @@ Fallback quando lrelease non è disponibile.
 
 import os
 from pathlib import Path
-from xml.etree import ElementTree as ET
+# ElementTree qui legge solo la risorsa .ts in bundle nel plugin stesso
+# (i18n/geosort_*.ts), non input esterno/utente; defusedxml non è usato
+# per non introdurre dipendenze esterne oltre PyQGIS (vedi CLAUDE.md).
+from xml.etree import ElementTree as ET  # nosec B405
 from qgis.PyQt.QtCore import QTranslator, QLocale
 
 class TsTranslator(QTranslator):
