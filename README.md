@@ -75,6 +75,10 @@ Esempio tipico: ordinare per *regione* (crescente) e, a parità di regione, per 
 Non disponibile quando il criterio primario è basato su una linea di riferimento, è la
 curva di Hilbert o la serpentina.
 
+Se anche l'ultimo livello risulta in parità, l'ordine relativo delle feature coinvolte
+è quello di lettura dal layer sorgente: l'algoritmo usa ordinamenti stabili in cascata
+(nessun rimescolamento casuale sui pareggi residui).
+
 ### Modalità di ordinamento testuale
 
 Per i criteri **Attributo tabellare** ed **Espressione QGIS** è possibile scegliere tra due modalità:

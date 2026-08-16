@@ -73,6 +73,10 @@ has its own direction. Available both in the dialog (**Secondary criterion** dro
 Processing (`SECONDARY_*` parameters). Not available when the primary criterion is line-based,
 the Hilbert curve, or the serpentine.
 
+If the last level is still tied, the relative order of the involved features is the
+one they are read in from the source layer: the algorithm uses cascading stable sorts
+(no random reshuffling on residual ties).
+
 ### Text Sorting Modes
 
 For **Attribute** and **QGIS Expression** criteria, you can choose between two modes:
