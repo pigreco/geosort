@@ -27,7 +27,11 @@ class TsTranslator(QTranslator):
             return False
 
         try:
-            tree = ET.parse(ts_file)
+            # nosec B314 - ts_file è una risorsa in bundle nel pacchetto del
+            # plugin stesso (i18n/geosort_*.ts), non input esterno/utente;
+            # defusedxml non è usato per non introdurre dipendenze esterne
+            # oltre PyQGIS (vedi CLAUDE.md).
+            tree = ET.parse(ts_file)  # nosec B314
             root = tree.getroot()
 
             for message in root.findall('.//message'):
