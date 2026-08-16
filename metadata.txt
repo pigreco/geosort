@@ -41,7 +41,7 @@ about=GeoSort sorts points, lines and polygons by centroid coordinates, area, le
     Developed with the assistance of Claude Code (Anthropic) | Realizzato con l'ausilio di Claude Code (Anthropic)
 tracker=https://github.com/pigreco/geosort/issues
 repository=https://github.com/pigreco/geosort
-homepage=https://github.com/pigreco/geosort
+homepage=https://pigreco.github.io/geosort/
 hasProcessingProvider=yes
 tags=ordinamento, geometria, attributi, vettoriale, sort, order, natural sort, multi-criterio, multicriteria, punti, linee, poligoni
 category=Vector
