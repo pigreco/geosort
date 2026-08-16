@@ -18,7 +18,7 @@ Compatible with **QGIS 3.16+** (Qt5 / PyQt5) and **QGIS 4.x** (Qt6 / PyQt6).
 
 📖 **[Full guide with examples and screenshots](https://pigreco.github.io/geosort/en/index.html)** — every criterion explained, parameters, typical use cases.
 
-![](gui.png)
+![GeoSort interface](gui.png)
 
 ---
 
@@ -241,21 +241,21 @@ Core sorting logic tests do not require QGIS:
 ```bash
 cd geosort
 python -m unittest tests.test_sorting -v
-# 173 tests on core logic (sort_by_attribute, sort_by_centroid, sort_multi, NULL geometry robustness, geodesic measurement, etc.)
+# 201 tests on core logic (sort_by_attribute, sort_by_centroid, sort_multi, NULL geometry robustness, geodesic measurement, etc.)
 ```
 
 Dialog and Processing algorithm tests require QGIS in PATH:
 
 ```bash
-python -m unittest tests.test_dialog -v     # UI tests (32 tests)
-python -m unittest tests.test_algorithm -v  # Processing Toolbox tests, all 17 criteria (52 tests)
+python -m unittest tests.test_dialog -v     # UI tests (41 tests)
+python -m unittest tests.test_algorithm -v  # Processing Toolbox tests, all 18 criteria (63 tests)
 ```
 
 Run all tests:
 
 ```bash
 python -m unittest discover tests -p "test_*.py" -v
-# Output: 248 tests (173 ok, 75 skipped that require QGIS)
+# Output: 305 tests (201 ok, 104 skipped that require QGIS)
 ```
 
 Every push and pull request automatically runs the whole suite on GitHub Actions:
@@ -292,8 +292,11 @@ python3 -m pytest tests/test_dialog.py -v
 
 ### Commit style
 
-- Messages in English, present tense: `Add`, `Fix`, `Remove`
-- First line ≤ 72 characters; details in body after blank line
+- Conventional Commits prefix in English (`feat:`, `fix:`, `docs:`, `chore:`,
+  `refactor:`, `test:`...), with optional scope (`fix(qt6): ...`)
+- Description in Italian, present tense (this is an Italian-authored project;
+  see the Italian README's Contributing section for the canonical wording)
+- First line ≤ 72 characters when possible; details in body after blank line
 - One commit per logically separate feature/fix
 
 ### Naming conventions
@@ -319,7 +322,7 @@ The ZIP filename **does not include** the version number.
 
 ## License
 
-GPL v2 or later – see `LICENSE` file.
+GPL v2 – see `LICENSE` file.
 
 ---
 
