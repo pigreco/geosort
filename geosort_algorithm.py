@@ -47,15 +47,15 @@ _GEODESIC_MODES = ["auto", "always", "never"]
 try:
     _FLAG_ADVANCED = Qgis.ProcessingParameterFlag.Advanced
 except AttributeError:
-    _FLAG_ADVANCED = QgsProcessingParameterDefinition.FlagAdvanced
+    _FLAG_ADVANCED = QgsProcessingParameterDefinition.Flag.FlagAdvanced
 
 # Stessa compatibilità per il tipo numerico intero dei parametri Processing
 # (QGIS 3.36+/4.x: ``Qgis.ProcessingNumberParameterType``; 3.16-3.34:
-# ``QgsProcessingParameterNumber.Integer``).
+# ``QgsProcessingParameterNumber.Type.Integer``).
 try:
     _NUMBER_INTEGER = Qgis.ProcessingNumberParameterType.Integer
 except AttributeError:
-    _NUMBER_INTEGER = QgsProcessingParameterNumber.Integer
+    _NUMBER_INTEGER = QgsProcessingParameterNumber.Type.Integer
 
 
 class _Canceled(Exception):
@@ -914,7 +914,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                     if i < len(values) else NULL
                 )
             new_feat.setAttributes(attrs)
-            sink.addFeature(new_feat, QgsFeatureSink.FastInsert)
+            sink.addFeature(new_feat, QgsFeatureSink.SinkFlag.FastInsert)
             if i % 100 == 0:
                 feedback.setProgress(60 + int(40 * i / total))
 

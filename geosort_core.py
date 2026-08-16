@@ -35,11 +35,10 @@ def _tr(text):
     """Traduce una stringa nel contesto 'GeoSort' (QtCore, nessuna dipendenza UI)."""
     return QCoreApplication.translate("GeoSort", text)
 
-# Compatibilita Qt5/Qt6 per Qt.ISODate
-try:
-    _ISODATE = Qt.DateFormat.ISODate       # Qt6 / PyQt6
-except AttributeError:
-    _ISODATE = Qt.ISODate                   # Qt5 / PyQt5
+# Qt.DateFormat.ISODate: l'accesso qualificato (nested enum) è supportato
+# da PyQt5 ben prima del requisito minimo QGIS 3.16, oltre che da PyQt6 —
+# nessun fallback necessario.
+_ISODATE = Qt.DateFormat.ISODate
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Costanti
