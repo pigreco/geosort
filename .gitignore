@@ -6,3 +6,6 @@ __pycache__/
 # (rigenerabili con scripts/gen_test_empirici.py). Non fanno parte della
 # suite automatica: vedi CLAUDE.md, sezione "Test empirici".
 test_empirici/
+
+
+gen_spiral_line.py
