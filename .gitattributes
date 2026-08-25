@@ -1,0 +1,9 @@
+# scripts/ è tooling da manutentore (rigenera .ts, conta test nei README,
+# genera asset di documentazione) — non viene mai importato né eseguito da
+# QGIS a runtime. `git archive` (usato per costruire lo ZIP delle release
+# GitHub e del pacchetto caricato su plugins.qgis.org) lo esclude qui
+# perché il security scanner del repository QGIS ufficiale (Bandit) scansiona
+# indiscriminatamente ogni file .py nello ZIP, comprese le utility di
+# sviluppo: la loro presenza generava finding (subprocess, try/except/pass,
+# eval, parsing XML) su codice che non fa parte del plugin distribuito.
+scripts/ export-ignore
