@@ -53,5 +53,18 @@ class TsTranslator(QTranslator):
             return False
 
     def translate(self, context, source_text, *args):
-        """Implementa il metodo translate di QTranslator."""
-        return self.translations.get(source_text, source_text)
+        """Implementa il metodo translate di QTranslator.
+
+        Deve restituire None (QString nulla) quando non ha una traduzione,
+        NON una stringa vuota: QCoreApplication::translate() prosegue la
+        ricerca nei traduttori successivi installati su QApplication
+        (incluso quello di QGIS stesso) solo se la QString restituita è
+        nulla (result.isNull()), non se è semplicemente vuota. Restituire
+        "" verrebbe interpretato come "traduzione trovata" (vuota) e
+        interromperebbe comunque la catena: essendo questo traduttore
+        installato globalmente, finirebbe per "oscurare" ogni stringa
+        dell'interfaccia QGIS non presente nel proprio dizionario.
+        """
+        if context != "GeoSort":
+            return None
+        return self.translations.get(source_text)
