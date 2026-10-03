@@ -315,6 +315,10 @@ Overwrite it with the new ordering?</translation>
       <translation>The reference layer contains no features.</translation>
     </message>
     <message>
+      <source>Il layer era già in modifica: le modifiche non sono state salvate automaticamente (salva o annulla dalla sessione di modifica).</source>
+      <translation>The layer was already in edit mode: the changes were not saved automatically (save or discard them from the edit session).</translation>
+    </message>
+    <message>
       <source>Il layer non contiene feature.</source>
       <translation>The layer contains no features.</translation>
     </message>
@@ -329,6 +333,10 @@ Overwrite it with the new ordering?</translation>
     <message>
       <source>Impossibile riproiettare il layer di riferimento dal CRS {ref} al CRS {target} del layer di input: {error}</source>
       <translation>Could not reproject the reference layer from CRS {ref} to the input layer's CRS {target}: {error}</translation>
+    </message>
+    <message>
+      <source>Impossibile riproiettare il punto dal CRS della mappa {src} al CRS {target} del layer: {error}</source>
+      <translation>Cannot reproject the point from the map CRS {src} to the layer CRS {target}: {error}</translation>
     </message>
     <message>
       <source>Incremento fra feature consecutive (es. 10 → 10, 20, 30...).</source>

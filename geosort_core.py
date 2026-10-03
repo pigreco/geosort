@@ -220,6 +220,22 @@ def _infer_field_type(values):
     return QMetaType.Type.Double  # fallback
 
 
+def _existing_field_type(field):
+    """Tipo di coercizione (Double, Int o QString) per un campo già esistente.
+
+    Args:
+        field (QgsField): campo del layer in cui scrivere i valori del criterio.
+
+    Returns:
+        QMetaType.Type: tipo accettato da :func:`_coerce_value`.
+    """
+    if not field.isNumeric():
+        return QMetaType.Type.QString
+    if field.type() == QMetaType.Type.Double:
+        return QMetaType.Type.Double
+    return QMetaType.Type.Int
+
+
 def _coerce_value(val, field_type):
     """Converte ``val`` al tipo del campo, restituendo NULL se non convertibile.
 
@@ -1412,7 +1428,10 @@ def apply_sort_order(
 ):
     """Scrive il campo sort_order (e opzionalmente il campo criterio) sul layer.
 
-    Avvia automaticamente una sessione di editing se il layer non è già in edit mode.
+    Avvia automaticamente una sessione di editing se il layer non è già in edit mode
+    (commit a fine operazione, rollback in caso di errore). Se invece il layer è
+    già in editing, le modifiche restano nel buffer dell'utente: nessun commit né
+    rollback, così le sue modifiche pendenti non vengono salvate o perse.
 
     Args:
         layer (QgsVectorLayer): layer di destinazione.
@@ -1428,8 +1447,12 @@ def apply_sort_order(
     Returns:
         bool: True se riuscito, False in caso di errore.
     """
+    # Se il layer era già in editing la sessione appartiene all'utente: le
+    # modifiche di GeoSort restano nel buffer (un solo blocco di undo) e non si
+    # fa né commit né rollback, che salverebbero o scarterebbero anche le sue
+    # modifiche pendenti.
+    was_editing = layer.isEditable()
     try:
-        was_editing = layer.isEditable()
         if not was_editing:
             if not layer.startEditing():
                 QgsMessageLog.logMessage(
@@ -1437,34 +1460,40 @@ def apply_sort_order(
                 )
                 return False
 
-        # ── Campo sort_order ──────────────────────────────────────────────────
-        sort_idx = layer.fields().indexOf(order_field_name)
-        if sort_idx == -1:
-            layer.addAttribute(QgsField(order_field_name, QMetaType.Type.Int))
-            layer.updateFields()
-            sort_idx = layer.fields().indexOf(order_field_name)
-
-        # ── Campo criterio (opzionale) ────────────────────────────────────────
-        crit_idx = -1
-        crit_field_type = QMetaType.Type.Double
-        if add_criterion_field and criterion_values:
-            crit_idx = layer.fields().indexOf(criterion_field_name)
-            if crit_idx == -1:
-                crit_field_type = _infer_field_type(criterion_values)
-                layer.addAttribute(QgsField(criterion_field_name, crit_field_type))
-                layer.updateFields()
-                crit_idx = layer.fields().indexOf(criterion_field_name)
-
-        # ── Assegnazione valori ───────────────────────────────────────────────
         total = len(sorted_features)
-        write_crit = add_criterion_field and criterion_values and crit_idx != -1
-        # beginEditCommand/endEditCommand raggruppa tutte le changeAttributeValues
-        # in un unico blocco di undo (altrimenti ogni feature sarebbe uno step
-        # separato: su layer grandi, migliaia di Ctrl+Z per annullare l'ordinamento).
+        # beginEditCommand/endEditCommand raggruppa l'aggiunta dei campi e tutte
+        # le changeAttributeValues in un unico blocco di undo (altrimenti ogni
+        # feature sarebbe uno step separato: su layer grandi, migliaia di Ctrl+Z
+        # per annullare l'ordinamento); in caso di errore destroyEditCommand
+        # annulla solo le modifiche di GeoSort.
         # "GeoSort" è il nome del plugin (compare nel menu Undo di QGIS): un nome
         # proprio, identico in ogni lingua, non va tradotto con _tr().
         layer.beginEditCommand("GeoSort")
         try:
+            # ── Campo sort_order ──────────────────────────────────────────────
+            sort_idx = layer.fields().indexOf(order_field_name)
+            if sort_idx == -1:
+                layer.addAttribute(QgsField(order_field_name, QMetaType.Type.Int))
+                layer.updateFields()
+                sort_idx = layer.fields().indexOf(order_field_name)
+
+            # ── Campo criterio (opzionale) ────────────────────────────────────
+            crit_idx = -1
+            crit_field_type = QMetaType.Type.Double
+            if add_criterion_field and criterion_values:
+                crit_idx = layer.fields().indexOf(criterion_field_name)
+                if crit_idx == -1:
+                    crit_field_type = _infer_field_type(criterion_values)
+                    layer.addAttribute(QgsField(criterion_field_name, crit_field_type))
+                    layer.updateFields()
+                    crit_idx = layer.fields().indexOf(criterion_field_name)
+                else:
+                    # Campo già presente (es. seconda esecuzione): i valori
+                    # vanno convertiti al suo tipo, non a quello di default.
+                    crit_field_type = _existing_field_type(layer.fields().at(crit_idx))
+
+            # ── Assegnazione valori ───────────────────────────────────────────
+            write_crit = add_criterion_field and criterion_values and crit_idx != -1
             for i, feat in enumerate(sorted_features):
                 changes = {sort_idx: start + i * step}
                 if write_crit:
@@ -1477,7 +1506,7 @@ def apply_sort_order(
             raise
         layer.endEditCommand()
 
-        if not layer.commitChanges():
+        if not was_editing and not layer.commitChanges():
             layer.rollBack()
             QgsMessageLog.logMessage(
                 "Errore nel commit delle modifiche.", LOG_TAG, Qgis.MessageLevel.Critical
@@ -1491,7 +1520,7 @@ def apply_sort_order(
 
     except Exception as exc:
         QgsMessageLog.logMessage(str(exc), LOG_TAG, Qgis.MessageLevel.Critical)
-        if layer.isEditable():
+        if not was_editing and layer.isEditable():
             layer.rollBack()
         return False
 
