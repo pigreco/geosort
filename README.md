@@ -2,7 +2,7 @@
 
 🇮🇹 **Italiano** | [🇬🇧 English](README.en.md)
 
-[![Version](https://img.shields.io/badge/version-1.11.2-blue.svg)](https://github.com/pigreco/geosort/releases)
+[![Version](https://img.shields.io/badge/version-1.11.3-blue.svg)](https://github.com/pigreco/geosort/releases)
 [![Languages](https://img.shields.io/badge/languages-IT%20%7C%20EN-green.svg)](#lingue--languages)
 [![QGIS](https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg)](#requisiti)
 [![License](https://img.shields.io/badge/license-GPLv2-red.svg)](LICENSE)
@@ -255,7 +255,7 @@ python -m unittest tests.test_sorting -v
 I test del dialog e dell'algoritmo Processing richiedono QGIS nel PATH:
 
 ```bash
-python -m unittest tests.test_dialog -v     # Test UI (41 test)
+python -m unittest tests.test_dialog -v     # Test UI (48 test)
 python -m unittest tests.test_algorithm -v  # Test Processing Toolbox, tutti e 18 i criteri (63 test)
 ```
 
@@ -263,7 +263,7 @@ Eseguire tutti i test:
 
 ```bash
 python -m unittest discover tests -p "test_*.py" -v
-# Output: 305 tests (201 ok, 104 skipped che richiedono QGIS)
+# Output: 312 tests (201 ok, 111 skipped che richiedono QGIS)
 ```
 
 Ogni push e pull request esegue automaticamente l'intera suite su GitHub Actions:

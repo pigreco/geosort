@@ -57,6 +57,14 @@ try:
 except AttributeError:
     _NUMBER_INTEGER = QgsProcessingParameterNumber.Type.Integer
 
+# Flag di inserimento rapido nel sink: su alcune build PyQt5 (es. QGIS 3.44
+# conda-forge) ``QgsFeatureSink.SinkFlag`` esiste ma non espone i membri, che
+# restano accessibili solo a livello di classe.
+try:
+    _FAST_INSERT = QgsFeatureSink.SinkFlag.FastInsert
+except AttributeError:
+    _FAST_INSERT = getattr(QgsFeatureSink, "FastInsert")
+
 
 class _Canceled(Exception):
     """Segnala che l'utente ha annullato l'esecuzione dal feedback di Processing."""
@@ -914,7 +922,7 @@ class GeoSortAlgorithm(QgsProcessingAlgorithm):
                     if i < len(values) else NULL
                 )
             new_feat.setAttributes(attrs)
-            sink.addFeature(new_feat, QgsFeatureSink.SinkFlag.FastInsert)
+            sink.addFeature(new_feat, _FAST_INSERT)
             if i % 100 == 0:
                 feedback.setProgress(60 + int(40 * i / total))
 

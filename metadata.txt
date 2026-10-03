@@ -3,7 +3,7 @@ name=GeoSort
 qgisMinimumVersion=3.16
 qgisMaximumVersion=4.99
 description=Sort vector layer features by geometric and attribute criteria | Ordina le feature di un layer vettoriale per criteri geometrici e attributivi
-version=1.11.2
+version=1.11.3
 author=Salvatore Fiandaca
 email=pigrecoinfinito@gmail.com
 about=GeoSort sorts points, lines and polygons by centroid coordinates, area, length,
@@ -51,6 +51,7 @@ deprecated=False
 server=False
 supportsQt6=True
 changelog=
+    1.11.3 Fix: nel dialogo la linea di riferimento ("Posizione lungo linea"/"Distanza dalla linea") viene ora riproiettata nel CRS del layer da ordinare, come già nel Processing; il punto di riferimento scelto con un click sulla mappa viene riproiettato dal CRS della mappa a quello del layer; se il layer è già in modifica GeoSort non salva né scarta più le modifiche pendenti dell'utente (i valori restano nel buffer di modifica come unico blocco di annullamento); il campo con il valore del criterio, se già presente, viene scritto nel suo tipo invece di finire a NULL alla seconda esecuzione; l'algoritmo Processing non fallisce più in scrittura sulle build PyQt5 in cui QgsFeatureSink.SinkFlag non espone FastInsert (es. QGIS 3.44 conda-forge)
     1.11.2 Fix: il traduttore del plugin non oscura più le traduzioni di QGIS — con GeoSort attivo i menu di QGIS non passavano più in inglese, indipendentemente dalla lingua impostata (issue #23)
     1.11.1 Dialogo più compatto: altezza ridotta del 30%% (misurata, non stimata); l'anteprima delle prime feature ordinate si apre ora in un popup on-demand (bottone accanto ad Aiuto) invece di occupare sempre spazio nella finestra principale; il gruppo Opzioni raggruppa più campi per riga (Direzione+NULL in fondo, criterio secondario+discendente); i controlli della Serpentina (verso della prima banda) restano nascosti quando non è il criterio attivo; il riquadro Layer di input è ora a dimensione fissa — l'avviso sul CRS geografico passa in tooltip invece di allungare la label a ogni cambio layer; nessuna modifica alla logica di ordinamento
     1.11.0 Nuovo criterio di ordinamento "Serpentina" (boustrophedon): raggruppa le feature in bande a partire dal centroide, con l'asse trasversale alternato crescente/decrescente da una banda alla successiva — l'ordine classico per numerare le tavole di una serie cartografica a taglio regolare o un percorso di volo fotogrammetrico, senza il salto lungo da fine banda a inizio banda successiva di un ordinamento a righe semplice; orientamento configurabile, bande orizzontali (per Y, X alternato — default) o verticali (per X, Y alternato), parametro BAND_AXIS nel Processing; parametro avanzato BAND_SIZE (dimensione banda nelle unità del CRS — altezza per orizzontali, larghezza per verticali; 0/vuoto = automatica dalla dimensione media delle bounding box delle feature); angolo di partenza configurabile, combinando la Direzione generale con il nuovo parametro CROSS_ASCENDING (verso dell'asse trasversale nella prima banda) si raggiunge uno qualunque dei quattro angoli della griglia; disponibile nel dialogo e nel Processing; non disponibile come criterio primario in modalità multi-criterio (richiede le bande calcolate su tutte le feature); 18° criterio di ordinamento, coperto da test end-to-end

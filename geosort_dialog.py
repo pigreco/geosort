@@ -40,6 +40,8 @@ from qgis.core import (
     QgsPointXY,
     QgsGeometry,
     QgsProject,
+    QgsCoordinateTransform,
+    QgsCsException,
     QgsMessageLog,
     QgsUnitTypes,
     Qgis,
@@ -738,6 +740,24 @@ class GeoSortDialog(QDialog):
             return
         self._pick_completed = True
         self._restore_map_tool()
+        # Il click arriva nel CRS del canvas: il punto di riferimento va
+        # espresso nel CRS del layer, come le geometrie con cui è confrontato.
+        layer = self.layer_combo.currentLayer()
+        canvas_crs = self.iface.mapCanvas().mapSettings().destinationCrs()
+        if layer and canvas_crs.isValid() and layer.crs().isValid() \
+                and canvas_crs != layer.crs():
+            try:
+                point = QgsCoordinateTransform(
+                    canvas_crs, layer.crs(), QgsProject.instance()
+                ).transform(point)
+            except QgsCsException as exc:
+                QMessageBox.warning(self, "GeoSort", self.tr(
+                    "Impossibile riproiettare il punto dal CRS della mappa {src} "
+                    "al CRS {target} del layer: {error}"
+                ).format(src=canvas_crs.authid(), target=layer.crs().authid(),
+                         error=str(exc)))
+                self._restore_dialog()
+                return
         self.spin_ref_x.setValue(point.x())
         self.spin_ref_y.setValue(point.y())
         self._restore_dialog()
@@ -817,6 +837,37 @@ class GeoSortDialog(QDialog):
                 ))
             return feats
         return list(layer.getFeatures())
+
+    def _ref_line_geom(self, ref_layer, layer):
+        """Geometria unificata del layer di riferimento, nel CRS di ``layer``.
+
+        Come nell'algoritmo Processing: se il layer di riferimento ha un CRS
+        diverso da quello del layer da ordinare, la linea viene riproiettata
+        prima del calcolo (altrimenti le geometrie verrebbero confrontate in
+        sistemi di coordinate differenti, con risultati silenziosamente errati).
+
+        Raises:
+            ValueError: layer di riferimento assente/vuoto o riproiezione fallita.
+        """
+        if not ref_layer:
+            raise ValueError("Nessun layer di riferimento selezionato.")
+        ref_feats = list(ref_layer.getFeatures())
+        if not ref_feats:
+            raise ValueError("Il layer di riferimento non contiene feature.")
+        line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+
+        ref_crs = ref_layer.crs()
+        target_crs = layer.crs()
+        if ref_crs.isValid() and target_crs.isValid() and ref_crs != target_crs:
+            transform = QgsCoordinateTransform(ref_crs, target_crs, QgsProject.instance())
+            try:
+                line_geom.transform(transform)
+            except QgsCsException as exc:
+                raise ValueError(self.tr(
+                    "Impossibile riproiettare il layer di riferimento dal CRS {ref} "
+                    "al CRS {target} del layer di input: {error}"
+                ).format(ref=ref_crs.authid(), target=target_crs.authid(), error=str(exc)))
+        return line_geom
 
     def _primary_spec_for_multi(self):
         """Descrittore del criterio primario per sort_multi.
@@ -1026,13 +1077,7 @@ class GeoSortDialog(QDialog):
 
         # ── Per posizione lungo linea ─────────────────────────────────────────
         if self.rb_spatial.isChecked():
-            ref_layer = self.combo_ref_layer.currentLayer()
-            if not ref_layer:
-                raise ValueError("Nessun layer di riferimento selezionato.")
-            ref_feats = list(ref_layer.getFeatures())
-            if not ref_feats:
-                raise ValueError("Il layer di riferimento non contiene feature.")
-            line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+            line_geom = self._ref_line_geom(self.combo_ref_layer.currentLayer(), layer)
             mode = self.combo_line_mode.currentData()
             sorted_feats, values, excluded = sort_by_line_position(
                 features, line_geom, ascending, mode=mode,
@@ -1042,13 +1087,7 @@ class GeoSortDialog(QDialog):
 
         # ── Per distanza dalla linea ─────────────────────────────────────────
         if self.rb_line_distance.isChecked():
-            ref_layer = self.combo_ref_layer_dist.currentLayer()
-            if not ref_layer:
-                raise ValueError("Nessun layer di riferimento selezionato.")
-            ref_feats = list(ref_layer.getFeatures())
-            if not ref_feats:
-                raise ValueError("Il layer di riferimento non contiene feature.")
-            line_geom = QgsGeometry.unaryUnion([f.geometry() for f in ref_feats])
+            line_geom = self._ref_line_geom(self.combo_ref_layer_dist.currentLayer(), layer)
             mode = self.combo_line_distance_mode.currentData()
             da_linedist = None
             if resolve_geodesic(layer.crs(), "line_distance", geo_mode):
@@ -1218,12 +1257,18 @@ class GeoSortDialog(QDialog):
                 if ok:
                     layer.triggerRepaint()
                     progress.close()
+                    # Layer già in editing prima di GeoSort: nessun commit
+                    # automatico, le modifiche restano nel buffer dell'utente.
+                    edit_suffix = ("\n\n" + self.tr(
+                        "Il layer era già in modifica: le modifiche non sono state "
+                        "salvate automaticamente (salva o annulla dalla sessione di modifica)."
+                    )) if layer.isEditable() else ""
                     QMessageBox.information(
                         self,
                         "GeoSort",
                         f"Ordinamento applicato con successo.\n"
                         f"Campo '{order_field}' aggiornato su {n} feature.{excl_msg}"
-                        f"{geo_suffix}",
+                        f"{geo_suffix}{edit_suffix}",
                     )
                 else:
                     progress.close()

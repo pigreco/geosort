@@ -59,7 +59,7 @@ The plugin is split into four modules with a deliberate dependency boundary:
 - `geosort_core.py` intentionally avoids any UI imports so it can be tested without QGIS.
 - `test_sorting.py` duplicates the sort logic as standalone functions (rather than importing from `geosort_core`) because importing the module requires PyQGIS to be available.
 - `sort_by_line_position` returns a 3-tuple `(sorted_feats, values, excluded)` — the `excluded` list contains features that don't intersect the reference line (relevant only for `intersecting_*` modes).
-- `apply_sort_order` starts an edit session if the layer isn't already editable, commits on success, and rolls back on failure.
+- `apply_sort_order` starts an edit session if the layer isn't already editable, commits on success, and rolls back on failure. If the layer was already editable, the edit session belongs to the user: the changes stay in the edit buffer (one undo block) with no commit and no rollback.
 
 ## Processing Toolbox usage
 

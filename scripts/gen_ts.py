@@ -432,6 +432,14 @@ EN.update({
     "Modalità sconosciuta: '{mode}'. Valori ammessi: {valid}":
         "Unknown mode: '{mode}'. Allowed values: {valid}",
     "Linea di riferimento assente o vuota.": "Reference line missing or empty.",
+    "Impossibile riproiettare il punto dal CRS della mappa {src} "
+    "al CRS {target} del layer: {error}":
+        "Cannot reproject the point from the map CRS {src} "
+        "to the layer CRS {target}: {error}",
+    "Il layer era già in modifica: le modifiche non sono state "
+    "salvate automaticamente (salva o annulla dalla sessione di modifica).":
+        "The layer was already in edit mode: the changes were not "
+        "saved automatically (save or discard them from the edit session).",
     "Criterio multi-livello sconosciuto: '{key}'.": "Unknown multi-level criterion: '{key}'.",
     # ── Serpentina (boustrophedon) ──
     "Serpentina (boustrophedon)": "Serpentine (boustrophedon)",

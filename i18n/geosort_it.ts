@@ -315,6 +315,10 @@ Sovrascriverlo con il nuovo ordinamento?</translation>
       <translation>Il layer di riferimento non contiene feature.</translation>
     </message>
     <message>
+      <source>Il layer era già in modifica: le modifiche non sono state salvate automaticamente (salva o annulla dalla sessione di modifica).</source>
+      <translation>Il layer era già in modifica: le modifiche non sono state salvate automaticamente (salva o annulla dalla sessione di modifica).</translation>
+    </message>
+    <message>
       <source>Il layer non contiene feature.</source>
       <translation>Il layer non contiene feature.</translation>
     </message>
@@ -329,6 +333,10 @@ Sovrascriverlo con il nuovo ordinamento?</translation>
     <message>
       <source>Impossibile riproiettare il layer di riferimento dal CRS {ref} al CRS {target} del layer di input: {error}</source>
       <translation>Impossibile riproiettare il layer di riferimento dal CRS {ref} al CRS {target} del layer di input: {error}</translation>
+    </message>
+    <message>
+      <source>Impossibile riproiettare il punto dal CRS della mappa {src} al CRS {target} del layer: {error}</source>
+      <translation>Impossibile riproiettare il punto dal CRS della mappa {src} al CRS {target} del layer: {error}</translation>
     </message>
     <message>
       <source>Incremento fra feature consecutive (es. 10 → 10, 20, 30...).</source>
