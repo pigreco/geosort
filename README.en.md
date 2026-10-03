@@ -7,7 +7,7 @@
 [![QGIS](https://img.shields.io/badge/QGIS-3.16%2B%20%7C%204.x-orange.svg)](#requirements)
 [![License](https://img.shields.io/badge/license-GPLv2-red.svg)](LICENSE)
 [![Tests](https://github.com/pigreco/geosort/actions/workflows/tests.yml/badge.svg)](https://github.com/pigreco/geosort/actions/workflows/tests.yml)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/pigreco/geosort)
+[![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-0A66C2.svg)](https://deepwiki.com/pigreco/geosort)
 
 ---
 
